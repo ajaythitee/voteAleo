@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(npm install:*)",
+      "Bash(chmod:*)",
+      "Bash(leo --version:*)",
+      "Bash(leo build:*)",
+      "Bash(leo deploy:*)",
+      "Bash(npm run build:*)"
+    ]
+  }
+}

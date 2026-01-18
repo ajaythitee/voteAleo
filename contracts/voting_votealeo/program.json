@@ -1,0 +1,7 @@
+{
+  "program": "vote_privacy_2985.aleo",
+  "version": "1.0.0",
+  "description": "VoteAleo - Privacy-preserving voting platform on Aleo blockchain",
+  "license": "MIT",
+  "dependencies": []
+}
