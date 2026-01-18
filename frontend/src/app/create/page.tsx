@@ -1,0 +1,532 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import {
+  Upload,
+  Plus,
+  X,
+  Calendar,
+  Image as ImageIcon,
+  Vote,
+  AlertCircle,
+  CheckCircle,
+  Loader2,
+} from 'lucide-react';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { GlassButton } from '@/components/ui/GlassButton';
+import { GlassInput, GlassTextarea } from '@/components/ui/GlassInput';
+import { useWallet } from '@demox-labs/aleo-wallet-adapter-react';
+import { useWalletStore } from '@/stores/walletStore';
+import { useToastStore } from '@/stores/toastStore';
+import { pinataService } from '@/services/pinata';
+import { aleoService } from '@/services/aleo';
+import { createTransaction, EventType, requestCreateEvent, getProgramId } from '@/utils/transaction';
+
+interface FormData {
+  title: string;
+  description: string;
+  image: File | null;
+  imagePreview: string | null;
+  startDate: string;
+  startTime: string;
+  endDate: string;
+  endTime: string;
+  options: string[];
+}
+
+const initialFormData: FormData = {
+  title: '',
+  description: '',
+  image: null,
+  imagePreview: null,
+  startDate: '',
+  startTime: '09:00',
+  endDate: '',
+  endTime: '18:00',
+  options: ['', ''],
+};
+
+export default function CreateCampaignPage() {
+  const router = useRouter();
+  const [formData, setFormData] = useState<FormData>(initialFormData);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [step, setStep] = useState(1);
+
+  // Get wallet info including wallet adapter name
+  const { publicKey, requestTransaction, wallet, connected } = useWallet();
+  const { isConnected } = useWalletStore();
+  const { success, error: showError } = useToastStore();
+
+  // Use wallet adapter connection state
+  const walletConnected = connected || isConnected;
+  const address = publicKey;
+
+  // Redirect if not connected
+  if (!walletConnected) {
+    return (
+      <div className="min-h-screen py-20">
+        <div className="max-w-2xl mx-auto px-4">
+          <GlassCard className="p-12 text-center">
+            <Vote className="w-16 h-16 text-white/20 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-white mb-4">
+              Connect Your Wallet
+            </h2>
+            <p className="text-white/60 mb-6">
+              You need to connect your wallet to create a campaign.
+            </p>
+          </GlassCard>
+        </div>
+      </div>
+    );
+  }
+
+  const handleInputChange = (field: keyof FormData, value: any) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        showError('File too large', 'Image must be less than 5MB');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        handleInputChange('image', file);
+        handleInputChange('imagePreview', reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    handleInputChange('image', null);
+    handleInputChange('imagePreview', null);
+  };
+
+  const addOption = () => {
+    if (formData.options.length < 10) {
+      handleInputChange('options', [...formData.options, '']);
+    }
+  };
+
+  const removeOption = (index: number) => {
+    if (formData.options.length > 2) {
+      handleInputChange(
+        'options',
+        formData.options.filter((_, i) => i !== index)
+      );
+    }
+  };
+
+  const updateOption = (index: number, value: string) => {
+    const newOptions = [...formData.options];
+    newOptions[index] = value;
+    handleInputChange('options', newOptions);
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.title.trim()) {
+      newErrors.title = 'Title is required';
+    }
+
+    if (!formData.description.trim()) {
+      newErrors.description = 'Description is required';
+    }
+
+    if (!formData.startDate) {
+      newErrors.startDate = 'Start date is required';
+    }
+
+    if (!formData.endDate) {
+      newErrors.endDate = 'End date is required';
+    }
+
+    const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
+    const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
+
+    if (startDateTime >= endDateTime) {
+      newErrors.endDate = 'End date must be after start date';
+    }
+
+    if (startDateTime < new Date()) {
+      newErrors.startDate = 'Start date must be in the future';
+    }
+
+    const validOptions = formData.options.filter((opt) => opt.trim());
+    if (validOptions.length < 2) {
+      newErrors.options = 'At least 2 options are required';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm()) {
+      return;
+    }
+
+    if (!address) {
+      showError('Wallet Error', 'Please connect your wallet first');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Upload image to IPFS if provided
+      let imageCid = '';
+      if (formData.image) {
+        const imageResult = await pinataService.uploadFile(formData.image);
+        imageCid = imageResult.cid;
+      }
+
+      // Upload metadata to IPFS
+      const metadata = {
+        title: formData.title,
+        description: formData.description,
+        options: formData.options.filter((opt) => opt.trim()),
+        creator: address,
+        createdAt: new Date().toISOString(),
+        imageCid,
+      };
+
+      const metadataResult = await pinataService.uploadJSON(metadata);
+
+      // Create campaign on-chain
+      const startTime = Math.floor(
+        new Date(`${formData.startDate}T${formData.startTime}`).getTime() / 1000
+      );
+      const endTime = Math.floor(
+        new Date(`${formData.endDate}T${formData.endTime}`).getTime() / 1000
+      );
+
+      // Hash the metadata CID for on-chain storage
+      const metadataHash = aleoService.hashToField(metadataResult.cid);
+      const validOptions = formData.options.filter((opt) => opt.trim());
+
+      // Format inputs for Aleo
+      const inputs = aleoService.formatCreateCampaignInputs(
+        metadataHash,
+        startTime,
+        endTime,
+        validOptions.length
+      );
+
+      const walletName = wallet?.adapter?.name;
+      console.log('Connected wallet:', walletName);
+      console.log('Creating campaign with inputs:', inputs);
+
+      let result;
+
+      if (walletName === 'Puzzle Wallet') {
+        // Use Puzzle Wallet SDK
+        const puzzleParams = {
+          type: EventType.Execute,
+          programId: getProgramId(),
+          functionId: 'create_campaign',
+          fee: 0.5, // Fee in credits for Puzzle
+          inputs,
+        };
+        result = await createTransaction(puzzleParams, requestCreateEvent, walletName);
+      } else {
+        // Use Leo Wallet adapter
+        const leoParams = {
+          publicKey: address,
+          functionName: 'create_campaign',
+          inputs,
+          fee: 500000, // Fee in microcredits for Leo
+          feePrivate: false,
+        };
+        result = await createTransaction(leoParams, requestTransaction, walletName);
+      }
+
+      if (!result.success) {
+        throw new Error(result.error || 'Transaction failed');
+      }
+
+      success('Campaign Created!', 'Your campaign has been created successfully');
+      router.push('/campaigns');
+    } catch (err: any) {
+      console.error('Create campaign error:', err);
+      showError('Failed to create campaign', err.message || 'Transaction failed');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen py-8">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white mb-2">Create Campaign</h1>
+          <p className="text-white/60">
+            Set up a new voting campaign for your community
+          </p>
+        </div>
+
+        {/* Progress Steps */}
+        <div className="flex items-center justify-center mb-8">
+          {[1, 2, 3].map((s) => (
+            <div key={s} className="flex items-center">
+              <motion.div
+                className={`
+                  w-10 h-10 rounded-full flex items-center justify-center
+                  ${step >= s
+                    ? 'bg-gradient-to-br from-indigo-500 to-purple-500'
+                    : 'bg-white/10'
+                  }
+                `}
+                animate={{ scale: step === s ? 1.1 : 1 }}
+              >
+                {step > s ? (
+                  <CheckCircle className="w-5 h-5 text-white" />
+                ) : (
+                  <span className="text-white font-semibold">{s}</span>
+                )}
+              </motion.div>
+              {s < 3 && (
+                <div className={`w-16 h-0.5 ${step > s ? 'bg-indigo-500' : 'bg-white/10'}`} />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Form Card */}
+        <GlassCard className="p-8">
+          {/* Step 1: Basic Info */}
+          {step === 1 && (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-6"
+            >
+              <h2 className="text-xl font-semibold text-white mb-6">
+                Basic Information
+              </h2>
+
+              <GlassInput
+                label="Campaign Title"
+                placeholder="Enter a descriptive title"
+                value={formData.title}
+                onChange={(e) => handleInputChange('title', e.target.value)}
+                error={errors.title}
+              />
+
+              <GlassTextarea
+                label="Description"
+                placeholder="Describe what this campaign is about..."
+                value={formData.description}
+                onChange={(e) => handleInputChange('description', e.target.value)}
+                error={errors.description}
+              />
+
+              {/* Image Upload */}
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-2">
+                  Campaign Image (Optional)
+                </label>
+                {formData.imagePreview ? (
+                  <div className="relative rounded-xl overflow-hidden">
+                    <img
+                      src={formData.imagePreview}
+                      alt="Preview"
+                      className="w-full h-48 object-cover"
+                    />
+                    <button
+                      onClick={removeImage}
+                      className="absolute top-2 right-2 p-2 rounded-lg bg-black/50 hover:bg-black/70 transition-colors"
+                    >
+                      <X className="w-5 h-5 text-white" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-full h-48 rounded-xl border-2 border-dashed border-white/10 hover:border-white/20 cursor-pointer transition-colors">
+                    <Upload className="w-10 h-10 text-white/30 mb-2" />
+                    <span className="text-white/50 text-sm">Click to upload image</span>
+                    <span className="text-white/30 text-xs mt-1">Max 5MB (JPG, PNG)</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+
+              <div className="flex justify-end">
+                <GlassButton onClick={() => setStep(2)}>
+                  Next: Voting Options
+                </GlassButton>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Step 2: Voting Options */}
+          {step === 2 && (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-6"
+            >
+              <h2 className="text-xl font-semibold text-white mb-6">
+                Voting Options
+              </h2>
+
+              <div className="space-y-3">
+                {formData.options.map((option, index) => (
+                  <div key={index} className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
+                      <span className="text-white/60 text-sm">{index + 1}</span>
+                    </div>
+                    <div className="flex-1">
+                      <GlassInput
+                        placeholder={`Option ${index + 1}`}
+                        value={option}
+                        onChange={(e) => updateOption(index, e.target.value)}
+                      />
+                    </div>
+                    {formData.options.length > 2 && (
+                      <button
+                        onClick={() => removeOption(index)}
+                        className="p-2 rounded-lg hover:bg-red-500/20 transition-colors"
+                      >
+                        <X className="w-5 h-5 text-red-400" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+
+                {errors.options && (
+                  <p className="text-sm text-red-400 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    {errors.options}
+                  </p>
+                )}
+
+                {formData.options.length < 10 && (
+                  <button
+                    onClick={addOption}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/60"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Option
+                  </button>
+                )}
+              </div>
+
+              <div className="flex justify-between pt-4">
+                <GlassButton variant="secondary" onClick={() => setStep(1)}>
+                  Back
+                </GlassButton>
+                <GlassButton onClick={() => setStep(3)}>
+                  Next: Schedule
+                </GlassButton>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Step 3: Schedule */}
+          {step === 3 && (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-6"
+            >
+              <h2 className="text-xl font-semibold text-white mb-6">
+                Voting Schedule
+              </h2>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <GlassInput
+                  label="Start Date"
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) => handleInputChange('startDate', e.target.value)}
+                  error={errors.startDate}
+                  icon={<Calendar className="w-5 h-5" />}
+                />
+                <GlassInput
+                  label="Start Time"
+                  type="time"
+                  value={formData.startTime}
+                  onChange={(e) => handleInputChange('startTime', e.target.value)}
+                />
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <GlassInput
+                  label="End Date"
+                  type="date"
+                  value={formData.endDate}
+                  onChange={(e) => handleInputChange('endDate', e.target.value)}
+                  error={errors.endDate}
+                  icon={<Calendar className="w-5 h-5" />}
+                />
+                <GlassInput
+                  label="End Time"
+                  type="time"
+                  value={formData.endTime}
+                  onChange={(e) => handleInputChange('endTime', e.target.value)}
+                />
+              </div>
+
+              {/* Summary */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                <h3 className="text-sm font-medium text-white/70 mb-3">Campaign Summary</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-white/50">Title:</span>
+                    <span className="text-white">{formData.title || '-'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/50">Options:</span>
+                    <span className="text-white">{formData.options.filter((o) => o.trim()).length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/50">Duration:</span>
+                    <span className="text-white">
+                      {formData.startDate && formData.endDate
+                        ? `${formData.startDate} to ${formData.endDate}`
+                        : '-'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/50">Wallet:</span>
+                    <span className="text-white">{wallet?.adapter?.name || 'Not connected'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-between pt-4">
+                <GlassButton variant="secondary" onClick={() => setStep(2)}>
+                  Back
+                </GlassButton>
+                <GlassButton
+                  onClick={handleSubmit}
+                  loading={isSubmitting}
+                  icon={<Vote className="w-5 h-5" />}
+                >
+                  {isSubmitting ? 'Creating...' : 'Create Campaign'}
+                </GlassButton>
+              </div>
+            </motion.div>
+          )}
+        </GlassCard>
+      </div>
+    </div>
+  );
+}
