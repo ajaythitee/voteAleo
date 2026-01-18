@@ -689,3 +689,227 @@ All three contracts successfully deployed to Aleo Testnet:
 
 Frontend wallet integration fixed! ✅
 Transaction execution using requestCreateEvent! ✅
+
+---
+
+# VoteAleo - Wallet Integration Fixes
+
+## Issues Found and Fixed (January 2026)
+
+### 14. ❌ Custom Wallet Implementation Instead of Wallet Adapter
+
+**Mistake:**
+- Used custom `walletService` with direct `window.leoWallet.connect()` calls
+- Used `@puzzlehq/sdk-core` `connect()` directly without proper adapter integration
+- Wallet connected automatically on unlock without asking for program permissions
+- Contract not loading properly - no signature request for program access
+
+**Error:**
+- Leo wallet not connecting even with extension installed
+- Puzzle wallet connecting automatically without asking for signature
+- Contract not loading in the wallet
+
+**Root Cause:**
+- The proper way to integrate Aleo wallets is using the `@demox-labs/aleo-wallet-adapter` package ecosystem
+- Direct SDK calls bypass the permission/decryption flow required by wallets
+- The adapter handles program permissions, decryption requests, and signature prompts
+
+**Fix:**
+1. Created `WalletWrapper.tsx` using proper wallet adapters:
+```typescript
+import { WalletProvider } from '@demox-labs/aleo-wallet-adapter-react';
+import { WalletModalProvider } from '@demox-labs/aleo-wallet-adapter-reactui';
+import { LeoWalletAdapter } from '@demox-labs/aleo-wallet-adapter-leo';
+import { PuzzleWalletAdapter } from 'aleo-adapters';
+import { DecryptPermission, WalletAdapterNetwork } from '@demox-labs/aleo-wallet-adapter-base';
+
+const wallets = useMemo(() => [
+  new LeoWalletAdapter({ appName: 'VoteAleo' }),
+  new PuzzleWalletAdapter({
+    programIdPermissions: {
+      [WalletAdapterNetwork.MainnetBeta]: [PROGRAM_ID],
+      [WalletAdapterNetwork.TestnetBeta]: [PROGRAM_ID],
+    },
+    appName: 'VoteAleo',
+    appDescription: 'Privacy-preserving voting on Aleo blockchain',
+  }),
+], []);
+
+<WalletProvider
+  wallets={wallets}
+  decryptPermission={DecryptPermission.UponRequest}
+  network={WalletAdapterNetwork.TestnetBeta}
+  autoConnect
+>
+  <WalletModalProvider>{children}</WalletModalProvider>
+</WalletProvider>
+```
+
+2. Used `WalletMultiButton` for connection UI instead of custom buttons
+3. Used `useWallet()` hook from `@demox-labs/aleo-wallet-adapter-react`
+4. Used `Transaction.createTransaction()` and `requestTransaction()` for transactions
+
+**Required Packages:**
+- `@demox-labs/aleo-wallet-adapter-base`
+- `@demox-labs/aleo-wallet-adapter-react`
+- `@demox-labs/aleo-wallet-adapter-reactui`
+- `@demox-labs/aleo-wallet-adapter-leo`
+- `aleo-adapters` (contains PuzzleWalletAdapter)
+
+**Lesson:** Always use the official wallet adapter libraries instead of custom implementations. The adapter handles all the complexity of permissions, signatures, and wallet-specific behaviors.
+
+---
+
+### 15. ❌ Hardcoded Demo Campaigns Instead of Blockchain Data
+
+**Mistake:**
+- Campaigns page had hardcoded `demoCampaigns` array with fake data
+- Campaign detail page also used demo campaigns
+- No actual blockchain data was being loaded
+
+**Code Before:**
+```typescript
+const demoCampaigns: Campaign[] = [
+  { id: '1', title: 'DAO Treasury Allocation Q1 2025', ... },
+  { id: '2', title: 'Protocol Upgrade Proposal v2.0', ... },
+  { id: '3', title: 'New Governance Council Election', ... },
+];
+// Used demoCampaigns instead of fetching from blockchain
+```
+
+**Fix:**
+1. Removed hardcoded `demoCampaigns` array
+2. Implemented actual blockchain fetching using `aleoService`:
+```typescript
+const loadCampaigns = async () => {
+  const campaignCount = await aleoService.getCampaignCount();
+  for (let i = 1; i <= campaignCount; i++) {
+    const onChainCampaign = await aleoService.fetchCampaign(i);
+    // Parse and use actual data
+  }
+};
+```
+3. Added IPFS metadata fetching using `pinataService.fetchJSON()`
+4. Added proper Aleo struct parsing for on-chain data
+
+**Lesson:** Never use hardcoded demo data in production. Always fetch real data from the blockchain and handle cases where no data exists gracefully.
+
+---
+
+### 16. ❌ Old Wallet Service Methods After Refactoring
+
+**Mistake:**
+- After refactoring wallet service, old method calls like `walletService.castVote()` were still being used
+- Created page and campaign detail page still referenced removed methods
+
+**Error:**
+```
+Type error: Property 'castVote' does not exist on type 'WalletService'.
+```
+
+**Fix:**
+1. Updated `walletService` to only provide transaction formatting:
+```typescript
+formatCastVoteTransaction(campaignId: number, optionIndex: number): TransactionRequest {
+  // Returns formatted transaction request
+}
+```
+
+2. Updated pages to use wallet adapter for transactions:
+```typescript
+const { requestTransaction } = useWallet();
+
+const txRequest = walletService.formatCastVoteTransaction(campaignId, optionIndex);
+const aleoTransaction = Transaction.createTransaction(
+  address,
+  WalletAdapterNetwork.TestnetBeta,
+  txRequest.programId,
+  txRequest.functionId,
+  txRequest.inputs,
+  txRequest.fee
+);
+const txId = await requestTransaction(aleoTransaction);
+```
+
+**Lesson:** When refactoring, search for all usages of changed methods and update them. Use TypeScript to catch these errors during build.
+
+---
+
+### 17. ❌ Type Errors in Boolean Comparisons
+
+**Mistake:**
+- Used `=== true` comparison with a string type variable:
+```typescript
+isActive: result.is_active === 'true' || result.is_active === true,
+```
+
+**Error:**
+```
+Type error: This comparison appears to be unintentional because the types 'string' and 'boolean' have no overlap.
+```
+
+**Fix:**
+```typescript
+// Since is_active from Aleo is a string 'true' or 'false'
+isActive: result.is_active === 'true',
+```
+
+**Lesson:** Aleo returns boolean values as strings ('true'/'false') not actual booleans. Only compare against the string representation.
+
+---
+
+### 18. ❌ Optional Parameter Without Null Check
+
+**Mistake:**
+- Passed optional `metadataHash` directly to function expecting string:
+```typescript
+const metadata = await fetchCampaignMetadata(campaignData.metadataHash);
+```
+
+**Error:**
+```
+Type error: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+```
+
+**Fix:**
+```typescript
+if (!campaignData.metadataHash) throw new Error('No metadata hash');
+const metadata = await fetchCampaignMetadata(campaignData.metadataHash);
+```
+
+**Lesson:** Always check for undefined before passing optional properties to functions that expect non-optional parameters.
+
+---
+
+## ✅ VoteAleo Summary
+
+### What Was Fixed:
+1. ✅ Proper wallet adapter integration with `WalletProvider`
+2. ✅ Leo wallet connection now works with signature request
+3. ✅ Puzzle wallet asks for program permissions before connecting
+4. ✅ Contract loads properly in wallet
+5. ✅ Removed fake demo campaigns
+6. ✅ Campaigns now load from blockchain
+7. ✅ IPFS metadata fetching works directly from frontend
+8. ✅ All type errors resolved
+9. ✅ Build succeeds
+
+### Key Dependencies Added:
+- `@demox-labs/aleo-wallet-adapter-leo` - Leo wallet adapter
+
+### Files Changed:
+- `src/components/wallet/WalletWrapper.tsx` - New wallet provider wrapper
+- `src/components/Providers.tsx` - New providers component
+- `src/components/wallet/WalletConnect.tsx` - Updated to use useWallet hook
+- `src/app/layout.tsx` - Wrapped with Providers
+- `src/app/campaigns/page.tsx` - Removed demo data, added blockchain fetching
+- `src/app/campaign/[id]/page.tsx` - Removed demo data, added blockchain fetching
+- `src/app/create/page.tsx` - Updated to use wallet adapter transactions
+- `src/services/wallet.ts` - Simplified to transaction formatting only
+- `src/app/globals.css` - Added wallet adapter button styles
+- `src/types/index.ts` - Added metadataHash field
+
+### Reference Implementation:
+The zk-auction-example from ProvableHQ was used as reference:
+- https://github.com/ProvableHQ/zk-auction-example
+- Specifically `WalletWrapper.jsx` for proper adapter setup
