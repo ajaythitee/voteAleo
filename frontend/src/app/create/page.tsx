@@ -450,38 +450,66 @@ export default function CreateCampaignPage() {
                 Voting Schedule
               </h2>
 
-              <div className="grid sm:grid-cols-2 gap-4">
-                <GlassInput
-                  label="Start Date"
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => handleInputChange('startDate', e.target.value)}
-                  error={errors.startDate}
-                  icon={<Calendar className="w-5 h-5" />}
-                />
-                <GlassInput
-                  label="Start Time"
-                  type="time"
-                  value={formData.startTime}
-                  onChange={(e) => handleInputChange('startTime', e.target.value)}
-                />
+              {/* Start Date & Time */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                <label className="block text-sm font-medium text-white/70 mb-3">
+                  Voting Starts
+                </label>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-white/50 mb-1">Date</label>
+                    <input
+                      type="date"
+                      value={formData.startDate}
+                      onChange={(e) => handleInputChange('startDate', e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                    />
+                    {errors.startDate && (
+                      <p className="text-xs text-red-400 mt-1">{errors.startDate}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs text-white/50 mb-1">Time</label>
+                    <input
+                      type="time"
+                      value={formData.startTime}
+                      onChange={(e) => handleInputChange('startTime', e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-4">
-                <GlassInput
-                  label="End Date"
-                  type="date"
-                  value={formData.endDate}
-                  onChange={(e) => handleInputChange('endDate', e.target.value)}
-                  error={errors.endDate}
-                  icon={<Calendar className="w-5 h-5" />}
-                />
-                <GlassInput
-                  label="End Time"
-                  type="time"
-                  value={formData.endTime}
-                  onChange={(e) => handleInputChange('endTime', e.target.value)}
-                />
+              {/* End Date & Time */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                <label className="block text-sm font-medium text-white/70 mb-3">
+                  Voting Ends
+                </label>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-white/50 mb-1">Date</label>
+                    <input
+                      type="date"
+                      value={formData.endDate}
+                      onChange={(e) => handleInputChange('endDate', e.target.value)}
+                      min={formData.startDate || new Date().toISOString().split('T')[0]}
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                    />
+                    {errors.endDate && (
+                      <p className="text-xs text-red-400 mt-1">{errors.endDate}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs text-white/50 mb-1">Time</label>
+                    <input
+                      type="time"
+                      value={formData.endTime}
+                      onChange={(e) => handleInputChange('endTime', e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Summary */}

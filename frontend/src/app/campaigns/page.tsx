@@ -35,64 +35,70 @@ export default function CampaignsPage() {
 
   const { isConnected } = useWalletStore();
 
-  // Fetch campaigns from blockchain
+  // Fetch campaigns from blockchain using Aleoscan API
   const loadCampaigns = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Get campaign count from blockchain
-      const campaignCount = await aleoService.getCampaignCount();
+      // Fetch all campaigns directly from Aleoscan API
+      const allCampaigns = await aleoService.fetchAllCampaigns();
+      console.log('Fetched campaigns from Aleoscan:', allCampaigns);
 
-      if (campaignCount === 0) {
-        setCampaigns([]);
-        setIsLoading(false);
-        return;
-      }
+      if (allCampaigns.length === 0) {
+        // Fallback: try fetching by counter
+        const campaignCount = await aleoService.getCampaignCount();
+        console.log('Campaign count from counter:', campaignCount);
 
-      const loadedCampaigns: Campaign[] = [];
-
-      // Fetch each campaign
-      for (let i = 1; i <= campaignCount; i++) {
-        try {
-          const onChainCampaign = await aleoService.fetchCampaign(i);
-
-          if (onChainCampaign) {
-            // Parse the on-chain data
-            const campaignData = parseOnChainCampaign(onChainCampaign, i);
-
-            if (campaignData) {
-              // Try to fetch metadata from IPFS if available
-              try {
-                if (!campaignData.metadataHash) throw new Error('No metadata hash');
-                const metadata = await fetchCampaignMetadata(campaignData.metadataHash);
-                if (metadata) {
-                  campaignData.title = metadata.title || campaignData.title;
-                  campaignData.description = metadata.description || campaignData.description;
-                  if (metadata.imageCid) {
-                    campaignData.imageUrl = pinataService.getGatewayUrl(metadata.imageCid);
-                  }
-                  if (metadata.options) {
-                    campaignData.options = metadata.options.map((label, idx) => ({
-                      id: String(idx),
-                      label,
-                      voteCount: campaignData.options[idx]?.voteCount || 0,
-                    }));
-                  }
-                }
-              } catch (metadataError) {
-                console.warn(`Could not fetch metadata for campaign ${i}:`, metadataError);
-              }
-
-              loadedCampaigns.push(campaignData);
-            }
-          }
-        } catch (campaignError) {
-          console.warn(`Could not fetch campaign ${i}:`, campaignError);
+        if (campaignCount === 0) {
+          setCampaigns([]);
+          setIsLoading(false);
+          return;
         }
-      }
 
-      setCampaigns(loadedCampaigns);
+        const loadedCampaigns: Campaign[] = [];
+
+        // Fetch each campaign by ID
+        for (let i = 1; i <= campaignCount; i++) {
+          try {
+            const onChainCampaign = await aleoService.fetchCampaign(i);
+            console.log(`Campaign ${i} raw data:`, onChainCampaign);
+
+            if (onChainCampaign) {
+              const campaignData = parseOnChainCampaign(onChainCampaign, i);
+              if (campaignData) {
+                loadedCampaigns.push(campaignData);
+              }
+            }
+          } catch (campaignError) {
+            console.warn(`Could not fetch campaign ${i}:`, campaignError);
+          }
+        }
+
+        setCampaigns(loadedCampaigns);
+      } else {
+        // Parse campaigns from Aleoscan response
+        const loadedCampaigns: Campaign[] = [];
+
+        for (const entry of allCampaigns) {
+          try {
+            // Extract campaign ID from key (e.g., "1u64" -> 1)
+            const idMatch = entry.id.match(/(\d+)/);
+            const id = idMatch ? parseInt(idMatch[1]) : 0;
+
+            if (id > 0) {
+              const campaignData = parseOnChainCampaign(entry.data, id);
+              if (campaignData) {
+                loadedCampaigns.push(campaignData);
+              }
+            }
+          } catch (err) {
+            console.warn('Error parsing campaign entry:', entry, err);
+          }
+        }
+
+        setCampaigns(loadedCampaigns);
+      }
     } catch (err: any) {
       console.error('Error loading campaigns:', err);
       setError('Failed to load campaigns from blockchain');

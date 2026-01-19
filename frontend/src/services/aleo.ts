@@ -117,23 +117,56 @@ class AleoService {
   /**
    * Fetch campaign data from chain (via RPC)
    */
-  async fetchCampaign(campaignId: number): Promise<Campaign | null> {
+  async fetchCampaign(campaignId: number): Promise<any | null> {
     try {
+      // Use the proper API endpoint format
       const response = await fetch(
-        `${this.config.rpcUrl}/${this.config.network}/program/${this.config.votingProgramId}/mapping/campaigns/${campaignId}`
+        `${this.config.rpcUrl}/${this.config.network}/program/${this.config.votingProgramId}/mapping/campaigns/${campaignId}u64`
       );
 
       if (!response.ok) {
+        console.log(`Campaign ${campaignId} not found, status: ${response.status}`);
         return null;
       }
 
       const data = await response.json();
-      // Parse the on-chain data into Campaign format
-      // This would need proper parsing based on actual contract output
+      console.log(`Campaign ${campaignId} data:`, data);
       return data;
     } catch (error) {
       console.error('Error fetching campaign:', error);
       return null;
+    }
+  }
+
+  /**
+   * Fetch all campaigns using Aleoscan API (lists all mapping values)
+   */
+  async fetchAllCampaigns(): Promise<any[]> {
+    try {
+      // Use Aleoscan API to list all campaigns
+      const response = await fetch(
+        `https://api.testnet.aleoscan.io/v2/mapping/list_program_mapping_values/${this.config.votingProgramId}/campaigns`
+      );
+
+      if (!response.ok) {
+        console.log('Failed to fetch campaigns from Aleoscan');
+        return [];
+      }
+
+      const data = await response.json();
+      console.log('All campaigns from Aleoscan:', data);
+
+      if (data.result && Array.isArray(data.result)) {
+        return data.result.map((entry: any) => ({
+          id: entry.key,
+          data: entry.value
+        }));
+      }
+
+      return [];
+    } catch (error) {
+      console.error('Error fetching all campaigns:', error);
+      return [];
     }
   }
 

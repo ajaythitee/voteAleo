@@ -14,7 +14,9 @@
       "WebFetch(domain:developer.aleo.org)",
       "WebFetch(domain:docs.leo.app)",
       "Bash(git clone:*)",
-      "Bash(xargs ls:*)"
+      "Bash(xargs ls:*)",
+      "Bash(grep:*)",
+      "Bash(npm show:*)"
     ]
   }
 }

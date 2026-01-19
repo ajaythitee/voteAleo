@@ -3,8 +3,12 @@
 import { useMemo, ReactNode, useCallback } from 'react';
 import { WalletProvider } from '@demox-labs/aleo-wallet-adapter-react';
 import { WalletModalProvider } from '@demox-labs/aleo-wallet-adapter-reactui';
-import { LeoWalletAdapter } from '@demox-labs/aleo-wallet-adapter-leo';
-import { PuzzleWalletAdapter } from 'aleo-adapters';
+import {
+  LeoWalletAdapter,
+  PuzzleWalletAdapter,
+  FoxWalletAdapter,
+  SoterWalletAdapter,
+} from 'aleo-adapters';
 import {
   DecryptPermission,
   WalletAdapterNetwork,
@@ -19,12 +23,14 @@ interface WalletWrapperProps {
 }
 
 export function WalletWrapper({ children }: WalletWrapperProps) {
-  // Initialize wallet adapters
+  // Initialize all available wallet adapters
   const wallets = useMemo(
     () => [
+      // Leo Wallet (official Aleo wallet)
       new LeoWalletAdapter({
         appName: 'VoteAleo',
       }),
+      // Puzzle Wallet
       new PuzzleWalletAdapter({
         programIdPermissions: {
           [WalletAdapterNetwork.MainnetBeta]: [PROGRAM_ID],
@@ -32,6 +38,14 @@ export function WalletWrapper({ children }: WalletWrapperProps) {
         },
         appName: 'VoteAleo',
         appDescription: 'Privacy-preserving voting on Aleo blockchain',
+      }),
+      // Fox Wallet
+      new FoxWalletAdapter({
+        appName: 'VoteAleo',
+      }),
+      // Soter Wallet
+      new SoterWalletAdapter({
+        appName: 'VoteAleo',
       }),
     ],
     []

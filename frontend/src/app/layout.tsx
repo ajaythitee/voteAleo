@@ -16,6 +16,14 @@ export const metadata: Metadata = {
   description: "Create campaigns, cast anonymous votes, and participate in decentralized governance with complete privacy using Aleo's zero-knowledge proofs.",
   keywords: ["voting", "aleo", "blockchain", "privacy", "zero-knowledge", "zk-snarks", "dao", "governance"],
   authors: [{ name: "VoteAleo Team" }],
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+    ],
+    apple: [
+      { url: '/apple-icon.svg', type: 'image/svg+xml' },
+    ],
+  },
   openGraph: {
     title: "VoteAleo - Privacy-Preserving Voting",
     description: "Anonymous voting powered by Aleo blockchain",

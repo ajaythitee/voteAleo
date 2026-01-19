@@ -23,7 +23,7 @@ body {
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(135deg, #0a0a1e 0%, #1a1a3e 25%, #0f0f2d 50%, #151535 75%, #0d0d25 100%);
+  background: linear-gradient(135deg, #050510 0%, #0a0a1a 25%, #080815 50%, #0c0c1a 75%, #050510 100%);
   background-attachment: fixed;
   min-height: 100vh;
 }
