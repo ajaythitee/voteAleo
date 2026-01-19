@@ -259,6 +259,26 @@ export default function CampaignDetailPage() {
 
       setHasVoted(true);
       success('Vote Cast!', 'Your anonymous vote has been recorded on the blockchain');
+
+      // Refresh campaign data after a short delay to allow blockchain confirmation
+      setTimeout(async () => {
+        try {
+          const id = parseInt(campaignId);
+          const onChainData = await aleoService.fetchCampaign(id);
+          if (onChainData) {
+            const updatedCampaign = parseOnChainCampaign(onChainData, id);
+            if (updatedCampaign && campaign) {
+              // Preserve metadata from previous state
+              updatedCampaign.title = campaign.title;
+              updatedCampaign.description = campaign.description;
+              updatedCampaign.imageUrl = campaign.imageUrl;
+              setCampaign(updatedCampaign);
+            }
+          }
+        } catch (refreshErr) {
+          console.warn('Could not refresh campaign data:', refreshErr);
+        }
+      }, 3000);
     } catch (err: any) {
       console.error('Vote error:', err);
       showError('Vote Failed', err.message || 'Transaction failed');

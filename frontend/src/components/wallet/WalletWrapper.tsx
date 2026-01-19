@@ -47,7 +47,8 @@ export function WalletWrapper({ children }: WalletWrapperProps) {
       wallets={wallets}
       decryptPermission={DecryptPermission.UponRequest}
       network={WalletAdapterNetwork.TestnetBeta}
-      autoConnect={false}
+      programs={[PROGRAM_ID]}
+      autoConnect
       onError={onError}
     >
       <WalletModalProvider>

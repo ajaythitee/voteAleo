@@ -37,18 +37,41 @@ class AleoService {
   }
 
   /**
-   * Hash a string to field element (simulated - actual hashing done on-chain)
+   * Encode a string as a field element
+   * This converts the string to a deterministic field value
+   * The field element is derived from the UTF-8 bytes of the string
+   */
+  encodeStringAsField(input: string): string {
+    // Convert string to bytes and create a numeric representation
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(input);
+
+    // Create a BigInt from the bytes (limited to fit in a field)
+    // Aleo field max is ~2^253, so we take a hash-like approach
+    let result = BigInt(0);
+    const prime = BigInt('8444461749428370424248824938781546531375899335154063827935233455917409239041');
+
+    for (let i = 0; i < bytes.length; i++) {
+      result = (result * BigInt(256) + BigInt(bytes[i])) % prime;
+    }
+
+    return `${result}field`;
+  }
+
+  /**
+   * Hash a string to field element using a simple deterministic approach
+   * This is used for on-chain storage references
    */
   hashToField(input: string): string {
-    // In production, this would use proper Aleo hashing
-    // For now, we return a deterministic placeholder
-    let hash = 0;
-    for (let i = 0; i < input.length; i++) {
-      const char = input.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    return `${Math.abs(hash)}field`;
+    return this.encodeStringAsField(input);
+  }
+
+  /**
+   * Convert an IPFS CID to a field element for on-chain storage
+   * The CID is encoded as a numeric field value
+   */
+  cidToField(cid: string): string {
+    return this.encodeStringAsField(cid);
   }
 
   /**
