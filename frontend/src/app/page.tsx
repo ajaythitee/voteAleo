@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -21,10 +21,17 @@ import {
   CheckCircle,
   Circle,
   Clock,
+  Calendar,
+  RefreshCw,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
+import { SkeletonCard } from '@/components/ui/LoadingSpinner';
 import { useWalletStore } from '@/stores/walletStore';
+import { Campaign, CampaignMetadata } from '@/types';
+import { aleoService } from '@/services/aleo';
+import { pinataService } from '@/services/pinata';
+import { formatDistanceToNow, isPast, isFuture } from 'date-fns';
 
 // Phase data
 const phases = [
@@ -112,7 +119,116 @@ const heroFeatures = [
 
 export default function Home() {
   const [currentPhase, setCurrentPhase] = useState(0);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(true);
   const { isConnected } = useWalletStore();
+
+  // Load campaigns from blockchain
+  useEffect(() => {
+    loadCampaigns();
+  }, []);
+
+  const loadCampaigns = async () => {
+    setIsLoadingCampaigns(true);
+    try {
+      const allCampaigns = await aleoService.fetchAllCampaigns();
+      const loadedCampaigns: Campaign[] = [];
+
+      for (const entry of allCampaigns) {
+        try {
+          const idMatch = entry.id.match(/(\d+)/);
+          const id = idMatch ? parseInt(idMatch[1]) : 0;
+
+          if (id > 0 && typeof entry.data === 'string') {
+            const parsed = parseAleoStruct(entry.data);
+            if (parsed) {
+              let title = `Campaign #${id}`;
+              let description = 'Campaign on VoteAleo';
+              const imageUrl = '/images/default-campaign.svg';
+
+              // Decode CID from on-chain and fetch metadata from IPFS
+              const cidPart1 = parsed['metadata_cid.part1'];
+              const cidPart2 = parsed['metadata_cid.part2'];
+
+              if (cidPart1 && cidPart2) {
+                try {
+                  const cid = aleoService.decodeFieldsToCid(
+                    cidPart1.includes('field') ? cidPart1 : cidPart1 + 'field',
+                    cidPart2.includes('field') ? cidPart2 : cidPart2 + 'field'
+                  );
+                  if (cid) {
+                    const metadata = await pinataService.fetchJSON<CampaignMetadata>(cid);
+                    if (metadata) {
+                      title = metadata.title || title;
+                      description = metadata.description || description;
+                    }
+                  }
+                } catch (e) {
+                  console.warn('Could not fetch metadata from IPFS:', e);
+                }
+              }
+
+              loadedCampaigns.push({
+                id: String(id),
+                title,
+                description,
+                imageUrl,
+                creator: parsed.creator || '',
+                startTime: new Date(Number(parsed.start_time || 0) * 1000),
+                endTime: new Date(Number(parsed.end_time || 0) * 1000),
+                options: [],
+                totalVotes: Number(parsed.total_votes || 0),
+                isActive: parsed.is_active === 'true',
+                createdAt: new Date(),
+                onChainId: id,
+              });
+            }
+          }
+        } catch (err) {
+          console.warn('Error parsing campaign:', err);
+        }
+      }
+
+      // Sort by most recent and limit to 6
+      loadedCampaigns.sort((a, b) => b.endTime.getTime() - a.endTime.getTime());
+      setCampaigns(loadedCampaigns.slice(0, 6));
+    } catch (err) {
+      console.error('Error loading campaigns:', err);
+    } finally {
+      setIsLoadingCampaigns(false);
+    }
+  };
+
+  const parseAleoStruct = (str: string): Record<string, string> | null => {
+    try {
+      const content = str.replace(/^\s*\{|\}\s*$/g, '').trim();
+      if (!content) return null;
+
+      const result: Record<string, string> = {};
+      const pairs = content.split(',').map(p => p.trim());
+
+      for (const pair of pairs) {
+        const colonIdx = pair.indexOf(':');
+        if (colonIdx === -1) continue;
+
+        const key = pair.substring(0, colonIdx).trim();
+        let value = pair.substring(colonIdx + 1).trim();
+        value = value.replace(/\s*(u\d+|i\d+|field|bool|address)$/i, '').trim();
+
+        result[key] = value;
+      }
+
+      return result;
+    } catch {
+      return null;
+    }
+  };
+
+  const getCampaignStatus = (campaign: Campaign) => {
+    if (isPast(campaign.endTime)) return 'ended';
+    if (isFuture(campaign.startTime)) return 'upcoming';
+    return 'active';
+  };
 
   const nextPhase = () => {
     setCurrentPhase((prev) => (prev + 1) % phases.length);
@@ -390,6 +506,155 @@ export default function Home() {
               ))}
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Featured Campaigns Section */}
+      <section className="py-20 relative">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            className="flex items-center justify-between mb-12"
+          >
+            <div>
+              <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+                Active Campaigns
+              </h2>
+              <p className="text-white/60 max-w-2xl">
+                Participate in live voting campaigns on the Aleo blockchain
+              </p>
+            </div>
+            <Link href="/campaigns">
+              <GlassButton variant="secondary" icon={<ArrowRight className="w-5 h-5" />}>
+                View All
+              </GlassButton>
+            </Link>
+          </motion.div>
+
+          {/* Campaigns Grid */}
+          {isLoadingCampaigns ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(3)].map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
+          ) : campaigns.length === 0 ? (
+            <GlassCard className="p-12 text-center">
+              <Vote className="w-16 h-16 text-white/20 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">
+                No campaigns yet
+              </h3>
+              <p className="text-white/60 mb-6">
+                Be the first to create a voting campaign!
+              </p>
+              {isConnected && (
+                <Link href="/create">
+                  <GlassButton icon={<Vote className="w-5 h-5" />}>
+                    Create Campaign
+                  </GlassButton>
+                </Link>
+              )}
+            </GlassCard>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {campaigns.map((campaign, index) => {
+                const status = getCampaignStatus(campaign);
+                const statusConfig = {
+                  active: {
+                    label: 'Active',
+                    color: 'bg-green-500/20 text-green-400 border-green-500/30',
+                    icon: Clock,
+                  },
+                  upcoming: {
+                    label: 'Upcoming',
+                    color: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+                    icon: Calendar,
+                  },
+                  ended: {
+                    label: 'Ended',
+                    color: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+                    icon: CheckCircle,
+                  },
+                };
+                const config = statusConfig[status];
+                const StatusIcon = config.icon;
+
+                return (
+                  <motion.div
+                    key={campaign.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: index * 0.1 }}
+                  >
+                    <Link href={`/campaign/${campaign.id}`}>
+                      <GlassCard hover className="h-full flex flex-col overflow-hidden p-0">
+                        {/* Image */}
+                        <div className="relative h-48 overflow-hidden bg-gradient-to-br from-indigo-500/20 to-purple-500/20">
+                          <img
+                            src={campaign.imageUrl || '/images/default-campaign.svg'}
+                            alt={campaign.title}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = '/images/default-campaign.svg';
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+
+                          {/* Status Badge */}
+                          <div className={`absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${config.color}`}>
+                            <StatusIcon className="w-3.5 h-3.5" />
+                            {config.label}
+                          </div>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-6 flex flex-col flex-1">
+                          <h3 className="text-lg font-semibold text-white mb-2 line-clamp-2">
+                            {campaign.title}
+                          </h3>
+                          <p className="text-sm text-white/60 mb-4 line-clamp-2 flex-1">
+                            {campaign.description}
+                          </p>
+
+                          {/* Stats */}
+                          <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2 text-white/50">
+                              <Users className="w-4 h-4" />
+                              <span>{campaign.totalVotes} votes</span>
+                            </div>
+
+                            <div className="flex items-center gap-2 text-white/50">
+                              <Clock className="w-4 h-4" />
+                              <span>
+                                {status === 'ended'
+                                  ? `Ended ${formatDistanceToNow(campaign.endTime, { addSuffix: true })}`
+                                  : status === 'upcoming'
+                                    ? `Starts ${formatDistanceToNow(campaign.startTime, { addSuffix: true })}`
+                                    : `Ends ${formatDistanceToNow(campaign.endTime, { addSuffix: true })}`
+                                }
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Vote CTA */}
+                          {status === 'active' && (
+                            <div className="mt-4 pt-4 border-t border-white/10">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-indigo-400">Cast your vote</span>
+                                <ArrowRight className="w-4 h-4 text-indigo-400" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </GlassCard>
+                    </Link>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 

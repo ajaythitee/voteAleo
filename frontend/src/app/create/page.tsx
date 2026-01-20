@@ -212,13 +212,11 @@ export default function CreateCampaignPage() {
         new Date(`${formData.endDate}T${formData.endTime}`).getTime() / 1000
       );
 
-      // Hash the metadata CID for on-chain storage
-      const metadataHash = aleoService.hashToField(metadataResult.cid);
       const validOptions = formData.options.filter((opt) => opt.trim());
 
-      // Format inputs for Aleo
+      // Format inputs for Aleo - CID is encoded into two field elements
       const inputs = aleoService.formatCreateCampaignInputs(
-        metadataHash,
+        metadataResult.cid,
         startTime,
         endTime,
         validOptions.length

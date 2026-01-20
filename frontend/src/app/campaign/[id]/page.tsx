@@ -53,61 +53,126 @@ export default function CampaignDetailPage() {
   const walletConnected = connected || isConnected;
   const address = publicKey;
 
-  // Parse on-chain campaign data
-  const parseOnChainCampaign = (data: any, id: number): Campaign | null => {
+  // Parse Aleo struct string format (handles nested structs)
+  const parseAleoStruct = (str: string): Record<string, string> | null => {
     try {
-      if (typeof data === 'string') {
-        // Parse the Aleo struct format
-        const content = data.replace(/^\s*\{|\}\s*$/g, '').trim();
-        if (!content) return null;
+      console.log('Parsing struct:', str);
 
-        const result: Record<string, string> = {};
-        const pairs = content.split(',').map(p => p.trim());
+      // Remove outer braces and newlines
+      let content = str.replace(/^\s*\{|\}\s*$/g, '').trim();
+      content = content.replace(/\n/g, ' ');
+      if (!content) return null;
 
-        for (const pair of pairs) {
-          const colonIdx = pair.indexOf(':');
-          if (colonIdx === -1) continue;
-          const key = pair.substring(0, colonIdx).trim();
-          let value = pair.substring(colonIdx + 1).trim();
-          value = value.replace(/\s*(u\d+|i\d+|field|bool|address)$/i, '').trim();
-          result[key] = value;
+      const result: Record<string, string> = {};
+
+      // Handle nested struct for metadata_cid: { part1: ..., part2: ... }
+      const nestedMatch = content.match(/metadata_cid\s*:\s*\{\s*part1\s*:\s*(\d+)field\s*,\s*part2\s*:\s*(\d+)field\s*\}/);
+      if (nestedMatch) {
+        result['metadata_cid.part1'] = nestedMatch[1] + 'field';
+        result['metadata_cid.part2'] = nestedMatch[2] + 'field';
+        // Remove the nested struct from content for further parsing
+        content = content.replace(/metadata_cid\s*:\s*\{[^}]+\}/, '');
+      }
+
+      // Match simple key-value pairs
+      const simpleRegex = /([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*([^,{}]+?)(?:,|$)/g;
+      let match;
+
+      while ((match = simpleRegex.exec(content)) !== null) {
+        const key = match[1].trim();
+        let value = match[2].trim();
+        // Remove type suffixes but keep the raw value
+        const cleanValue = value.replace(/\s*(u\d+|i\d+|field|bool|address)$/i, '').trim();
+        result[key] = cleanValue;
+      }
+
+      console.log('Parsed result:', result);
+      return result;
+    } catch (e) {
+      console.error('Error parsing struct:', e);
+      return null;
+    }
+  };
+
+  // Parse on-chain campaign data and fetch metadata from IPFS
+  const parseOnChainCampaign = async (data: any, id: number): Promise<Campaign | null> => {
+    try {
+      if (typeof data !== 'string') return null;
+
+      const parsed = parseAleoStruct(data);
+      if (!parsed) return null;
+
+      let title = `Campaign #${id}`;
+      let description = 'Campaign on VoteAleo';
+      const imageUrl = '/images/default-campaign.svg';
+      let options: { id: string; label: string; voteCount: number }[] = [];
+
+      // Decode CID from on-chain and fetch metadata from IPFS
+      const cidPart1 = parsed['metadata_cid.part1'];
+      const cidPart2 = parsed['metadata_cid.part2'];
+
+      console.log(`Campaign ${id} CID parts:`, { cidPart1, cidPart2 });
+
+      if (cidPart1 && cidPart2) {
+        try {
+          const part1WithSuffix = cidPart1.includes('field') ? cidPart1 : cidPart1 + 'field';
+          const part2WithSuffix = cidPart2.includes('field') ? cidPart2 : cidPart2 + 'field';
+
+          console.log(`Campaign ${id} decoding fields:`, { part1WithSuffix, part2WithSuffix });
+
+          const cid = aleoService.decodeFieldsToCid(part1WithSuffix, part2WithSuffix);
+          console.log(`Campaign ${id} decoded CID:`, cid);
+
+          if (cid && cid.length > 10) {
+            try {
+              const metadata = await pinataService.fetchJSON<CampaignMetadata>(cid);
+              console.log(`Campaign ${id} metadata from IPFS:`, metadata);
+
+              if (metadata) {
+                title = metadata.title || title;
+                description = metadata.description || description;
+                if (metadata.options && Array.isArray(metadata.options)) {
+                  options = metadata.options.map((label, idx) => ({
+                    id: String(idx),
+                    label: typeof label === 'string' ? label : `Option ${idx + 1}`,
+                    voteCount: Number(parsed[`votes_${idx}`] || 0),
+                  }));
+                }
+              }
+            } catch (ipfsError) {
+              console.warn(`Could not fetch IPFS metadata for campaign ${id}:`, ipfsError);
+            }
+          }
+        } catch (e) {
+          console.warn(`Could not decode CID for campaign ${id}:`, e);
         }
+      } else {
+        console.log(`Campaign ${id} has no CID parts in parsed data`);
+      }
 
-        return {
-          id: String(id),
-          title: `Campaign #${id}`,
-          description: 'Campaign on VoteAleo',
-          imageUrl: '',
-          creator: result.creator || '',
-          startTime: new Date(Number(result.start_time || 0) * 1000),
-          endTime: new Date(Number(result.end_time || 0) * 1000),
-          options: Array.from({ length: Number(result.option_count || 2) }, (_, idx) => ({
-            id: String(idx),
-            label: `Option ${idx + 1}`,
-            voteCount: Number(result[`votes_${idx}`] || 0),
-          })),
-          totalVotes: Number(result.total_votes || 0),
-          isActive: result.is_active === 'true',
-          createdAt: new Date(),
-          onChainId: id,
-          metadataHash: result.metadata_hash,
-        };
+      // Generate default options if none found
+      if (options.length === 0) {
+        const optionCount = Number(parsed.option_count || 2);
+        options = Array.from({ length: optionCount }, (_, idx) => ({
+          id: String(idx),
+          label: `Option ${idx + 1}`,
+          voteCount: Number(parsed[`votes_${idx}`] || 0),
+        }));
       }
 
       return {
         id: String(id),
-        title: data.title || `Campaign #${id}`,
-        description: data.description || 'Campaign on VoteAleo',
-        imageUrl: data.imageUrl || '',
-        creator: data.creator || '',
-        startTime: new Date(Number(data.start_time || data.startTime || 0) * 1000),
-        endTime: new Date(Number(data.end_time || data.endTime || 0) * 1000),
-        options: data.options || [],
-        totalVotes: Number(data.total_votes || data.totalVotes || 0),
-        isActive: data.is_active || data.isActive || false,
+        title,
+        description,
+        imageUrl,
+        creator: parsed.creator || '',
+        startTime: new Date(Number(parsed.start_time || 0) * 1000),
+        endTime: new Date(Number(parsed.end_time || 0) * 1000),
+        options,
+        totalVotes: Number(parsed.total_votes || 0),
+        isActive: parsed.is_active === 'true',
         createdAt: new Date(),
         onChainId: id,
-        metadataHash: data.metadata_hash || data.metadataHash,
       };
     } catch (err) {
       console.error('Error parsing campaign:', err);
@@ -145,36 +210,11 @@ export default function CampaignDetailPage() {
           throw new Error('Campaign not found');
         }
 
-        const campaignData = parseOnChainCampaign(onChainData, id);
+        // Parse and fetch metadata from IPFS
+        const campaignData = await parseOnChainCampaign(onChainData, id);
 
         if (!campaignData) {
           throw new Error('Failed to parse campaign data');
-        }
-
-        // Try to fetch metadata from IPFS
-        if (campaignData.metadataHash) {
-          try {
-            const metadata = await fetchCampaignMetadata(campaignData.metadataHash);
-            if (metadata) {
-              campaignData.title = metadata.title || campaignData.title;
-              campaignData.description = metadata.description || campaignData.description;
-              if (metadata.imageCid) {
-                campaignData.imageUrl = pinataService.getGatewayUrl(metadata.imageCid);
-              }
-              if (metadata.options) {
-                campaignData.options = metadata.options.map((label, idx) => ({
-                  id: String(idx),
-                  label,
-                  voteCount: campaignData.options[idx]?.voteCount || 0,
-                  percentage: campaignData.totalVotes > 0
-                    ? Math.round((campaignData.options[idx]?.voteCount || 0) / campaignData.totalVotes * 100)
-                    : 0,
-                }));
-              }
-            }
-          } catch (metadataError) {
-            console.warn('Could not fetch metadata:', metadataError);
-          }
         }
 
         // Calculate percentages
@@ -266,7 +306,7 @@ export default function CampaignDetailPage() {
           const id = parseInt(campaignId);
           const onChainData = await aleoService.fetchCampaign(id);
           if (onChainData) {
-            const updatedCampaign = parseOnChainCampaign(onChainData, id);
+            const updatedCampaign = await parseOnChainCampaign(onChainData, id);
             if (updatedCampaign && campaign) {
               // Preserve metadata from previous state
               updatedCampaign.title = campaign.title;
@@ -339,9 +379,9 @@ export default function CampaignDetailPage() {
     },
   };
 
-  // Handle image error - use placeholder
+  // Handle image error - use default campaign image
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    e.currentTarget.src = 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=800';
+    e.currentTarget.src = '/images/default-campaign.svg';
   };
 
   return (
@@ -363,18 +403,12 @@ export default function CampaignDetailPage() {
             <GlassCard className="overflow-hidden p-0">
               {/* Image */}
               <div className="relative h-64 sm:h-80 bg-gradient-to-br from-indigo-500/20 to-purple-500/20">
-                {campaign.imageUrl ? (
-                  <img
-                    src={campaign.imageUrl}
-                    alt={campaign.title}
-                    className="w-full h-full object-cover"
-                    onError={handleImageError}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Vote className="w-24 h-24 text-white/20" />
-                  </div>
-                )}
+                <img
+                  src={campaign.imageUrl || '/images/default-campaign.svg'}
+                  alt={campaign.title}
+                  className="w-full h-full object-cover"
+                  onError={handleImageError}
+                />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
                 {/* Status Badge */}

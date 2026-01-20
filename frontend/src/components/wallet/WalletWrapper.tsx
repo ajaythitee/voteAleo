@@ -3,8 +3,8 @@
 import { useMemo, ReactNode, useCallback } from 'react';
 import { WalletProvider } from '@demox-labs/aleo-wallet-adapter-react';
 import { WalletModalProvider } from '@demox-labs/aleo-wallet-adapter-reactui';
+import { LeoWalletAdapter } from '@demox-labs/aleo-wallet-adapter-leo';
 import {
-  LeoWalletAdapter,
   PuzzleWalletAdapter,
   FoxWalletAdapter,
   SoterWalletAdapter,
@@ -16,53 +16,92 @@ import {
 import '@demox-labs/aleo-wallet-adapter-reactui/styles.css';
 
 // Program ID for VoteAleo
-const PROGRAM_ID = process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID || 'vote_privacy_2985.aleo';
+const PROGRAM_ID = process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID || 'vote_privacy_6723.aleo';
 
 interface WalletWrapperProps {
   children: ReactNode;
 }
 
 export function WalletWrapper({ children }: WalletWrapperProps) {
-  // Initialize all available wallet adapters
   const wallets = useMemo(
-    () => [
-      // Leo Wallet (official Aleo wallet)
-      new LeoWalletAdapter({
-        appName: 'VoteAleo',
-      }),
+    () => {
+      const adapters = [];
+
+      // Leo Wallet (primary)
+      try {
+        adapters.push(
+          new LeoWalletAdapter({
+            appName: 'VoteAleo',
+          })
+        );
+      } catch (e) {
+        console.warn('Leo Wallet adapter init failed:', e);
+      }
+
       // Puzzle Wallet
-      new PuzzleWalletAdapter({
-        programIdPermissions: {
-          [WalletAdapterNetwork.MainnetBeta]: [PROGRAM_ID],
-          [WalletAdapterNetwork.TestnetBeta]: [PROGRAM_ID],
-        },
-        appName: 'VoteAleo',
-        appDescription: 'Privacy-preserving voting on Aleo blockchain',
-      }),
+      try {
+        adapters.push(
+          new PuzzleWalletAdapter({
+            programIdPermissions: {
+              [WalletAdapterNetwork.MainnetBeta]: [PROGRAM_ID],
+              [WalletAdapterNetwork.TestnetBeta]: [PROGRAM_ID],
+            },
+            appName: 'VoteAleo',
+            appDescription: 'Privacy-preserving voting on Aleo blockchain',
+          })
+        );
+      } catch (e) {
+        console.warn('Puzzle Wallet adapter init failed:', e);
+      }
+
       // Fox Wallet
-      new FoxWalletAdapter({
-        appName: 'VoteAleo',
-      }),
+      try {
+        adapters.push(
+          new FoxWalletAdapter({
+            appName: 'VoteAleo',
+          })
+        );
+      } catch (e) {
+        console.warn('Fox Wallet adapter init failed:', e);
+      }
+
       // Soter Wallet
-      new SoterWalletAdapter({
-        appName: 'VoteAleo',
-      }),
-    ],
+      try {
+        adapters.push(
+          new SoterWalletAdapter({
+            appName: 'VoteAleo',
+          })
+        );
+      } catch (e) {
+        console.warn('Soter Wallet adapter init failed:', e);
+      }
+
+      return adapters;
+    },
     []
   );
 
-  // Error handler
   const onError = useCallback((error: Error) => {
     console.error('Wallet error:', error);
+
+    // Handle specific wallet errors with user-friendly messages
+    const errorMessage = error.message || '';
+
+    if (errorMessage.includes('NETWORK_NOT_GRANTED') || errorMessage.includes('network')) {
+      console.warn(
+        'Network permission error: Please make sure your Leo Wallet is set to Testnet. ' +
+        'Open your wallet extension, go to Settings > Network, and select "Testnet".'
+      );
+    }
   }, []);
 
   return (
     <WalletProvider
       wallets={wallets}
-      decryptPermission={DecryptPermission.UponRequest}
+      decryptPermission={DecryptPermission.OnChainHistory}
+      programs={[PROGRAM_ID, 'credits.aleo']}
+      autoConnect={false}
       network={WalletAdapterNetwork.TestnetBeta}
-      programs={[PROGRAM_ID]}
-      autoConnect
       onError={onError}
     >
       <WalletModalProvider>

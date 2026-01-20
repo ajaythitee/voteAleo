@@ -16,7 +16,10 @@
       "Bash(git clone:*)",
       "Bash(xargs ls:*)",
       "Bash(grep:*)",
-      "Bash(npm show:*)"
+      "Bash(npm show:*)",
+      "Bash(ls:*)",
+      "Bash(snarkos --version:*)",
+      "Bash(node:*)"
     ]
   }
 }

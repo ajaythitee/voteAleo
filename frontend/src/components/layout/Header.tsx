@@ -4,13 +4,15 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Vote, Plus, LayoutGrid, Home } from 'lucide-react';
+import { Menu, X, Vote, Plus, LayoutGrid, Home, User, History } from 'lucide-react';
 import { WalletConnect } from '@/components/wallet/WalletConnect';
 import { useWalletStore } from '@/stores/walletStore';
 
 const navLinks = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/campaigns', label: 'Campaigns', icon: LayoutGrid },
+  { href: '/my-campaigns', label: 'My Campaigns', icon: User, requiresAuth: true },
+  { href: '/history', label: 'History', icon: History, requiresAuth: true },
   { href: '/create', label: 'Create', icon: Plus, requiresAuth: true },
 ];
 

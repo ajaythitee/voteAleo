@@ -116,15 +116,39 @@ class PinataService {
 
   /**
    * Fetch JSON metadata from IPFS
+   * Tries multiple gateways for reliability
    */
   async fetchJSON<T>(cid: string): Promise<T> {
-    const response = await fetch(this.getGatewayUrl(cid));
+    const gateways = [
+      `https://${this.gateway}/ipfs/${cid}`,
+      `https://ipfs.io/ipfs/${cid}`,
+      `https://cloudflare-ipfs.com/ipfs/${cid}`,
+      `https://dweb.link/ipfs/${cid}`,
+    ];
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch from IPFS');
+    let lastError: Error | null = null;
+
+    for (const gatewayUrl of gateways) {
+      try {
+        console.log(`Trying IPFS gateway: ${gatewayUrl}`);
+        const response = await fetch(gatewayUrl, {
+          headers: {
+            'Accept': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log(`Successfully fetched from ${gatewayUrl}:`, data);
+          return data as T;
+        }
+      } catch (e) {
+        console.warn(`Gateway ${gatewayUrl} failed:`, e);
+        lastError = e as Error;
+      }
     }
 
-    return response.json();
+    throw lastError || new Error('Failed to fetch from all IPFS gateways');
   }
 
   /**

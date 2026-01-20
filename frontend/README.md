@@ -1,5 +1,9 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+**Live App**: [https://vote-aleo.vercel.app/](https://vote-aleo.vercel.app/)
+
+**Smart Contract**: `vote_privacy_6723.aleo`
+
 ## Getting Started
 
 First, run the development server:

@@ -1,4 +1,4 @@
-program vote_privacy_2985.aleo;
+program vote_privacy_6723.aleo;
 
 record VoteReceipt:
     owner as address.private;
@@ -6,9 +6,13 @@ record VoteReceipt:
     option_index as u8.private;
     timestamp as u64.private;
 
+struct IpfsCid:
+    part1 as field;
+    part2 as field;
+
 struct Campaign:
     creator as address;
-    metadata_hash as field;
+    metadata_cid as IpfsCid;
     start_time as u64;
     end_time as u64;
     option_count as u8;
@@ -33,29 +37,32 @@ mapping has_voted:
 
 function create_campaign:
     input r0 as field.public;
-    input r1 as u64.public;
-    input r2 as u64.public;
-    input r3 as u8.public;
-    gt r2 r1 into r4;
-    assert.eq r4 true;
-    gte r3 2u8 into r5;
-    lte r3 4u8 into r6;
-    and r5 r6 into r7;
-    assert.eq r7 true;
-    async create_campaign self.caller r0 r1 r2 r3 into r8;
-    output r8 as vote_privacy_2985.aleo/create_campaign.future;
-
-finalize create_campaign:
-    input r0 as address.public;
     input r1 as field.public;
     input r2 as u64.public;
     input r3 as u64.public;
     input r4 as u8.public;
-    get.or_use campaign_counter[0u8] 0u64 into r5;
-    add r5 1u64 into r6;
-    set r6 into campaign_counter[0u8];
-    cast r0 r1 r2 r3 r4 0u64 true 0u64 0u64 0u64 0u64 into r7 as Campaign;
-    set r7 into campaigns[r6];
+    gt r3 r2 into r5;
+    assert.eq r5 true;
+    gte r4 2u8 into r6;
+    lte r4 4u8 into r7;
+    and r6 r7 into r8;
+    assert.eq r8 true;
+    async create_campaign self.caller r0 r1 r2 r3 r4 into r9;
+    output r9 as vote_privacy_6723.aleo/create_campaign.future;
+
+finalize create_campaign:
+    input r0 as address.public;
+    input r1 as field.public;
+    input r2 as field.public;
+    input r3 as u64.public;
+    input r4 as u64.public;
+    input r5 as u8.public;
+    get.or_use campaign_counter[0u8] 0u64 into r6;
+    add r6 1u64 into r7;
+    set r7 into campaign_counter[0u8];
+    cast r1 r2 into r8 as IpfsCid;
+    cast r0 r8 r3 r4 r5 0u64 true 0u64 0u64 0u64 0u64 into r9 as Campaign;
+    set r9 into campaigns[r7];
 
 function cast_vote:
     input r0 as u64.public;
@@ -67,7 +74,7 @@ function cast_vote:
     hash.bhp256 self.caller into r5 as field;
     async cast_vote r0 r1 r5 into r6;
     output r4 as VoteReceipt.record;
-    output r6 as vote_privacy_2985.aleo/cast_vote.future;
+    output r6 as vote_privacy_6723.aleo/cast_vote.future;
 
 finalize cast_vote:
     input r0 as u64.public;
@@ -97,20 +104,20 @@ finalize cast_vote:
     ternary r19 1u64 0u64 into r20;
     add r3.votes_3 r20 into r21;
     add r3.total_votes 1u64 into r22;
-    cast r3.creator r3.metadata_hash r3.start_time r3.end_time r3.option_count r22 r3.is_active r12 r15 r18 r21 into r23 as Campaign;
+    cast r3.creator r3.metadata_cid r3.start_time r3.end_time r3.option_count r22 r3.is_active r12 r15 r18 r21 into r23 as Campaign;
     set r23 into campaigns[r0];
 
 function end_campaign:
     input r0 as u64.public;
     async end_campaign r0 self.caller into r1;
-    output r1 as vote_privacy_2985.aleo/end_campaign.future;
+    output r1 as vote_privacy_6723.aleo/end_campaign.future;
 
 finalize end_campaign:
     input r0 as u64.public;
     input r1 as address.public;
     get campaigns[r0] into r2;
     assert.eq r2.creator r1;
-    cast r2.creator r2.metadata_hash r2.start_time r2.end_time r2.option_count r2.total_votes false r2.votes_0 r2.votes_1 r2.votes_2 r2.votes_3 into r3 as Campaign;
+    cast r2.creator r2.metadata_cid r2.start_time r2.end_time r2.option_count r2.total_votes false r2.votes_0 r2.votes_1 r2.votes_2 r2.votes_3 into r3 as Campaign;
     set r3 into campaigns[r0];
 
 function verify_vote_participation:

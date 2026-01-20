@@ -5,16 +5,23 @@
 // - Gasless Voting (via relayer)
 // - Hidden Results Until Voting Ends
 
-program vote_privacy_2985.aleo {
+program vote_privacy_6723.aleo {
+    // IPFS CID storage (CIDv1 base32 encoded, split into 2 fields)
+    // Each field can hold ~31 bytes, CID is ~59 chars max
+    struct IpfsCid {
+        part1: field,  // First 31 bytes
+        part2: field,  // Remaining bytes
+    }
+
     // Campaign structure stored on-chain
     struct Campaign {
         creator: address,
-        metadata_hash: field,        // IPFS hash containing title, description, options
-        start_time: u64,             // Unix timestamp
-        end_time: u64,               // Unix timestamp
-        option_count: u8,            // Number of voting options (max 4)
-        total_votes: u64,            // Total votes cast
-        is_active: bool,             // Campaign status
+        metadata_cid: IpfsCid,           // IPFS CID for metadata (title, description, options)
+        start_time: u64,                 // Unix timestamp
+        end_time: u64,                   // Unix timestamp
+        option_count: u8,                // Number of voting options (max 4)
+        total_votes: u64,                // Total votes cast
+        is_active: bool,                 // Campaign status
         // Vote counts for each option (up to 4)
         votes_0: u64,
         votes_1: u64,
@@ -41,10 +48,11 @@ program vote_privacy_2985.aleo {
 
     // Create a new voting campaign
     async transition create_campaign(
-        public metadata_hash: field,     // IPFS hash with campaign details
+        public cid_part1: field,          // IPFS CID part 1
+        public cid_part2: field,          // IPFS CID part 2
         public start_time: u64,
         public end_time: u64,
-        public option_count: u8          // 2-4 options
+        public option_count: u8           // 2-4 options
     ) -> Future {
         // Validate inputs
         assert(end_time > start_time);
@@ -52,7 +60,8 @@ program vote_privacy_2985.aleo {
 
         return finalize_create_campaign(
             self.caller,
-            metadata_hash,
+            cid_part1,
+            cid_part2,
             start_time,
             end_time,
             option_count
@@ -61,7 +70,8 @@ program vote_privacy_2985.aleo {
 
     async function finalize_create_campaign(
         creator: address,
-        metadata_hash: field,
+        cid_part1: field,
+        cid_part2: field,
         start_time: u64,
         end_time: u64,
         option_count: u8
@@ -71,10 +81,16 @@ program vote_privacy_2985.aleo {
         let campaign_id: u64 = current_counter + 1u64;
         Mapping::set(campaign_counter, 0u8, campaign_id);
 
+        // Create IPFS CID struct
+        let metadata_cid: IpfsCid = IpfsCid {
+            part1: cid_part1,
+            part2: cid_part2,
+        };
+
         // Create campaign struct with zero vote counts
         let campaign: Campaign = Campaign {
             creator: creator,
-            metadata_hash: metadata_hash,
+            metadata_cid: metadata_cid,
             start_time: start_time,
             end_time: end_time,
             option_count: option_count,
@@ -141,7 +157,7 @@ program vote_privacy_2985.aleo {
         // Update campaign with new vote
         let updated_campaign: Campaign = Campaign {
             creator: campaign.creator,
-            metadata_hash: campaign.metadata_hash,
+            metadata_cid: campaign.metadata_cid,
             start_time: campaign.start_time,
             end_time: campaign.end_time,
             option_count: campaign.option_count,
@@ -174,7 +190,7 @@ program vote_privacy_2985.aleo {
         // Update campaign to inactive
         let updated_campaign: Campaign = Campaign {
             creator: campaign.creator,
-            metadata_hash: campaign.metadata_hash,
+            metadata_cid: campaign.metadata_cid,
             start_time: campaign.start_time,
             end_time: campaign.end_time,
             option_count: campaign.option_count,
