@@ -56,7 +56,7 @@ export default function CampaignDetailPage() {
   // Parse Aleo struct string format (handles nested structs)
   const parseAleoStruct = (str: string): Record<string, string> | null => {
     try {
-      console.log('Parsing struct:', str);
+      console.log('Parsing struct:', str.slice(0, 200) + '...');
 
       // Remove outer braces and newlines
       let content = str.replace(/^\s*\{|\}\s*$/g, '').trim();
@@ -66,12 +66,28 @@ export default function CampaignDetailPage() {
       const result: Record<string, string> = {};
 
       // Handle nested struct for metadata_cid: { part1: ..., part2: ... }
-      const nestedMatch = content.match(/metadata_cid\s*:\s*\{\s*part1\s*:\s*(\d+)field\s*,\s*part2\s*:\s*(\d+)field\s*\}/);
+      const nestedMatch = content.match(/metadata_cid\s*:\s*\{\s*part1\s*:\s*(\d+)field\s*,\s*part2\s*:\s*(\d+)field\s*\}/i);
       if (nestedMatch) {
         result['metadata_cid.part1'] = nestedMatch[1] + 'field';
         result['metadata_cid.part2'] = nestedMatch[2] + 'field';
+        console.log('Extracted CID parts:', {
+          part1: result['metadata_cid.part1'].slice(0, 30) + '...',
+          part2: result['metadata_cid.part2'].slice(0, 30) + '...'
+        });
         // Remove the nested struct from content for further parsing
-        content = content.replace(/metadata_cid\s*:\s*\{[^}]+\}/, '');
+        content = content.replace(/metadata_cid\s*:\s*\{[^}]+\}/i, '');
+      } else {
+        // Try to extract fields directly if nested parsing fails
+        const part1Match = content.match(/part1\s*:\s*(\d+)field/i);
+        const part2Match = content.match(/part2\s*:\s*(\d+)field/i);
+        if (part1Match && part2Match) {
+          result['metadata_cid.part1'] = part1Match[1] + 'field';
+          result['metadata_cid.part2'] = part2Match[1] + 'field';
+          console.log('Extracted CID parts (alternative):', {
+            part1: result['metadata_cid.part1'].slice(0, 30) + '...',
+            part2: result['metadata_cid.part2'].slice(0, 30) + '...'
+          });
+        }
       }
 
       // Match simple key-value pairs
@@ -86,7 +102,7 @@ export default function CampaignDetailPage() {
         result[key] = cleanValue;
       }
 
-      console.log('Parsed result:', result);
+      console.log('Parsed result keys:', Object.keys(result));
       return result;
     } catch (e) {
       console.error('Error parsing struct:', e);

@@ -150,26 +150,52 @@ export default function MyCampaignsPage() {
     }
   };
 
+  // Parse Aleo struct string format (handles nested structs)
   const parseAleoStruct = (str: string): Record<string, string> | null => {
     try {
-      const content = str.replace(/^\s*\{|\}\s*$/g, '').trim();
+      console.log('Parsing struct:', str.slice(0, 200) + '...');
+
+      // Remove outer braces and newlines
+      let content = str.replace(/^\s*\{|\}\s*$/g, '').trim();
+      content = content.replace(/\n/g, ' ');
       if (!content) return null;
 
       const result: Record<string, string> = {};
 
-      // Match key-value pairs, handling nested structs
-      const regex = /([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)\s*:\s*([^,}]+)/g;
+      // Handle nested struct for metadata_cid: { part1: ..., part2: ... }
+      const nestedMatch = content.match(/metadata_cid\s*:\s*\{\s*part1\s*:\s*(\d+)field\s*,\s*part2\s*:\s*(\d+)field\s*\}/i);
+      if (nestedMatch) {
+        result['metadata_cid.part1'] = nestedMatch[1] + 'field';
+        result['metadata_cid.part2'] = nestedMatch[2] + 'field';
+        console.log('Extracted CID parts:', {
+          part1: result['metadata_cid.part1'].slice(0, 30) + '...',
+          part2: result['metadata_cid.part2'].slice(0, 30) + '...'
+        });
+        content = content.replace(/metadata_cid\s*:\s*\{[^}]+\}/i, '');
+      } else {
+        // Try to extract fields directly if nested parsing fails
+        const part1Match = content.match(/part1\s*:\s*(\d+)field/i);
+        const part2Match = content.match(/part2\s*:\s*(\d+)field/i);
+        if (part1Match && part2Match) {
+          result['metadata_cid.part1'] = part1Match[1] + 'field';
+          result['metadata_cid.part2'] = part2Match[1] + 'field';
+        }
+      }
+
+      // Match simple key-value pairs
+      const simpleRegex = /([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*([^,{}]+?)(?:,|$)/g;
       let match;
 
-      while ((match = regex.exec(content)) !== null) {
+      while ((match = simpleRegex.exec(content)) !== null) {
         const key = match[1].trim();
         let value = match[2].trim();
-        value = value.replace(/\s*(u\d+|i\d+|field|bool|address)$/i, '').trim();
-        result[key] = value;
+        const cleanValue = value.replace(/\s*(u\d+|i\d+|field|bool|address)$/i, '').trim();
+        result[key] = cleanValue;
       }
 
       return result;
-    } catch {
+    } catch (e) {
+      console.error('Error parsing struct:', e);
       return null;
     }
   };
