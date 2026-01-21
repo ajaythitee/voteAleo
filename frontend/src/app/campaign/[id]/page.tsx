@@ -27,6 +27,7 @@ import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { aleoService } from '@/services/aleo';
 import { pinataService } from '@/services/pinata';
+import { relayerService } from '@/services/relayer';
 import { createTransaction, EventType, requestCreateEvent, getProgramId } from '@/utils/transaction';
 import { Campaign, VotingOption, CampaignMetadata } from '@/types';
 import { format, formatDistanceToNow, isPast, isFuture } from 'date-fns';
@@ -44,6 +45,7 @@ export default function CampaignDetailPage() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [useGasless, setUseGasless] = useState(true); // Default to gasless
 
   const { publicKey, requestTransaction, wallet, connected } = useWallet();
   const { isConnected } = useWalletStore();
@@ -271,11 +273,6 @@ export default function CampaignDetailPage() {
   const handleVote = async () => {
     if (selectedOption === null || !campaign) return;
 
-    if (!address) {
-      showError('Wallet Error', 'Please connect your wallet first');
-      return;
-    }
-
     setShowConfirmModal(false);
     setIsVoting(true);
 
@@ -283,35 +280,53 @@ export default function CampaignDetailPage() {
       const campaignIdNum = campaign.onChainId || parseInt(campaign.id);
       const timestamp = Math.floor(Date.now() / 1000);
 
-      // Format inputs for Aleo
-      const inputs = aleoService.formatCastVoteInputs(campaignIdNum, selectedOption, timestamp);
-
-      const walletName = wallet?.adapter?.name;
-      console.log('Voting with wallet:', walletName);
-      console.log('Vote inputs:', inputs);
-
       let result;
 
-      if (walletName === 'Puzzle Wallet') {
-        // Use Puzzle Wallet SDK
-        const puzzleParams = {
-          type: EventType.Execute,
-          programId: getProgramId(),
-          functionId: 'cast_vote',
-          fee: 0.3, // Fee in credits for Puzzle
-          inputs,
-        };
-        result = await createTransaction(puzzleParams, requestCreateEvent, walletName);
+      // Use gasless relayer if enabled
+      if (useGasless) {
+        console.log('Using gasless voting via relayer');
+        result = await relayerService.submitVote({
+          campaignId: campaignIdNum,
+          optionIndex: selectedOption,
+          voterAddress: address || 'anonymous',
+          timestamp,
+        });
       } else {
-        // Use Leo Wallet adapter
-        const leoParams = {
-          publicKey: address,
-          functionName: 'cast_vote',
-          inputs,
-          fee: 300000, // Fee in microcredits for Leo
-          feePrivate: false,
-        };
-        result = await createTransaction(leoParams, requestTransaction, walletName);
+        // Require wallet for non-gasless voting
+        if (!address) {
+          showError('Wallet Error', 'Please connect your wallet or use gasless voting');
+          setIsVoting(false);
+          return;
+        }
+
+        // Format inputs for Aleo
+        const inputs = aleoService.formatCastVoteInputs(campaignIdNum, selectedOption, timestamp);
+
+        const walletName = wallet?.adapter?.name;
+        console.log('Voting with wallet:', walletName);
+        console.log('Vote inputs:', inputs);
+
+        if (walletName === 'Puzzle Wallet') {
+          // Use Puzzle Wallet SDK
+          const puzzleParams = {
+            type: EventType.Execute,
+            programId: getProgramId(),
+            functionId: 'cast_vote',
+            fee: 0.3, // Fee in credits for Puzzle
+            inputs,
+          };
+          result = await createTransaction(puzzleParams, requestCreateEvent, walletName);
+        } else {
+          // Use Leo Wallet adapter
+          const leoParams = {
+            publicKey: address,
+            functionName: 'cast_vote',
+            inputs,
+            fee: 300000, // Fee in microcredits for Leo
+            feePrivate: false,
+          };
+          result = await createTransaction(leoParams, requestTransaction, walletName);
+        }
       }
 
       if (!result.success) {
@@ -319,7 +334,9 @@ export default function CampaignDetailPage() {
       }
 
       setHasVoted(true);
-      success('Vote Cast!', 'Your anonymous vote has been recorded on the blockchain');
+      success('Vote Cast!', useGasless
+        ? 'Your vote has been submitted via gasless relay!'
+        : 'Your anonymous vote has been recorded on the blockchain');
 
       // Refresh campaign data after a short delay to allow blockchain confirmation
       setTimeout(async () => {
@@ -501,31 +518,63 @@ export default function CampaignDetailPage() {
               {/* Vote Button */}
               {status === 'active' && !hasVoted && (
                 <div className="mt-6 pt-6 border-t border-white/10">
+                  {/* Gasless Toggle */}
+                  <div className="flex items-center justify-between mb-4 p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                      <span className="text-sm text-green-400 font-medium">Gasless Voting</span>
+                    </div>
+                    <button
+                      onClick={() => setUseGasless(!useGasless)}
+                      className={`
+                        relative w-12 h-6 rounded-full transition-colors
+                        ${useGasless ? 'bg-green-500' : 'bg-white/20'}
+                      `}
+                    >
+                      <div
+                        className={`
+                          absolute top-1 w-4 h-4 rounded-full bg-white transition-transform
+                          ${useGasless ? 'translate-x-7' : 'translate-x-1'}
+                        `}
+                      />
+                    </button>
+                  </div>
+
                   <div className="flex items-start gap-3 mb-4 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
                     <Shield className="w-5 h-5 text-indigo-400 flex-shrink-0 mt-0.5" />
                     <div className="text-sm">
-                      <p className="text-indigo-400 font-medium mb-1">Anonymous Voting</p>
+                      <p className="text-indigo-400 font-medium mb-1">
+                        {useGasless ? 'Free Voting - No Gas Required' : 'Anonymous Voting'}
+                      </p>
                       <p className="text-white/60">
-                        Your vote is protected by zero-knowledge proofs. No one can see how you voted.
+                        {useGasless
+                          ? 'Vote for free! Transaction fees are covered by the relayer.'
+                          : 'Your vote is protected by zero-knowledge proofs. No one can see how you voted.'
+                        }
                       </p>
                     </div>
                   </div>
 
-                  {walletConnected ? (
-                    <GlassButton
-                      fullWidth
-                      size="lg"
-                      onClick={() => setShowConfirmModal(true)}
-                      disabled={selectedOption === null}
-                      loading={isVoting}
-                      icon={<Vote className="w-5 h-5" />}
-                    >
-                      {selectedOption === null ? 'Select an option to vote' : 'Submit Vote'}
-                    </GlassButton>
-                  ) : (
-                    <GlassButton fullWidth size="lg" variant="secondary" disabled>
-                      Connect Wallet to Vote
-                    </GlassButton>
+                  <GlassButton
+                    fullWidth
+                    size="lg"
+                    onClick={() => setShowConfirmModal(true)}
+                    disabled={selectedOption === null}
+                    loading={isVoting}
+                    icon={<Vote className="w-5 h-5" />}
+                  >
+                    {selectedOption === null
+                      ? 'Select an option to vote'
+                      : useGasless
+                        ? 'Vote for Free'
+                        : 'Submit Vote'
+                    }
+                  </GlassButton>
+
+                  {!useGasless && !walletConnected && (
+                    <p className="text-sm text-yellow-400 mt-2 text-center">
+                      Connect wallet for non-gasless voting, or enable gasless mode above
+                    </p>
                   )}
                 </div>
               )}

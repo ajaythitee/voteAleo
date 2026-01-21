@@ -22,6 +22,7 @@ import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { pinataService } from '@/services/pinata';
 import { aleoService } from '@/services/aleo';
+import { relayerService } from '@/services/relayer';
 import { createTransaction, EventType, requestCreateEvent, getProgramId } from '@/utils/transaction';
 
 interface FormData {
@@ -54,6 +55,7 @@ export default function CreateCampaignPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [step, setStep] = useState(1);
+  const [useGasless, setUseGasless] = useState(true); // Default to gasless
 
   // Get wallet info including wallet adapter name
   const { publicKey, requestTransaction, wallet, connected } = useWallet();
@@ -64,24 +66,7 @@ export default function CreateCampaignPage() {
   const walletConnected = connected || isConnected;
   const address = publicKey;
 
-  // Redirect if not connected
-  if (!walletConnected) {
-    return (
-      <div className="min-h-screen py-20">
-        <div className="max-w-2xl mx-auto px-4">
-          <GlassCard className="p-12 text-center">
-            <Vote className="w-16 h-16 text-white/20 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-white mb-4">
-              Connect Your Wallet
-            </h2>
-            <p className="text-white/60 mb-6">
-              You need to connect your wallet to create a campaign.
-            </p>
-          </GlassCard>
-        </div>
-      </div>
-    );
-  }
+  // Note: Wallet not required for gasless campaign creation
 
   const handleInputChange = (field: keyof FormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -177,11 +162,6 @@ export default function CreateCampaignPage() {
       return;
     }
 
-    if (!address) {
-      showError('Wallet Error', 'Please connect your wallet first');
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
@@ -197,7 +177,7 @@ export default function CreateCampaignPage() {
         title: formData.title,
         description: formData.description,
         options: formData.options.filter((opt) => opt.trim()),
-        creator: address,
+        creator: address || 'anonymous',
         createdAt: new Date().toISOString(),
         imageCid,
       };
@@ -214,47 +194,67 @@ export default function CreateCampaignPage() {
 
       const validOptions = formData.options.filter((opt) => opt.trim());
 
-      // Format inputs for Aleo - CID is encoded into two field elements
-      const inputs = aleoService.formatCreateCampaignInputs(
-        metadataResult.cid,
-        startTime,
-        endTime,
-        validOptions.length
-      );
-
-      const walletName = wallet?.adapter?.name;
-      console.log('Connected wallet:', walletName);
-      console.log('Creating campaign with inputs:', inputs);
+      // Encode CID to fields
+      const { part1, part2 } = aleoService.encodeCidToFields(metadataResult.cid);
 
       let result;
 
-      if (walletName === 'Puzzle Wallet') {
-        // Use Puzzle Wallet SDK
-        const puzzleParams = {
-          type: EventType.Execute,
-          programId: getProgramId(),
-          functionId: 'create_campaign',
-          fee: 0.5, // Fee in credits for Puzzle
-          inputs,
-        };
-        result = await createTransaction(puzzleParams, requestCreateEvent, walletName);
+      // Use gasless relayer if enabled
+      if (useGasless) {
+        console.log('Using gasless campaign creation via relayer');
+        result = await relayerService.createCampaign({
+          cidPart1: part1,
+          cidPart2: part2,
+          startTime,
+          endTime,
+          optionCount: validOptions.length,
+          creatorAddress: address || 'anonymous',
+        });
       } else {
-        // Use Leo Wallet adapter
-        const leoParams = {
-          publicKey: address,
-          functionName: 'create_campaign',
-          inputs,
-          fee: 500000, // Fee in microcredits for Leo
-          feePrivate: false,
-        };
-        result = await createTransaction(leoParams, requestTransaction, walletName);
+        // Require wallet for non-gasless
+        if (!address) {
+          showError('Wallet Error', 'Please connect your wallet or use gasless mode');
+          setIsSubmitting(false);
+          return;
+        }
+
+        // Format inputs for Aleo
+        const inputs = [part1, part2, `${startTime}u64`, `${endTime}u64`, `${validOptions.length}u8`];
+
+        const walletName = wallet?.adapter?.name;
+        console.log('Connected wallet:', walletName);
+        console.log('Creating campaign with inputs:', inputs);
+
+        if (walletName === 'Puzzle Wallet') {
+          // Use Puzzle Wallet SDK
+          const puzzleParams = {
+            type: EventType.Execute,
+            programId: getProgramId(),
+            functionId: 'create_campaign',
+            fee: 0.5, // Fee in credits for Puzzle
+            inputs,
+          };
+          result = await createTransaction(puzzleParams, requestCreateEvent, walletName);
+        } else {
+          // Use Leo Wallet adapter
+          const leoParams = {
+            publicKey: address,
+            functionName: 'create_campaign',
+            inputs,
+            fee: 500000, // Fee in microcredits for Leo
+            feePrivate: false,
+          };
+          result = await createTransaction(leoParams, requestTransaction, walletName);
+        }
       }
 
       if (!result.success) {
         throw new Error(result.error || 'Transaction failed');
       }
 
-      success('Campaign Created!', 'Your campaign has been created successfully');
+      success('Campaign Created!', useGasless
+        ? 'Your campaign has been created via gasless relay!'
+        : 'Your campaign has been created successfully');
       router.push('/campaigns');
     } catch (err: any) {
       console.error('Create campaign error:', err);
@@ -531,11 +531,46 @@ export default function CreateCampaignPage() {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-white/50">Wallet:</span>
-                    <span className="text-white">{wallet?.adapter?.name || 'Not connected'}</span>
+                    <span className="text-white/50">Mode:</span>
+                    <span className={useGasless ? 'text-green-400' : 'text-white'}>
+                      {useGasless ? 'Gasless (Free)' : wallet?.adapter?.name || 'Wallet Required'}
+                    </span>
                   </div>
                 </div>
               </div>
+
+              {/* Gasless Toggle */}
+              <div className="flex items-center justify-between p-4 rounded-xl bg-green-500/10 border border-green-500/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                  <div>
+                    <p className="text-sm text-green-400 font-medium">Gasless Creation</p>
+                    <p className="text-xs text-white/50">No gas fees - we cover the cost!</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setUseGasless(!useGasless)}
+                  className={`
+                    relative w-12 h-6 rounded-full transition-colors
+                    ${useGasless ? 'bg-green-500' : 'bg-white/20'}
+                  `}
+                >
+                  <div
+                    className={`
+                      absolute top-1 w-4 h-4 rounded-full bg-white transition-transform
+                      ${useGasless ? 'translate-x-7' : 'translate-x-1'}
+                    `}
+                  />
+                </button>
+              </div>
+
+              {!useGasless && !walletConnected && (
+                <div className="p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
+                  <p className="text-sm text-yellow-400">
+                    Please connect your wallet for non-gasless creation, or enable gasless mode above.
+                  </p>
+                </div>
+              )}
 
               <div className="flex justify-between pt-4">
                 <GlassButton variant="secondary" onClick={() => setStep(2)}>
@@ -544,9 +579,10 @@ export default function CreateCampaignPage() {
                 <GlassButton
                   onClick={handleSubmit}
                   loading={isSubmitting}
+                  disabled={!useGasless && !walletConnected}
                   icon={<Vote className="w-5 h-5" />}
                 >
-                  {isSubmitting ? 'Creating...' : 'Create Campaign'}
+                  {isSubmitting ? 'Creating...' : useGasless ? 'Create for Free' : 'Create Campaign'}
                 </GlassButton>
               </div>
             </motion.div>

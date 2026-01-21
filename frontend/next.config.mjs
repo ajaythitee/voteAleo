@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    // Exclude @provablehq/sdk from server-side bundling (it has WASM that doesn't bundle well)
+    serverComponentsExternalPackages: ['@provablehq/sdk'],
+  },
   images: {
     remotePatterns: [
       {
