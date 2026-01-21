@@ -142,33 +142,39 @@ class AleoService {
 
   /**
    * Decode two field elements back to an IPFS CID
+   * Uses field modulus approach for reliable decoding
    */
   decodeFieldsToCid(part1: string, part2: string): string {
     console.log(`Decoding CID from fields:`);
     console.log(`  Part1 field: ${part1.slice(0, 40)}...`);
     console.log(`  Part2 field: ${part2.slice(0, 40)}...`);
 
-    // Extract the numeric value from field strings
-    const field1 = BigInt(part1.replace(/field$/, '').trim());
-    const field2 = BigInt(part2.replace(/field$/, '').trim());
+    try {
+      // Extract the numeric value from field strings
+      const field1 = BigInt(part1.replace(/field$/, '').trim());
+      const field2 = BigInt(part2.replace(/field$/, '').trim());
 
-    const result = this.fieldsToString([field1, field2]);
-    console.log(`  Decoded CID: "${result}"`);
+      const result = this.fieldsToString([field1, field2]);
+      console.log(`  Decoded CID: "${result}"`);
 
-    // Validate the result looks like a CID
-    if (result.startsWith('Qm') || result.startsWith('bafy') || result.startsWith('bafk')) {
-      console.log('CID validation: PASSED');
+      // Validate the result looks like a CID
+      if (result && (result.startsWith('Qm') || result.startsWith('bafy') || result.startsWith('bafk'))) {
+        console.log('CID validation: PASSED');
+        return result;
+      }
+
+      // For CIDv1, check if it has valid base32 characters
+      if (result && result.length >= 46 && /^[a-z2-7]+$/i.test(result)) {
+        console.log('CID validation: PASSED (base32 format)');
+        return result;
+      }
+
+      console.warn(`CID validation: Result doesn't match known CID formats`);
       return result;
+    } catch (e) {
+      console.error('Error decoding CID:', e);
+      return '';
     }
-
-    // For CIDv1, check if it has valid base32 characters
-    if (result.length >= 46 && /^[a-z2-7]+$/.test(result.toLowerCase())) {
-      console.log('CID validation: PASSED (base32 format)');
-      return result;
-    }
-
-    console.warn(`CID validation: Result "${result}" doesn't match known CID formats`);
-    return result; // Return anyway, let caller handle validation
   }
 
   // Legacy method for backwards compatibility

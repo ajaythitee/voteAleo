@@ -117,7 +117,7 @@ export default function CampaignsPage() {
 
       let title = `Campaign #${id}`;
       let description = 'Campaign on VoteAleo';
-      const imageUrl = '/images/default-campaign.svg'; // Always use default image
+      let imageUrl = '/images/default-campaign.svg';
       let options: { id: string; label: string; voteCount: number }[] = [];
 
       // Try to decode CID from on-chain fields and fetch metadata from IPFS
@@ -144,6 +144,11 @@ export default function CampaignsPage() {
               if (metadata) {
                 title = metadata.title || title;
                 description = metadata.description || description;
+                // Get image from IPFS if available
+                if (metadata.imageCid) {
+                  imageUrl = pinataService.getGatewayUrl(metadata.imageCid);
+                  console.log(`Campaign ${id} image URL:`, imageUrl);
+                }
                 if (metadata.options && Array.isArray(metadata.options)) {
                   options = metadata.options.map((label, idx) => ({
                     id: String(idx),
