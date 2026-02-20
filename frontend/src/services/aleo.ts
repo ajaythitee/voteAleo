@@ -281,32 +281,30 @@ class AleoService {
   }
 
   /**
-   * Fetch all campaigns using Aleoscan API
+   * Fetch all campaigns directly from the Provable RPC by walking the counter mapping.
+   * Returns an array of { id: '1u64', data: <raw mapping value> } similar to the old Aleoscan shape.
    */
-  async fetchAllCampaigns(): Promise<any[]> {
+  async fetchAllCampaigns(): Promise<{ id: string; data: unknown }[]> {
     try {
-      const response = await fetch(
-        `https://api.testnet.aleoscan.io/v2/mapping/list_program_mapping_values/${this.config.votingProgramId}/campaigns`
-      );
+      const count = await this.getCampaignCount();
+      if (!count || count <= 0) return [];
 
-      if (!response.ok) {
-        console.log('Failed to fetch campaigns from Aleoscan');
-        return [];
+      const results: { id: string; data: unknown }[] = [];
+
+      for (let i = 1; i <= count; i++) {
+        try {
+          const campaign = await this.fetchCampaign(i);
+          if (campaign != null) {
+            results.push({ id: `${i}u64`, data: campaign });
+          }
+        } catch (e) {
+          console.warn(`Failed to fetch campaign ${i} from RPC:`, e);
+        }
       }
 
-      const data = await response.json();
-      console.log('All campaigns from Aleoscan:', data);
-
-      if (data.result && Array.isArray(data.result)) {
-        return data.result.map((entry: any) => ({
-          id: entry.key,
-          data: entry.value
-        }));
-      }
-
-      return [];
+      return results;
     } catch (error) {
-      console.error('Error fetching all campaigns:', error);
+      console.error('Error fetching all campaigns from RPC:', error);
       return [];
     }
   }

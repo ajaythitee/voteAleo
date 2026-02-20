@@ -38,70 +38,42 @@ export default function CampaignsPage() {
 
   const { isConnected } = useWalletStore();
 
-  // Fetch campaigns from blockchain using Aleoscan API
+  // Fetch campaigns from blockchain using on-chain mappings (no Aleoscan dependency)
   const loadCampaigns = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Fetch all campaigns directly from Aleoscan API
-      const allCampaigns = await aleoService.fetchAllCampaigns();
-      console.log('Fetched campaigns from Aleoscan:', allCampaigns);
+      // Get total campaign count from on-chain mapping
+      const campaignCount = await aleoService.getCampaignCount();
+      console.log('Campaign count from counter:', campaignCount);
 
-      if (allCampaigns.length === 0) {
-        // Fallback: try fetching by counter
-        const campaignCount = await aleoService.getCampaignCount();
-        console.log('Campaign count from counter:', campaignCount);
-
-        if (campaignCount === 0) {
-          setCampaigns([]);
-          setIsLoading(false);
-          return;
-        }
-
-        const loadedCampaigns: Campaign[] = [];
-
-        // Fetch each campaign by ID
-        for (let i = 1; i <= campaignCount; i++) {
-          try {
-            const onChainCampaign = await aleoService.fetchCampaign(i);
-            console.log(`Campaign ${i} raw data:`, onChainCampaign);
-
-            if (onChainCampaign) {
-              const campaignData = await parseOnChainCampaign(onChainCampaign as string, i);
-              if (campaignData) {
-                loadedCampaigns.push(campaignData);
-              }
-            }
-          } catch (campaignError) {
-            console.warn(`Could not fetch campaign ${i}:`, campaignError);
-          }
-        }
-
-        setCampaigns(loadedCampaigns);
-      } else {
-        // Parse campaigns from Aleoscan response
-        const loadedCampaigns: Campaign[] = [];
-
-        for (const entry of allCampaigns) {
-          try {
-            // Extract campaign ID from key (e.g., "1u64" -> 1)
-            const idMatch = entry.id.match(/(\d+)/);
-            const id = idMatch ? parseInt(idMatch[1]) : 0;
-
-            if (id > 0) {
-              const campaignData = await parseOnChainCampaign(entry.data as string, id);
-              if (campaignData) {
-                loadedCampaigns.push(campaignData);
-              }
-            }
-          } catch (err) {
-            console.warn('Error parsing campaign entry:', entry, err);
-          }
-        }
-
-        setCampaigns(loadedCampaigns);
+      if (campaignCount === 0) {
+        setCampaigns([]);
+        setIsLoading(false);
+        return;
       }
+
+      const loadedCampaigns: Campaign[] = [];
+
+      // Fetch each campaign directly from the Provable RPC by ID
+      for (let i = 1; i <= campaignCount; i++) {
+        try {
+          const onChainCampaign = await aleoService.fetchCampaign(i);
+          console.log(`Campaign ${i} raw data:`, onChainCampaign);
+
+          if (onChainCampaign) {
+            const campaignData = await parseOnChainCampaign(onChainCampaign as string, i);
+            if (campaignData) {
+              loadedCampaigns.push(campaignData);
+            }
+          }
+        } catch (campaignError) {
+          console.warn(`Could not fetch campaign ${i}:`, campaignError);
+        }
+      }
+
+      setCampaigns(loadedCampaigns);
     } catch (err: any) {
       console.error('Error loading campaigns:', err);
       setError('Failed to load campaigns from blockchain');
