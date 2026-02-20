@@ -111,21 +111,36 @@ export async function createTransaction(
         return { success: false, error: 'Transaction was cancelled or failed' };
       }
 
+      // Check if txId indicates rejection (some wallets return error strings)
+      if (typeof txId === 'string' && (txId.includes('rejected') || txId.includes('error') || txId.includes('failed'))) {
+        return { success: false, error: `Transaction was rejected: ${txId}` };
+      }
+
       console.log('Transaction created successfully:', txId);
       return { success: true, transactionId: txId };
     }
   } catch (error: any) {
     console.error('Transaction error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      fullError: error
+    });
 
     // Handle specific error cases
     let errorMessage = error.message || 'Transaction failed';
 
-    if (errorMessage.includes('User rejected')) {
-      errorMessage = 'Transaction was rejected by user';
-    } else if (errorMessage.includes('insufficient')) {
-      errorMessage = 'Insufficient balance for transaction fee';
-    } else if (errorMessage.includes('not connected')) {
-      errorMessage = 'Wallet is not connected';
+    if (errorMessage.includes('User rejected') || errorMessage.includes('rejected')) {
+      errorMessage = 'Transaction was rejected. This could be due to insufficient balance, network issues, or contract validation failure.';
+    } else if (errorMessage.includes('insufficient') || errorMessage.includes('balance')) {
+      errorMessage = 'Insufficient balance for transaction fee. Please ensure you have enough credits.';
+    } else if (errorMessage.includes('not connected') || errorMessage.includes('disconnected')) {
+      errorMessage = 'Wallet is not connected. Please reconnect your wallet.';
+    } else if (errorMessage.includes('assert') || errorMessage.includes('assertion')) {
+      errorMessage = 'Transaction validation failed. This could mean the campaign is inactive, you already voted, or the option index is invalid.';
+    } else if (errorMessage.includes('timeout') || errorMessage.includes('network')) {
+      errorMessage = 'Network timeout. Please check your connection and try again.';
     }
 
     return { success: false, error: errorMessage };

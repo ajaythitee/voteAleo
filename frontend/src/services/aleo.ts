@@ -9,6 +9,7 @@ const config: AleoConfig = {
   votingProgramId: process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID as string,
 };
 
+
 // Aleo field modulus for proper field arithmetic
 const FIELD_MODULUS = BigInt('8444461749428370424248824938781546531375899335154063827935233455917409239040');
 
@@ -228,17 +229,14 @@ class AleoService {
    */
   async fetchCampaign(campaignId: number): Promise<any | null> {
     try {
-      const response = await fetch(
-        `${this.config.rpcUrl}/${this.config.network}/program/${this.config.votingProgramId}/mapping/campaigns/${campaignId}u64`
-      );
+      const url = `${this.config.rpcUrl}/${this.config.network}/program/${this.config.votingProgramId}/mapping/campaigns/${campaignId}u64`;
+      const response = await fetch(url);
 
       if (!response.ok) {
-        console.log(`Campaign ${campaignId} not found, status: ${response.status}`);
         return null;
       }
 
       const data = await response.json();
-      console.log(`Campaign ${campaignId} data:`, data);
       return data;
     } catch (error) {
       console.error('Error fetching campaign:', error);
@@ -281,20 +279,119 @@ class AleoService {
   async hasVoted(campaignId: number, addressHash: string): Promise<boolean> {
     try {
       const votedKey = this.hashToField(`${campaignId}${addressHash}`);
+      const url = `${this.config.rpcUrl}/${this.config.network}/program/${this.config.votingProgramId}/mapping/has_voted/${votedKey}`;
 
-      const response = await fetch(
-        `${this.config.rpcUrl}/${this.config.network}/program/${this.config.votingProgramId}/mapping/has_voted/${votedKey}`
-      );
+      const response = await fetch(url);
 
       if (!response.ok) {
         return false;
       }
 
       const data = await response.json();
-      return data === 'true';
+      return data === 'true' || data === true || String(data).toLowerCase() === 'true';
     } catch (error) {
       console.error('Error checking vote status:', error);
       return false;
+    }
+  }
+
+  /**
+   * Poll for vote count change - waits until vote count increases or timeout
+   */
+  async pollForVoteCountChange(
+    campaignId: number,
+    previousTotalVotes: number,
+    maxAttempts: number = 30,
+    delayMs: number = 2000
+  ): Promise<{ success: boolean; newTotalVotes: number; error?: string }> {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const campaignData = await this.fetchCampaign(campaignId);
+        if (campaignData && typeof campaignData === 'string') {
+          const parsed = this.parseCampaignVoteCounts(campaignData);
+          if (parsed && parsed.totalVotes > previousTotalVotes) {
+            return { success: true, newTotalVotes: parsed.totalVotes };
+          }
+        }
+        
+        // Wait before next attempt
+        if (attempt < maxAttempts - 1) {
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+      } catch (error) {
+        // Silent fail for polling
+      }
+    }
+    
+    return { 
+      success: false, 
+      newTotalVotes: previousTotalVotes,
+      error: 'Vote count did not increase within timeout period'
+    };
+  }
+
+  /**
+   * Parse vote counts from raw campaign data string
+   */
+  private parseCampaignVoteCounts(campaignData: string): { totalVotes: number; votes: number[] } | null {
+    try {
+      // Extract total_votes
+      const totalVotesMatch = campaignData.match(/total_votes\s*:\s*(\d+)(?:u64)?/i);
+      const totalVotes = totalVotesMatch ? Number(totalVotesMatch[1]) : 0;
+
+      // Extract individual vote counts
+      const votes: number[] = [];
+      for (let i = 0; i < 4; i++) {
+        const voteMatch = campaignData.match(new RegExp(`votes_${i}\\s*:\\s*(\\d+)(?:u64)?`, 'i'));
+        votes.push(voteMatch ? Number(voteMatch[1]) : 0);
+      }
+
+      return { totalVotes, votes };
+    } catch (error) {
+      console.error('Error parsing vote counts:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Verify vote was registered by checking vote count increase and has_voted mapping
+   */
+  async verifyVoteRegistration(
+    campaignId: number,
+    addressHash: string,
+    previousTotalVotes: number
+  ): Promise<{ verified: boolean; newTotalVotes: number; error?: string }> {
+    try {
+      // First check if has_voted mapping was updated
+      const hasVoted = await this.hasVoted(campaignId, addressHash);
+      if (!hasVoted) {
+        return { 
+          verified: false, 
+          newTotalVotes: previousTotalVotes,
+          error: 'Vote not found in has_voted mapping'
+        };
+      }
+
+      // Then verify vote count increased
+      const pollResult = await this.pollForVoteCountChange(campaignId, previousTotalVotes);
+      if (!pollResult.success) {
+        return { 
+          verified: false, 
+          newTotalVotes: previousTotalVotes,
+          error: pollResult.error || 'Vote count did not increase'
+        };
+      }
+
+      return { 
+        verified: true, 
+        newTotalVotes: pollResult.newTotalVotes 
+      };
+    } catch (error) {
+      return { 
+        verified: false, 
+        newTotalVotes: previousTotalVotes,
+        error: error instanceof Error ? error.message : 'Unknown error during verification'
+      };
     }
   }
 
@@ -321,6 +418,40 @@ class AleoService {
     } catch (error) {
       console.error('Error fetching campaign count:', error);
       return 0;
+    }
+  }
+
+  /**
+   * Check transaction status by fetching it from the RPC
+   * Note: Leo Wallet returns a UUID, not a transaction hash, so this may not work immediately
+   */
+  async checkTransactionStatus(transactionId: string): Promise<{ status: string; error?: string } | null> {
+    try {
+      // If it's a UUID (from Leo Wallet), skip status check as it's not yet indexed
+      if (transactionId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        return { status: 'pending' };
+      }
+
+      const response = await fetch(
+        `${this.config.rpcUrl}/${this.config.network}/transaction/${transactionId}`
+      );
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          // Transaction not found yet - it's still pending
+          return { status: 'pending' };
+        }
+        return null;
+      }
+
+      const data = await response.json();
+      return {
+        status: data.status || 'unknown',
+        error: data.error || data.reason || undefined,
+      };
+    } catch (error) {
+      console.error('Error checking transaction status:', error);
+      return null;
     }
   }
 

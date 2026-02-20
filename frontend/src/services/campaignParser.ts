@@ -30,10 +30,21 @@ export function parseAleoStruct(str: string): Record<string, string> | null {
       }
     }
 
+    // Extract vote counts explicitly first (votes_0, votes_1, votes_2, votes_3)
+    const voteCountRegex = /votes_(\d+)\s*:\s*(\d+)(?:u64|field)?/gi;
+    let voteMatch;
+    while ((voteMatch = voteCountRegex.exec(content)) !== null) {
+      const voteKey = `votes_${voteMatch[1]}`;
+      result[voteKey] = voteMatch[2];
+    }
+
+    // Extract other fields
     const simpleRegex = /([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*([^,{}]+?)(?:,|$)/g;
     let match;
     while ((match = simpleRegex.exec(content)) !== null) {
       const key = match[1].trim();
+      // Skip if already extracted as vote count
+      if (key.startsWith('votes_') && result[key]) continue;
       const value = match[2].trim();
       const cleanValue = value.replace(/\s*(u\d+|i\d+|field|bool|address)$/i, '').trim();
       result[key] = cleanValue;

@@ -5,7 +5,7 @@
 // - Wallet-based transactions
 // - Hidden Results Until Voting Ends
 
-program vote_privacy_8000.aleo {
+program vote_privacy_9000.aleo {
     // IPFS CID storage (CIDv1 base32 encoded, split into 2 fields)
     // Each field can hold ~31 bytes, CID is ~59 chars max
     struct IpfsCid {
@@ -127,6 +127,7 @@ program vote_privacy_8000.aleo {
     }
 
     // Dedicated vote-counting (tally) function: returns campaign with vote counts updated
+    // Keep as inline since it's called from async function and doesn't use Mapping operations
     inline apply_vote_tally(campaign: Campaign, option_index: u8) -> Campaign {
         let new_votes_0: u64 = campaign.votes_0 + (option_index == 0u8 ? 1u64 : 0u64);
         let new_votes_1: u64 = campaign.votes_1 + (option_index == 1u8 ? 1u64 : 0u64);
@@ -166,11 +167,16 @@ program vote_privacy_8000.aleo {
         let already_voted: bool = Mapping::get_or_use(has_voted, voted_key, false);
         assert(!already_voted);
 
-        // Mark as voted
+        // Register vote and update counts atomically
+        // Step 1: Mark voter as having voted
         Mapping::set(has_voted, voted_key, true);
 
-        // Update vote counts via dedicated tally function
+        // Step 2: Update vote counts via dedicated tally function
+        // This explicitly increments the correct vote count and total votes
         let updated_campaign: Campaign = apply_vote_tally(campaign, option_index);
+        
+        // Step 3: Save updated campaign with incremented vote counts
+        // This ensures the vote is properly registered and counted
         Mapping::set(campaigns, campaign_id, updated_campaign);
     }
 
