@@ -18,6 +18,7 @@ import { Stepper } from '@/components/layout';
 export default function CreateAuctionPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
+  const [isImproving, setIsImproving] = useState(false);
   const [formData, setFormData] = useState<{
     name: string;
     description: string;
@@ -70,6 +71,37 @@ export default function CreateAuctionPage() {
   const removeImage = () => {
     handleInputChange('image', null);
     handleInputChange('imagePreview', null);
+  };
+
+  const improveWithAI = async () => {
+    if (!formData.name.trim() && !formData.description.trim()) {
+      showError('Nothing to improve', 'Add a name or description first.');
+      return;
+    }
+    setIsImproving(true);
+    try {
+      const res = await fetch('/api/ai/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context: 'auction',
+          title: formData.name,
+          description: formData.description,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'AI could not improve text');
+      }
+      const data = (await res.json()) as { title?: string; description?: string };
+      if (data.title) handleInputChange('name', data.title);
+      if (data.description) handleInputChange('description', data.description);
+      success('Text improved', 'Auction name and description have been refined by AI.');
+    } catch (e: any) {
+      showError('AI suggestion failed', e?.message || 'Could not improve text');
+    } finally {
+      setIsImproving(false);
+    }
   };
 
   const validateForm = (): boolean => {
@@ -211,6 +243,18 @@ export default function CreateAuctionPage() {
                 onChange={(e) => handleInputChange('description', e.target.value)}
                 error={errors.description}
               />
+
+              <div className="flex justify-end">
+                <GlassButton
+                  type="button"
+                  variant="secondary"
+                  onClick={improveWithAI}
+                  loading={isImproving}
+                  disabled={isImproving}
+                >
+                  {isImproving ? 'Improving…' : 'Improve with AI'}
+                </GlassButton>
+              </div>
 
               {/* Image Upload */}
               <div>

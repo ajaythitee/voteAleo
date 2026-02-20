@@ -59,6 +59,7 @@ export default function CreateCampaignPage() {
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isImproving, setIsImproving] = useState(false);
   const [step, setStep] = useState(1);
 
   // Get wallet info including wallet adapter name
@@ -91,6 +92,37 @@ export default function CreateCampaignPage() {
         handleInputChange('imagePreview', reader.result as string);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const improveWithAI = async () => {
+    if (!formData.title.trim() && !formData.description.trim()) {
+      showError('Nothing to improve', 'Add a title or description first.');
+      return;
+    }
+    setIsImproving(true);
+    try {
+      const res = await fetch('/api/ai/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context: 'campaign',
+          title: formData.title,
+          description: formData.description,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'AI could not improve text');
+      }
+      const data = (await res.json()) as { title?: string; description?: string };
+      if (data.title) handleInputChange('title', data.title);
+      if (data.description) handleInputChange('description', data.description);
+      success('Text improved', 'Title and description have been refined by AI.');
+    } catch (e: any) {
+      showError('AI suggestion failed', e?.message || 'Could not improve text');
+    } finally {
+      setIsImproving(false);
     }
   };
 
@@ -273,6 +305,18 @@ export default function CreateCampaignPage() {
                 onChange={(e) => handleInputChange('description', e.target.value)}
                 error={errors.description}
               />
+
+              <div className="flex justify-end">
+                <GlassButton
+                  type="button"
+                  variant="secondary"
+                  onClick={improveWithAI}
+                  loading={isImproving}
+                  disabled={isImproving}
+                >
+                  {isImproving ? 'Improving…' : 'Improve with AI'}
+                </GlassButton>
+              </div>
 
               <div>
                 <label className="block text-sm font-medium text-white/70 mb-2">
