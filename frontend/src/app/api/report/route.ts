@@ -632,6 +632,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Ensure campaign has ended before allowing report generation
+    try {
+      const endDate = new Date(endTime);
+      const now = new Date();
+      if (endDate > now) {
+        return NextResponse.json(
+          { error: 'Report can only be generated after the campaign ends' },
+          { status: 400 }
+        );
+      }
+    } catch (dateError) {
+      console.warn('Could not validate end time:', dateError);
+    }
+
     // Parallel execution: Fetch chart and generate AI analysis simultaneously
     const chartUrl = getChartImageUrl(options, totalVotes);
 

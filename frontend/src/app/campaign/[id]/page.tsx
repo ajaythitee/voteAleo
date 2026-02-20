@@ -91,6 +91,19 @@ export default function CampaignDetailPage() {
         }
 
         setCampaign(campaignData);
+
+        // Check if user has already voted (only if wallet is connected)
+        if (address && walletConnected) {
+          try {
+            const addressHash = aleoService.hashToField(address);
+            const voted = await aleoService.hasVoted(id, addressHash);
+            console.log('Vote status check:', { address, id, voted });
+            setHasVoted(voted);
+          } catch (voteCheckErr) {
+            console.warn('Could not check vote status:', voteCheckErr);
+            // Don't block UI if vote check fails
+          }
+        }
       } catch (err: any) {
         console.error('Error loading campaign:', err);
         setError(err.message || 'Failed to load campaign');
@@ -100,17 +113,43 @@ export default function CampaignDetailPage() {
     };
 
     loadCampaign();
-  }, [campaignId]);
+  }, [campaignId, address, walletConnected]);
 
   const getCampaignStatus = () => {
     if (!campaign) return 'loading';
     const now = new Date();
-    if (isPast(campaign.endTime)) return 'ended';
-    if (isFuture(campaign.startTime)) return 'upcoming';
+    const startTime = campaign.startTime;
+    const endTime = campaign.endTime;
+    
+    console.log('Campaign status check:', {
+      now: now.toISOString(),
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+      isPastEnd: isPast(endTime),
+      isFutureStart: isFuture(startTime),
+    });
+    
+    if (isPast(endTime)) return 'ended';
+    if (isFuture(startTime)) return 'upcoming';
     return 'active';
   };
 
   const status = getCampaignStatus();
+  
+  // Debug logging
+  useEffect(() => {
+    if (campaign) {
+      console.log('Campaign loaded:', {
+        id: campaign.id,
+        onChainId: campaign.onChainId,
+        status,
+        startTime: campaign.startTime.toISOString(),
+        endTime: campaign.endTime.toISOString(),
+        optionsCount: campaign.options.length,
+        totalVotes: campaign.totalVotes,
+      });
+    }
+  }, [campaign, status]);
 
   const handleVote = async () => {
     if (selectedOption === null || !campaign) return;
@@ -119,7 +158,36 @@ export default function CampaignDetailPage() {
     setIsVoting(true);
 
     try {
-      const campaignIdNum = campaign.onChainId || parseInt(campaign.id);
+      // Get campaign ID - prefer onChainId, fallback to parsing id or URL param
+      let campaignIdNum: number;
+      if (campaign.onChainId != null && campaign.onChainId > 0) {
+        campaignIdNum = campaign.onChainId;
+      } else {
+        const parsedId = parseInt(campaign.id);
+        if (!isNaN(parsedId) && parsedId > 0) {
+          campaignIdNum = parsedId;
+        } else {
+          const urlId = parseInt(campaignId);
+          if (!isNaN(urlId) && urlId > 0) {
+            campaignIdNum = urlId;
+          } else {
+            throw new Error('Invalid campaign ID');
+          }
+        }
+      }
+
+      console.log('Voting on campaign:', { campaignIdNum, selectedOption, campaignId: campaign.id, onChainId: campaign.onChainId, urlParam: campaignId });
+
+      // Validate campaign ID
+      if (!Number.isFinite(campaignIdNum) || campaignIdNum <= 0) {
+        throw new Error(`Invalid campaign ID: ${campaignIdNum}. Campaign ID: ${campaign.id}, OnChain ID: ${campaign.onChainId}`);
+      }
+
+      // Validate option index
+      if (selectedOption < 0 || selectedOption >= campaign.options.length) {
+        throw new Error(`Invalid option index: ${selectedOption}. Available options: ${campaign.options.length}`);
+      }
+
       const timestamp = Math.floor(Date.now() / 1000);
 
       // Require wallet connection
@@ -129,11 +197,21 @@ export default function CampaignDetailPage() {
         return;
       }
 
+      if (!wallet?.adapter?.name) {
+        showError('Wallet Error', 'Wallet adapter not found. Please reconnect your wallet.');
+        setIsVoting(false);
+        return;
+      }
+
       const inputs = aleoService.formatCastVoteInputs(campaignIdNum, selectedOption, timestamp);
-      const walletName = wallet?.adapter?.name;
+      console.log('Vote inputs:', inputs);
+      const walletName = wallet.adapter.name;
       const params = buildVoteParams(inputs, address, walletName);
+      console.log('Vote params:', params);
       const execute = walletName === 'Puzzle Wallet' ? requestCreateEvent : requestTransaction;
       const result = await createTransaction(params, execute, walletName);
+
+      console.log('Vote transaction result:', result);
 
       if (!result.success) {
         throw new Error(result.error || 'Transaction failed');
@@ -508,13 +586,15 @@ export default function CampaignDetailPage() {
                 variant="secondary"
                 onClick={generateReport}
                 loading={isGeneratingReport}
-                disabled={isGeneratingReport || (campaign?.totalVotes ?? 0) === 0}
+                disabled={isGeneratingReport || status !== 'ended' || (campaign?.totalVotes ?? 0) === 0}
                 icon={<Download className="w-5 h-5" />}
               >
                 {isGeneratingReport ? 'Generating…' : 'Generate report (PDF)'}
               </GlassButton>
               <p className="text-xs text-white/50 mt-2">
-                PDF with results, chart, and AI summary. Includes program ID and explorer link.
+                {status !== 'ended' 
+                  ? 'Report available after campaign ends.'
+                  : 'PDF with results, chart, and AI summary. Includes program ID and explorer link.'}
               </p>
             </GlassCard>
 

@@ -91,13 +91,20 @@ export default function CreateAuctionPage() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'AI could not improve text');
+        console.error('AI suggest error:', err);
+        throw new Error(err.error || `AI request failed (${res.status})`);
       }
       const data = (await res.json()) as { title?: string; description?: string };
-      if (data.title) handleInputChange('name', data.title);
-      if (data.description) handleInputChange('description', data.description);
-      success('Text improved', 'Auction name and description have been refined by AI.');
+      console.log('AI suggest response:', data);
+      if (data.title || data.description) {
+        if (data.title) handleInputChange('name', data.title);
+        if (data.description) handleInputChange('description', data.description);
+        success('Text improved', 'Auction name and description have been refined by AI.');
+      } else {
+        throw new Error('AI returned empty response');
+      }
     } catch (e: any) {
+      console.error('AI improve error:', e);
       showError('AI suggestion failed', e?.message || 'Could not improve text');
     } finally {
       setIsImproving(false);
@@ -312,10 +319,10 @@ export default function CreateAuctionPage() {
                 <select
                   value={formData.bidType}
                   onChange={(e) => handleInputChange('bidType', e.target.value as '1' | '2')}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all [&>option]:bg-gray-900 [&>option]:text-white"
                 >
-                  <option value="1">Public bids only</option>
-                  <option value="2">Public and private (mix)</option>
+                  <option value="1" className="bg-gray-900 text-white">Public bids only</option>
+                  <option value="2" className="bg-gray-900 text-white">Public and private (mix)</option>
                 </select>
               </div>
 

@@ -174,11 +174,11 @@ export default function CampaignsPage() {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/[0.1] text-white/80 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30 text-sm"
+              className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/[0.1] text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30 text-sm [&>option]:bg-gray-900 [&>option]:text-white"
             >
               <option value="">All categories</option>
               {CATEGORY_OPTIONS.filter(Boolean).map((c) => (
-                <option key={c} value={c}>
+                <option key={c} value={c} className="bg-gray-900 text-white">
                   {c.charAt(0).toUpperCase() + c.slice(1)}
                 </option>
               ))}
