@@ -98,16 +98,6 @@ export function WalletConnect() {
                   <span className="text-white/80">{copied ? 'Copied!' : 'Copy Address'}</span>
                 </button>
 
-                <a
-                  href={`https://testnet.aleoscan.io/address/${publicKey}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full flex items-center gap-3 p-3 hover:bg-white/5 rounded-lg transition-colors"
-                >
-                  <ExternalLink className="w-4 h-4 text-white/50" />
-                  <span className="text-white/80">View on Explorer</span>
-                </a>
-
                 <div className="border-t border-white/10 my-2" />
 
                 <button

@@ -185,7 +185,6 @@ export default function CampaignDetailPage() {
     setIsGeneratingReport(true);
     try {
       const programId = aleoService.getProgramId();
-      const explorerUrl = aleoService.getProgramExplorerUrl();
       const res = await fetch('/api/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -202,7 +201,6 @@ export default function CampaignDetailPage() {
           endTime: campaign.endTime.toISOString(),
           creator: campaign.creator,
           programId,
-          explorerUrl,
         }),
       });
       if (!res.ok) {

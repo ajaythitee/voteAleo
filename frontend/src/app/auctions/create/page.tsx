@@ -108,19 +108,24 @@ export default function CreateAuctionPage() {
         bidType: formData.bidType,
       } satisfies Record<string, unknown>;
 
-      const metadataResult = await pinataService.uploadJSON(metadata, { name: `auction-${Date.now()}.json`, type: 'auction-metadata' });
+      const metadataResult = await pinataService.uploadJSON(metadata, {
+        name: `auction-${Date.now()}.json`,
+        type: 'auction-metadata',
+      });
       const { part1, part2 } = aleoService.encodeCidToFields(metadataResult.cid);
 
       const auctionNameField = aleoService.encodeStringToSingleField(formData.name.trim());
       const itemIdClean = formData.itemId.trim() || '0';
       const itemIdField = itemIdClean.match(/^\d+$/) ? `${itemIdClean}field` : aleoService.encodeStringToSingleField(itemIdClean);
-      const offchain = [part1, part2, '0field', '0field'];
+      const offchainFields = [part1, part2, '0field', '0field'];
+      // Leo expects the [field; 4] as a single array argument, not 4 separate field inputs
+      const offchainArray = `[${offchainFields.join(', ')}]`;
       const nonce = Math.floor(Math.random() * 1e15) + 1;
       const inputs = [
         auctionNameField,
         `${formData.bidType}field`,
         itemIdField,
-        ...offchain,
+        offchainArray,
         `${Math.floor(Number(formData.startingBid))}u64`,
         `${nonce}scalar`,
         formData.revealCreator ? 'true' : 'false',

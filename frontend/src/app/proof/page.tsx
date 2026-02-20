@@ -3,7 +3,7 @@
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useMemo } from 'react';
 import Link from 'next/link';
-import { CheckCircle, Shield, ArrowLeft, ExternalLink } from 'lucide-react';
+import { CheckCircle, Shield, ArrowLeft } from 'lucide-react';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { aleoService } from '@/services/aleo';
@@ -61,7 +61,6 @@ function ProofContent() {
 
   const campaignId = decoded.c ?? '?';
   const txId = decoded.t ?? '';
-  const explorerUrl = txId ? aleoService.getExplorerUrl(txId) : '';
 
   return (
     <div className="max-w-lg mx-auto">
@@ -84,18 +83,9 @@ function ProofContent() {
           {txId && (
             <div className="flex justify-between items-center gap-2">
               <span className="text-white/50">Transaction</span>
-              {explorerUrl ? (
-                <a
-                  href={explorerUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-emerald-400 hover:underline flex items-center gap-1 truncate max-w-[200px]"
-                >
-                  {txId.slice(0, 12)}... <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                </a>
-              ) : (
-                <span className="text-white/70 font-mono text-xs truncate max-w-[180px]">{txId}</span>
-              )}
+              <span className="text-white/70 font-mono text-xs truncate max-w-[200px]">
+                {txId}
+              </span>
             </div>
           )}
         </div>
