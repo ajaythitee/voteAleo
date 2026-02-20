@@ -31,6 +31,7 @@ import { Campaign } from '@/types';
 import { aleoService } from '@/services/aleo';
 import { auctionService } from '@/services/auction';
 import { parseOnChainCampaign } from '@/services/campaignParser';
+import { parseOnChainAuction, type ParsedAuction } from '@/services/auctionParser';
 import { formatDistanceToNow, isPast, isFuture } from 'date-fns';
 
 // Hero section features
@@ -57,7 +58,7 @@ const heroFeatures = [
   },
 ];
 
-type AuctionListItem = { auctionId: string; index: number; data: unknown };
+type AuctionListItem = { auctionId: string; index: number; parsed: ParsedAuction | null };
 
 export default function Home() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -106,7 +107,17 @@ export default function Home() {
     setIsLoadingAuctions(true);
     try {
       const list = await auctionService.listPublicAuctions();
-      setAuctions(list.slice(0, 3));
+      const top = list.slice(0, 3);
+      const parsedTop: AuctionListItem[] = [];
+      for (const a of top) {
+        try {
+          const parsed = await parseOnChainAuction(a.data, a.auctionId);
+          parsedTop.push({ auctionId: a.auctionId, index: a.index, parsed: parsed });
+        } catch {
+          parsedTop.push({ auctionId: a.auctionId, index: a.index, parsed: null });
+        }
+      }
+      setAuctions(parsedTop);
     } catch (e) {
       console.error(e);
     } finally {
@@ -487,32 +498,33 @@ export default function Home() {
               viewport={{ once: true, margin: '-40px' }}
               variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.08 } } }}
             >
-              {auctions.map((a, i) => (
-                <motion.div key={a.auctionId} variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
-                <Link href={`/auctions/${encodeURIComponent(a.auctionId)}`}>
-                    <GlassCard hover className="h-full p-6 rounded-[16px]">
-                      <div className="flex items-start justify-end mb-3">
-                        <Badge variant="active">Open</Badge>
-                      </div>
-                      <h3 className="text-lg font-semibold text-white mb-2 line-clamp-2">
-                        {typeof a.data === 'object' && a.data && 'name' in (a.data as object)
-                          ? String((a.data as { name?: string }).name ?? 'Untitled')
-                          : 'Untitled Auction'}
-                      </h3>
-                      <p className="text-sm text-white/60">
-                        Starting bid:{' '}
-                        {typeof a.data === 'object' && a.data && 'starting_bid' in (a.data as object)
-                          ? `${Number((a.data as { starting_bid?: number }).starting_bid ?? 0)} credits`
-                          : '—'}
-                      </p>
-                      <div className="mt-4 flex items-center text-emerald-400 text-sm">
-                        <span>View & bid</span>
-                        <ArrowRight className="w-4 h-4 ml-1" />
-                      </div>
-                    </GlassCard>
-                </Link>
-                </motion.div>
-              ))}
+              {auctions.map((a, i) => {
+                const parsed = a.parsed;
+                const name = parsed?.name ?? 'Untitled';
+                const startingBid = parsed?.startingBid ?? 0;
+                return (
+                  <motion.div key={a.auctionId} variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
+                    <Link href={`/auctions/${encodeURIComponent(a.auctionId)}`}>
+                      <GlassCard hover className="h-full p-6 rounded-[16px]">
+                        <div className="flex items-start justify-end mb-3">
+                          <Badge variant="active">Open</Badge>
+                        </div>
+                        <h3 className="text-lg font-semibold text-white mb-2 line-clamp-2">
+                          {name}
+                        </h3>
+                        <p className="text-sm text-white/60">
+                          Starting bid:{' '}
+                          <span className="text-emerald-400">{startingBid} credits</span>
+                        </p>
+                        <div className="mt-4 flex items-center text-emerald-400 text-sm">
+                          <span>View &amp; bid</span>
+                          <ArrowRight className="w-4 h-4 ml-1" />
+                        </div>
+                      </GlassCard>
+                    </Link>
+                  </motion.div>
+                );
+              })}
             </motion.div>
           )}
           </div>
