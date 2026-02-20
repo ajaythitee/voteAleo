@@ -332,7 +332,7 @@ function generatePDF(
   chartBase64: string | null,
   creator: string | undefined,
   programId: string
-): Buffer {
+): ArrayBuffer {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageW = (doc as any).internal?.pageSize?.getWidth?.() ?? 210;
   const margin = 20;
@@ -594,15 +594,15 @@ function generatePDF(
   doc.setTextColor(150, 150, 150);
   doc.text('© VeilProtocol. All rights reserved. Built on Aleo blockchain.', margin, y + 4);
 
-  // Convert to buffer
-  return Buffer.from(doc.output('arraybuffer'));
+  // Convert to ArrayBuffer for web response compatibility
+  return doc.output('arraybuffer') as ArrayBuffer;
 }
 
 /**
  * Main POST handler
  */
 export async function POST(request: NextRequest) {
-  const startTime = Date.now();
+  const requestStartTime = Date.now();
 
   try {
     const body = (await request.json()) as ReportBody;
@@ -641,7 +641,7 @@ export async function POST(request: NextRequest) {
     ]);
 
     // Generate PDF
-    const pdfBuffer = generatePDF(
+    const pdfArrayBuffer = generatePDF(
       campaignId,
       title,
       totalVotes,
@@ -654,17 +654,20 @@ export async function POST(request: NextRequest) {
       programId
     );
 
-    const generationTime = Date.now() - startTime;
+    const generationTime = Date.now() - requestStartTime;
     console.log(`Report generated in ${generationTime}ms for campaign #${campaignId}`);
 
     const filename = `veilprotocol-campaign-${campaignId}-report.pdf`;
 
-    return new NextResponse(pdfBuffer, {
+    // Wrap bytes in a Blob so it is a valid BodyInit for NextResponse
+    const pdfBlob = new Blob([pdfArrayBuffer], { type: 'application/pdf' });
+
+    return new NextResponse(pdfBlob, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${filename}"`,
-        'Content-Length': String(pdfBuffer.length),
+        'Content-Length': String(pdfArrayBuffer.byteLength),
         'X-Generation-Time': String(generationTime),
       },
     });
