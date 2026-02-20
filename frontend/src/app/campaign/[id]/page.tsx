@@ -42,6 +42,7 @@ export default function CampaignDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [hasVoted, setHasVoted] = useState(false);
+  const [isCheckingVote, setIsCheckingVote] = useState(true);
   const [isVoting, setIsVoting] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -60,6 +61,7 @@ export default function CampaignDetailPage() {
   useEffect(() => {
     const loadCampaign = async () => {
       setIsLoading(true);
+      setIsCheckingVote(true);
       setError(null);
 
       try {
@@ -68,137 +70,117 @@ export default function CampaignDetailPage() {
           throw new Error('Invalid campaign ID');
         }
 
-        // Fetch from blockchain
-        const onChainData = await aleoService.fetchCampaign(id);
-
-        if (!onChainData) {
-          throw new Error('Campaign not found');
-        }
-
-        // Parse and fetch metadata from IPFS
-        const campaignData = await parseOnChainCampaign(onChainData, id);
-
-        if (!campaignData) {
-          throw new Error('Failed to parse campaign data');
-        }
-
-        // Calculate percentages
-        if (campaignData.totalVotes > 0) {
-          campaignData.options = campaignData.options.map(opt => ({
-            ...opt,
-            percentage: Math.round((opt.voteCount / campaignData.totalVotes) * 100),
-          }));
-        }
-
-        setCampaign(campaignData);
-
-        // Check if user has already voted (only if wallet is connected)
-        // Always check blockchain first, then use localStorage as fallback
-        if (address && walletConnected) {
-          try {
-            // Check blockchain for vote status FIRST (most reliable source)
-            const addressHash = aleoService.hashToField(address);
-            const voted = await aleoService.hasVoted(id, addressHash);
-            
-            
-            // If blockchain confirms vote, update state immediately
-            if (voted) {
-              setHasVoted(true);
-              // Update localStorage to confirm
-              const voteKey = `vote_${id}_${address}`;
-              localStorage.setItem(voteKey, JSON.stringify({
-                voted: true,
-                timestamp: Date.now(),
-                confirmed: true,
-              }));
-            } else {
-              // Blockchain says not voted - check localStorage for pending transactions
-              const voteKey = `vote_${id}_${address}`;
-              const storedVote = localStorage.getItem(voteKey);
-              if (storedVote) {
-                try {
-                  const voteData = JSON.parse(storedVote);
-                  if (voteData.voted) {
-                    // We have a stored vote but blockchain doesn't confirm yet
-                    // This means transaction is still pending - show as voted
-                    setHasVoted(true);
-                    
-                    // Poll in background to check when it's confirmed
-                    const pollForConfirmation = async () => {
-                      for (let i = 0; i < 30; i++) {
-                        await new Promise(resolve => setTimeout(resolve, 2000));
-                        try {
-                          const confirmed = await aleoService.hasVoted(id, addressHash);
-                          if (confirmed) {
-                            setHasVoted(true);
-                            localStorage.setItem(voteKey, JSON.stringify({
-                              voted: true,
-                              timestamp: Date.now(),
-                              confirmed: true,
-                            }));
-                            // Refresh campaign data
-                            const refreshData = await aleoService.fetchCampaign(id);
-                            if (refreshData) {
-                              const refreshed = await parseOnChainCampaign(refreshData, id);
-                              if (refreshed) {
-                                refreshed.title = campaignData.title;
-                                refreshed.description = campaignData.description;
-                                refreshed.imageUrl = campaignData.imageUrl;
-                                if (refreshed.totalVotes > 0) {
-                                  refreshed.options = refreshed.options.map(opt => ({
-                                    ...opt,
-                                    percentage: Math.round((opt.voteCount / refreshed.totalVotes) * 100),
-                                  }));
-                                }
-                                setCampaign(refreshed);
-                              }
-                            }
-                            return;
-                            }
-                          } catch (e) {
-                            // Silent fail for polling
-                          }
-                      }
-                    };
-                    pollForConfirmation();
-                  } else {
-                    // Stored vote says not voted - clear it and set hasVoted to false
+        // Check vote status FIRST if wallet is connected (before loading campaign)
+        const checkVoteStatus = async () => {
+          if (address && walletConnected) {
+            try {
+              const addressHash = aleoService.hashToField(address);
+              const voted = await aleoService.hasVoted(id, addressHash);
+              
+              if (voted) {
+                setHasVoted(true);
+                const voteKey = `vote_${id}_${address}`;
+                localStorage.setItem(voteKey, JSON.stringify({
+                  voted: true,
+                  timestamp: Date.now(),
+                  confirmed: true,
+                }));
+              } else {
+                const voteKey = `vote_${id}_${address}`;
+                const storedVote = localStorage.getItem(voteKey);
+                if (storedVote) {
+                  try {
+                    const voteData = JSON.parse(storedVote);
+                    if (voteData.voted) {
+                      setHasVoted(true);
+                    } else {
+                      localStorage.removeItem(voteKey);
+                      setHasVoted(false);
+                    }
+                  } catch (e) {
                     localStorage.removeItem(voteKey);
                     setHasVoted(false);
                   }
-                } catch (e) {
-                  localStorage.removeItem(voteKey);
+                } else {
                   setHasVoted(false);
                 }
-              } else {
-                // No stored vote and blockchain says not voted - user hasn't voted
-                setHasVoted(false);
               }
-            }
-          } catch (voteCheckErr) {
-            // If blockchain check fails, fall back to localStorage
-            if (address) {
-              const voteKey = `vote_${id}_${address}`;
-              const storedVote = localStorage.getItem(voteKey);
-              if (storedVote) {
-                try {
-                  const voteData = JSON.parse(storedVote);
-                  setHasVoted(voteData.voted || false);
-                } catch (e) {
+            } catch (voteCheckErr) {
+              if (address) {
+                const voteKey = `vote_${id}_${address}`;
+                const storedVote = localStorage.getItem(voteKey);
+                if (storedVote) {
+                  try {
+                    const voteData = JSON.parse(storedVote);
+                    setHasVoted(voteData.voted || false);
+                  } catch (e) {
+                    setHasVoted(false);
+                  }
+                } else {
                   setHasVoted(false);
                 }
-              } else {
-                setHasVoted(false);
               }
             }
+          } else {
+            setHasVoted(false);
           }
+          setIsCheckingVote(false);
+        };
+
+        // Load campaign data and check vote status in parallel
+        // Only check vote if wallet is connected, otherwise skip check
+        if (address && walletConnected) {
+          const [onChainData] = await Promise.all([
+            aleoService.fetchCampaign(id),
+            checkVoteStatus()
+          ]);
+          
+          if (!onChainData) {
+            throw new Error('Campaign not found');
+          }
+
+          const campaignData = await parseOnChainCampaign(onChainData, id);
+
+          if (!campaignData) {
+            throw new Error('Failed to parse campaign data');
+          }
+
+          if (campaignData.totalVotes > 0) {
+            campaignData.options = campaignData.options.map(opt => ({
+              ...opt,
+              percentage: Math.round((opt.voteCount / campaignData.totalVotes) * 100),
+            }));
+          }
+
+          setCampaign(campaignData);
         } else {
-          // No wallet connected - reset vote status
+          // No wallet connected - just load campaign, vote check will happen when wallet connects
+          const onChainData = await aleoService.fetchCampaign(id);
+          
+          if (!onChainData) {
+            throw new Error('Campaign not found');
+          }
+
+          const campaignData = await parseOnChainCampaign(onChainData, id);
+
+          if (!campaignData) {
+            throw new Error('Failed to parse campaign data');
+          }
+
+          if (campaignData.totalVotes > 0) {
+            campaignData.options = campaignData.options.map(opt => ({
+              ...opt,
+              percentage: Math.round((opt.voteCount / campaignData.totalVotes) * 100),
+            }));
+          }
+
+          setCampaign(campaignData);
+          setIsCheckingVote(false);
           setHasVoted(false);
         }
       } catch (err: any) {
-        console.error('Error loading campaign:', err);
         setError(err.message || 'Failed to load campaign');
+        setIsCheckingVote(false);
       } finally {
         setIsLoading(false);
       }
@@ -207,9 +189,86 @@ export default function CampaignDetailPage() {
     loadCampaign();
   }, [campaignId, address, walletConnected]);
 
-  // Periodic check for vote status (every 10 seconds) to update UI when transaction is finalized
+  // Separate effect to check vote status immediately when wallet connects
   useEffect(() => {
-    if (!campaign || !address || !walletConnected || hasVoted) return;
+    if (!campaign || !address || !walletConnected) {
+      // If no wallet connected, ensure we're not checking
+      if (!address || !walletConnected) {
+        setIsCheckingVote(false);
+      }
+      return;
+    }
+
+    const checkVoteOnWalletConnect = async () => {
+      setIsCheckingVote(true);
+      try {
+        const id = parseInt(campaignId);
+        if (isNaN(id)) {
+          setIsCheckingVote(false);
+          return;
+        }
+
+        const addressHash = aleoService.hashToField(address);
+        const voted = await aleoService.hasVoted(id, addressHash);
+        
+        if (voted) {
+          setHasVoted(true);
+          const voteKey = `vote_${id}_${address}`;
+          localStorage.setItem(voteKey, JSON.stringify({
+            voted: true,
+            timestamp: Date.now(),
+            confirmed: true,
+          }));
+        } else {
+          const voteKey = `vote_${id}_${address}`;
+          const storedVote = localStorage.getItem(voteKey);
+          if (storedVote) {
+            try {
+              const voteData = JSON.parse(storedVote);
+              if (voteData.voted) {
+                setHasVoted(true);
+              } else {
+                localStorage.removeItem(voteKey);
+                setHasVoted(false);
+              }
+            } catch (e) {
+              localStorage.removeItem(voteKey);
+              setHasVoted(false);
+            }
+          } else {
+            setHasVoted(false);
+          }
+        }
+      } catch (err) {
+        // On error, check localStorage as fallback
+        if (address) {
+          const id = parseInt(campaignId);
+          if (!isNaN(id)) {
+            const voteKey = `vote_${id}_${address}`;
+            const storedVote = localStorage.getItem(voteKey);
+            if (storedVote) {
+              try {
+                const voteData = JSON.parse(storedVote);
+                setHasVoted(voteData.voted || false);
+              } catch (e) {
+                setHasVoted(false);
+              }
+            } else {
+              setHasVoted(false);
+            }
+          }
+        }
+      } finally {
+        setIsCheckingVote(false);
+      }
+    };
+
+    checkVoteOnWalletConnect();
+  }, [campaign, campaignId, address, walletConnected]);
+
+  // Periodic check for vote status (only if not already voted and not currently checking)
+  useEffect(() => {
+    if (!campaign || !address || !walletConnected || hasVoted || isCheckingVote) return;
 
     const checkVoteStatus = async () => {
       try {
@@ -222,7 +281,6 @@ export default function CampaignDetailPage() {
         if (voted && !hasVoted) {
           setHasVoted(true);
           
-          // Update localStorage
           const voteKey = `vote_${id}_${address}`;
           localStorage.setItem(voteKey, JSON.stringify({
             voted: true,
@@ -230,7 +288,6 @@ export default function CampaignDetailPage() {
             confirmed: true,
           }));
           
-          // Refresh campaign data
           const onChainData = await aleoService.fetchCampaign(id);
           if (onChainData && campaign) {
             const updatedCampaign = await parseOnChainCampaign(onChainData, id);
@@ -253,12 +310,11 @@ export default function CampaignDetailPage() {
       }
     };
 
-    // Check immediately, then every 10 seconds
     checkVoteStatus();
     const interval = setInterval(checkVoteStatus, 10000);
 
     return () => clearInterval(interval);
-  }, [campaign, campaignId, address, walletConnected, hasVoted]);
+  }, [campaign, campaignId, address, walletConnected, hasVoted, isCheckingVote]);
 
   const getCampaignStatus = () => {
     if (!campaign) return 'loading';
@@ -553,7 +609,6 @@ export default function CampaignDetailPage() {
         }
       }
     } catch (err: any) {
-      console.error('Vote error:', err);
       const errorMessage = err.message || 'Transaction failed';
       
       // Provide more specific error messages
@@ -780,7 +835,12 @@ export default function CampaignDetailPage() {
                 {status === 'ended' ? 'Final Results' : 'Cast Your Vote'}
               </h2>
 
-              {hasVoted ? (
+              {isCheckingVote ? (
+                <div className="text-center py-8">
+                  <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                  <p className="text-white/60">Checking vote status...</p>
+                </div>
+              ) : hasVoted ? (
                 <div className="text-center py-8">
                   <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
                     <CheckCircle className="w-8 h-8 text-green-400" />
@@ -807,7 +867,7 @@ export default function CampaignDetailPage() {
               )}
 
               {/* Vote Button */}
-              {status === 'active' && !hasVoted && (
+              {status === 'active' && !hasVoted && !isCheckingVote && (
                 <div className="mt-6 pt-6 border-t border-white/10">
 
                   <div className="flex items-start gap-3 mb-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">

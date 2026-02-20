@@ -290,7 +290,6 @@ class AleoService {
       const data = await response.json();
       return data === 'true' || data === true || String(data).toLowerCase() === 'true';
     } catch (error) {
-      console.error('Error checking vote status:', error);
       return false;
     }
   }
