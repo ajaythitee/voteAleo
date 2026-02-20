@@ -7,6 +7,8 @@ interface GlassCardProps extends Omit<HTMLMotionProps<'div'>, 'children'> {
   children: ReactNode;
   hover?: boolean;
   glow?: boolean;
+  variant?: 'solid' | 'glass';
+  animate?: boolean;
   className?: string;
 }
 
@@ -14,20 +16,26 @@ export function GlassCard({
   children,
   hover = true,
   glow = false,
+  variant = 'solid',
+  animate = false,
   className = '',
   ...props
 }: GlassCardProps) {
+  const baseClass = variant === 'glass'
+    ? 'glass-card p-6'
+    : 'rounded-2xl border border-white/[0.08] bg-white/[0.04] p-6';
+
   return (
     <motion.div
       className={`
-        glass-card p-6
-        ${hover ? 'glass-card-hover' : ''}
-        ${glow ? 'shadow-glow' : ''}
+        ${baseClass}
+        ${hover ? (variant === 'glass' ? 'glass-card-hover' : 'transition-colors hover:bg-white/[0.06] hover:border-white/[0.12]') : ''}
+        ${glow ? 'shadow-[0_0_24px_rgba(99,102,241,0.15)]' : ''}
         ${className}
       `}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: 'easeOut' }}
+      initial={animate ? { opacity: 0, y: 12 } : undefined}
+      animate={animate ? { opacity: 1, y: 0 } : undefined}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
       {...props}
     >
       {children}
@@ -38,19 +46,21 @@ export function GlassCard({
 export function GlassCardCompact({
   children,
   hover = true,
+  variant = 'solid',
   className = '',
   ...props
 }: GlassCardProps) {
+  const baseClass = variant === 'glass'
+    ? 'glass-card p-4'
+    : 'rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4';
+
   return (
     <motion.div
       className={`
-        glass-card p-4
-        ${hover ? 'glass-card-hover' : ''}
+        ${baseClass}
+        ${hover ? 'transition-colors hover:bg-white/[0.06] hover:border-white/[0.12]' : ''}
         ${className}
       `}
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.3 }}
       {...props}
     >
       {children}

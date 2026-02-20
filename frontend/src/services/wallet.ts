@@ -1,4 +1,4 @@
-// Wallet Service for VoteAleo
+// Wallet Service for Privote
 // Works with the Aleo wallet adapter for transactions
 
 import { aleoService } from './aleo';

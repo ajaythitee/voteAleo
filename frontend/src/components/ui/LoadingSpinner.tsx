@@ -41,7 +41,7 @@ export function LoadingDots() {
       {[0, 1, 2].map((i) => (
         <motion.div
           key={i}
-          className="w-2 h-2 rounded-full bg-indigo-500"
+          className="w-2 h-2 rounded-full bg-emerald-500"
           animate={{
             y: [0, -8, 0],
             opacity: [0.5, 1, 0.5],
@@ -62,7 +62,7 @@ export function PageLoader() {
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="flex flex-col items-center gap-6">
         <motion.div
-          className="w-16 h-16 rounded-full border-4 border-indigo-500/20 border-t-indigo-500"
+          className="w-16 h-16 rounded-full border-4 border-emerald-500/20 border-t-emerald-500"
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
         />

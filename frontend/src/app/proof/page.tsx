@@ -72,7 +72,7 @@ function ProofContent() {
         </div>
         <h1 className="text-xl font-semibold text-white text-center mb-2">Participation proof valid</h1>
         <p className="text-white/70 text-center mb-6">
-          This link proves that a voter participated in <strong>Campaign #{campaignId}</strong> on VoteAleo.
+          This link proves that a voter participated in <strong>Campaign #{campaignId}</strong> on Privote.
           No vote choice is revealed (privacy-preserving).
         </p>
         <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-2 text-sm">
@@ -88,7 +88,7 @@ function ProofContent() {
                   href={explorerUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-indigo-400 hover:underline flex items-center gap-1 truncate max-w-[200px]"
+                  className="text-emerald-400 hover:underline flex items-center gap-1 truncate max-w-[200px]"
                 >
                   {txId.slice(0, 12)}... <ExternalLink className="w-3 h-3 flex-shrink-0" />
                 </a>

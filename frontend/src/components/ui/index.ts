@@ -1,3 +1,4 @@
+export { Badge } from './Badge';
 export { GlassCard, GlassCardCompact } from './GlassCard';
 export { GlassButton, IconButton } from './GlassButton';
 export { GlassInput, GlassTextarea, GlassSelect } from './GlassInput';

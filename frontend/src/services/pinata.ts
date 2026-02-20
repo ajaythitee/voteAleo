@@ -1,4 +1,4 @@
-// Pinata IPFS Service for VoteAleo
+// Pinata IPFS Service for Privote
 
 import { IPFSUploadResult, CampaignMetadata } from '@/types';
 
@@ -34,7 +34,7 @@ class PinataService {
     const metadata = JSON.stringify({
       name: file.name,
       keyvalues: {
-        app: 'votealeo',
+        app: 'privote',
         type: 'campaign-image',
       },
     });
@@ -89,7 +89,7 @@ class PinataService {
           pinataMetadata: {
             name: `campaign-${Date.now()}.json`,
             keyvalues: {
-              app: 'votealeo',
+              app: 'privote',
               type: 'campaign-metadata',
             },
           },

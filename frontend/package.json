@@ -1,5 +1,5 @@
 {
-  "name": "votealeo-frontend",
+  "name": "privote-frontend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -13,6 +13,7 @@
     "@demox-labs/aleo-wallet-adapter-leo": "^0.0.25",
     "@demox-labs/aleo-wallet-adapter-react": "^0.0.22",
     "@demox-labs/aleo-wallet-adapter-reactui": "^0.0.36",
+    "@google/generative-ai": "^0.24.1",
     "@provablehq/sdk": "^0.8.8",
     "@puzzlehq/sdk-core": "^1.0.4",
     "@types/uuid": "^10.0.0",
@@ -20,6 +21,8 @@
     "aleo-hooks": "^1.0.3",
     "date-fns": "^3.6.0",
     "framer-motion": "^11.11.0",
+    "jspdf": "^4.2.0",
+    "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.454.0",
     "next": "14.2.18",
     "pinata": "^2.5.3",

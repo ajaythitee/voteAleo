@@ -61,12 +61,12 @@ export function WalletConnect() {
       <div className="relative">
         <motion.button
           onClick={() => setShowDropdown(!showDropdown)}
-          className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 hover:border-indigo-400/50 transition-all"
+          className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 hover:border-emerald-400/50 transition-all"
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
         >
           <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          <Wallet className="w-5 h-5 text-indigo-400" />
+          <Wallet className="w-5 h-5 text-emerald-400" />
           <span className="text-white font-medium">{truncateAddress(publicKey)}</span>
           <ChevronDown className={`w-4 h-4 text-white/70 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
         </motion.button>

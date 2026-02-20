@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import {
   Clock,
   CheckCircle,
@@ -20,9 +19,9 @@ import { GlassButton } from '@/components/ui/GlassButton';
 import { SkeletonCard } from '@/components/ui/LoadingSpinner';
 import { useWallet } from '@demox-labs/aleo-wallet-adapter-react';
 import { useWalletStore } from '@/stores/walletStore';
-import { Campaign, CampaignMetadata } from '@/types';
+import { Campaign } from '@/types';
 import { aleoService } from '@/services/aleo';
-import { pinataService } from '@/services/pinata';
+import { parseOnChainCampaign } from '@/services/campaignParser';
 import { formatDistanceToNow, isPast, format } from 'date-fns';
 
 interface VoteHistory {
@@ -67,7 +66,7 @@ export default function HistoryPage() {
           const id = idMatch ? parseInt(idMatch[1]) : 0;
 
           if (id > 0 && typeof entry.data === 'string') {
-            const campaignData = await parseOnChainCampaign(entry.data, id);
+            const campaignData = await parseOnChainCampaign(entry.data as string, id);
             if (campaignData) {
               campaignList.push(campaignData);
 
@@ -97,123 +96,6 @@ export default function HistoryPage() {
       setError('Failed to load voting history');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const parseOnChainCampaign = async (data: string, id: number): Promise<Campaign | null> => {
-    try {
-      const parsed = parseAleoStruct(data);
-      if (!parsed) return null;
-
-      let title = `Campaign #${id}`;
-      let description = 'Campaign on VoteAleo';
-      let imageUrl = '/images/default-campaign.svg';
-      let options: { id: string; label: string; voteCount: number }[] = [];
-
-      // Try to decode CID from on-chain fields and fetch metadata from IPFS
-      const cidPart1 = parsed['metadata_cid.part1'];
-      const cidPart2 = parsed['metadata_cid.part2'];
-
-      if (cidPart1 && cidPart2) {
-        try {
-          const cid = aleoService.decodeFieldsToCid(
-            cidPart1.includes('field') ? cidPart1 : cidPart1 + 'field',
-            cidPart2.includes('field') ? cidPart2 : cidPart2 + 'field'
-          );
-          console.log(`Campaign ${id} decoded CID:`, cid);
-
-          if (cid) {
-            const metadata = await pinataService.fetchJSON<CampaignMetadata>(cid);
-            if (metadata) {
-              title = metadata.title || title;
-              description = metadata.description || description;
-              // Get image from IPFS if available
-              if (metadata.imageCid) {
-                imageUrl = pinataService.getGatewayUrl(metadata.imageCid);
-              }
-              if (metadata.options) {
-                options = metadata.options.map((label, idx) => ({
-                  id: String(idx),
-                  label,
-                  voteCount: Number(parsed[`votes_${idx}`] || 0),
-                }));
-              }
-            }
-          }
-        } catch (e) {
-          console.warn(`Could not fetch metadata for campaign ${id}:`, e);
-        }
-      }
-
-      // Generate default options if none found
-      if (options.length === 0) {
-        const optionCount = Number(parsed.option_count || 2);
-        options = Array.from({ length: optionCount }, (_, idx) => ({
-          id: String(idx),
-          label: `Option ${idx + 1}`,
-          voteCount: Number(parsed[`votes_${idx}`] || 0),
-        }));
-      }
-
-      return {
-        id: String(id),
-        title,
-        description,
-        imageUrl,
-        creator: parsed.creator || '',
-        startTime: new Date(Number(parsed.start_time || 0) * 1000),
-        endTime: new Date(Number(parsed.end_time || 0) * 1000),
-        options,
-        totalVotes: Number(parsed.total_votes || 0),
-        isActive: parsed.is_active === 'true',
-        createdAt: new Date(),
-        onChainId: id,
-      };
-    } catch (err) {
-      console.error('Error parsing campaign:', err);
-      return null;
-    }
-  };
-
-  // Parse Aleo struct string format (handles nested structs)
-  const parseAleoStruct = (str: string): Record<string, string> | null => {
-    try {
-      let content = str.replace(/^\s*\{|\}\s*$/g, '').trim();
-      content = content.replace(/\n/g, ' ');
-      if (!content) return null;
-
-      const result: Record<string, string> = {};
-
-      // Handle nested struct for metadata_cid: { part1: ..., part2: ... }
-      const nestedMatch = content.match(/metadata_cid\s*:\s*\{\s*part1\s*:\s*(\d+)field\s*,\s*part2\s*:\s*(\d+)field\s*\}/i);
-      if (nestedMatch) {
-        result['metadata_cid.part1'] = nestedMatch[1] + 'field';
-        result['metadata_cid.part2'] = nestedMatch[2] + 'field';
-        content = content.replace(/metadata_cid\s*:\s*\{[^}]+\}/i, '');
-      } else {
-        // Try to extract fields directly if nested parsing fails
-        const part1Match = content.match(/part1\s*:\s*(\d+)field/i);
-        const part2Match = content.match(/part2\s*:\s*(\d+)field/i);
-        if (part1Match && part2Match) {
-          result['metadata_cid.part1'] = part1Match[1] + 'field';
-          result['metadata_cid.part2'] = part2Match[1] + 'field';
-        }
-      }
-
-      // Match simple key-value pairs
-      const simpleRegex = /([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*([^,{}]+?)(?:,|$)/g;
-      let match;
-
-      while ((match = simpleRegex.exec(content)) !== null) {
-        const key = match[1].trim();
-        let value = match[2].trim();
-        const cleanValue = value.replace(/\s*(u\d+|i\d+|field|bool|address)$/i, '').trim();
-        result[key] = cleanValue;
-      }
-
-      return result;
-    } catch {
-      return null;
     }
   };
 
@@ -286,8 +168,8 @@ export default function HistoryPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <GlassCard className="p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
-                <Vote className="w-5 h-5 text-indigo-400" />
+              <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                <Vote className="w-5 h-5 text-emerald-400" />
               </div>
               <div>
                 <p className="text-2xl font-bold text-white">{votedCount}</p>
@@ -322,8 +204,8 @@ export default function HistoryPage() {
 
           <GlassCard className="p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-blue-400" />
+              <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-amber-400" />
               </div>
               <div>
                 <p className="text-2xl font-bold text-white">
@@ -343,7 +225,7 @@ export default function HistoryPage() {
             <p className="text-red-400">{error}</p>
             <button
               onClick={loadVoteHistory}
-              className="mt-2 text-sm text-indigo-400 hover:underline"
+              className="mt-2 text-sm text-emerald-400 hover:underline"
             >
               Try again
             </button>
@@ -351,14 +233,14 @@ export default function HistoryPage() {
         )}
 
         {/* Privacy Note */}
-        <GlassCard className="p-4 mb-8 border-indigo-500/20">
+        <GlassCard className="p-4 mb-8 border-emerald-500/20">
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
-              <EyeOff className="w-4 h-4 text-indigo-400" />
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+              <EyeOff className="w-4 h-4 text-emerald-400" />
             </div>
             <div>
               <p className="text-sm text-white/80">
-                <strong className="text-indigo-400">Privacy Preserved:</strong> Your vote choices are completely anonymous.
+                <strong className="text-emerald-400">Privacy Preserved:</strong> Your vote choices are completely anonymous.
                 We can only verify if you participated, not how you voted.
               </p>
             </div>
@@ -391,8 +273,8 @@ export default function HistoryPage() {
           </GlassCard>
         ) : (
           <div className="space-y-4">
-            {filteredHistory.map((item, index) => (
-              <HistoryCard key={item.campaign.id} item={item} index={index} />
+            {filteredHistory.map((item) => (
+              <HistoryCard key={item.campaign.id} item={item} />
             ))}
           </div>
         )}
@@ -401,21 +283,16 @@ export default function HistoryPage() {
   );
 }
 
-function HistoryCard({ item, index }: { item: VoteHistory; index: number }) {
+function HistoryCard({ item }: { item: VoteHistory }) {
   const { campaign, hasVoted } = item;
   const isEnded = isPast(campaign.endTime);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.05 }}
-    >
-      <Link href={`/campaign/${campaign.id}`}>
-        <GlassCard hover className="p-4">
-          <div className="flex items-center gap-4">
-            {/* Image */}
-            <div className="w-16 h-16 rounded-lg overflow-hidden bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex-shrink-0">
+    <Link href={`/campaign/${campaign.id}`}>
+      <GlassCard hover className="p-4">
+        <div className="flex items-center gap-4">
+          {/* Image */}
+          <div className="w-16 h-16 rounded-lg overflow-hidden bg-white/[0.06] flex-shrink-0">
               <img
                 src={campaign.imageUrl || '/images/default-campaign.svg'}
                 alt={campaign.title}
@@ -472,7 +349,6 @@ function HistoryCard({ item, index }: { item: VoteHistory; index: number }) {
             </div>
           </div>
         </GlassCard>
-      </Link>
-    </motion.div>
+    </Link>
   );
 }

@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
   Clock,
@@ -30,8 +29,9 @@ import { useToastStore } from '@/stores/toastStore';
 import { aleoService } from '@/services/aleo';
 import { pinataService } from '@/services/pinata';
 import { relayerService } from '@/services/relayer';
-import { createTransaction, EventType, requestCreateEvent, getProgramId } from '@/utils/transaction';
-import { Campaign, VotingOption, CampaignMetadata } from '@/types';
+import { parseOnChainCampaign } from '@/services/campaignParser';
+import { createTransaction, requestCreateEvent, getProgramId, buildVoteParams } from '@/utils/transaction';
+import { Campaign, VotingOption } from '@/types';
 import { format, formatDistanceToNow, isPast, isFuture } from 'date-fns';
 
 export default function CampaignDetailPage() {
@@ -49,6 +49,7 @@ export default function CampaignDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [useGasless, setUseGasless] = useState(true); // Default to gasless
   const [lastVoteProof, setLastVoteProof] = useState<{ transactionId?: string; eventId?: string; address?: string } | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   const { publicKey, requestTransaction, wallet, connected } = useWallet();
   const { isConnected } = useWalletStore();
@@ -57,172 +58,6 @@ export default function CampaignDetailPage() {
   // Use wallet adapter connection state
   const walletConnected = connected || isConnected;
   const address = publicKey;
-
-  // Parse Aleo struct string format (handles nested structs)
-  const parseAleoStruct = (str: string): Record<string, string> | null => {
-    try {
-      console.log('Parsing struct:', str.slice(0, 200) + '...');
-
-      // Remove outer braces and newlines
-      let content = str.replace(/^\s*\{|\}\s*$/g, '').trim();
-      content = content.replace(/\n/g, ' ');
-      if (!content) return null;
-
-      const result: Record<string, string> = {};
-
-      // Handle nested struct for metadata_cid: { part1: ..., part2: ... }
-      const nestedMatch = content.match(/metadata_cid\s*:\s*\{\s*part1\s*:\s*(\d+)field\s*,\s*part2\s*:\s*(\d+)field\s*\}/i);
-      if (nestedMatch) {
-        result['metadata_cid.part1'] = nestedMatch[1] + 'field';
-        result['metadata_cid.part2'] = nestedMatch[2] + 'field';
-        console.log('Extracted CID parts:', {
-          part1: result['metadata_cid.part1'].slice(0, 30) + '...',
-          part2: result['metadata_cid.part2'].slice(0, 30) + '...'
-        });
-        // Remove the nested struct from content for further parsing
-        content = content.replace(/metadata_cid\s*:\s*\{[^}]+\}/i, '');
-      } else {
-        // Try to extract fields directly if nested parsing fails
-        const part1Match = content.match(/part1\s*:\s*(\d+)field/i);
-        const part2Match = content.match(/part2\s*:\s*(\d+)field/i);
-        if (part1Match && part2Match) {
-          result['metadata_cid.part1'] = part1Match[1] + 'field';
-          result['metadata_cid.part2'] = part2Match[1] + 'field';
-          console.log('Extracted CID parts (alternative):', {
-            part1: result['metadata_cid.part1'].slice(0, 30) + '...',
-            part2: result['metadata_cid.part2'].slice(0, 30) + '...'
-          });
-        }
-      }
-
-      // Match simple key-value pairs
-      const simpleRegex = /([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*([^,{}]+?)(?:,|$)/g;
-      let match;
-
-      while ((match = simpleRegex.exec(content)) !== null) {
-        const key = match[1].trim();
-        let value = match[2].trim();
-        // Remove type suffixes but keep the raw value
-        const cleanValue = value.replace(/\s*(u\d+|i\d+|field|bool|address)$/i, '').trim();
-        result[key] = cleanValue;
-      }
-
-      console.log('Parsed result keys:', Object.keys(result));
-      return result;
-    } catch (e) {
-      console.error('Error parsing struct:', e);
-      return null;
-    }
-  };
-
-  // Parse on-chain campaign data and fetch metadata from IPFS
-  const parseOnChainCampaign = async (data: any, id: number): Promise<Campaign | null> => {
-    try {
-      if (typeof data !== 'string') return null;
-
-      const parsed = parseAleoStruct(data);
-      if (!parsed) return null;
-
-      let title = `Campaign #${id}`;
-      let description = 'Campaign on VoteAleo';
-      let imageUrl = '/images/default-campaign.svg';
-      let options: { id: string; label: string; voteCount: number }[] = [];
-      let minVotes: number | undefined;
-      let category: string | undefined;
-
-      // Decode CID from on-chain and fetch metadata from IPFS
-      const cidPart1 = parsed['metadata_cid.part1'];
-      const cidPart2 = parsed['metadata_cid.part2'];
-
-      console.log(`Campaign ${id} CID parts:`, { cidPart1, cidPart2 });
-
-      if (cidPart1 && cidPart2) {
-        try {
-          const part1WithSuffix = cidPart1.includes('field') ? cidPart1 : cidPart1 + 'field';
-          const part2WithSuffix = cidPart2.includes('field') ? cidPart2 : cidPart2 + 'field';
-
-          console.log(`Campaign ${id} decoding fields:`, { part1WithSuffix, part2WithSuffix });
-
-          const cid = aleoService.decodeFieldsToCid(part1WithSuffix, part2WithSuffix);
-          console.log(`Campaign ${id} decoded CID:`, cid);
-
-          if (cid && cid.length > 10) {
-            try {
-              const metadata = await pinataService.fetchJSON<CampaignMetadata>(cid);
-              console.log(`Campaign ${id} metadata from IPFS:`, metadata);
-
-              if (metadata) {
-                title = metadata.title || title;
-                description = metadata.description || description;
-                // Get image from IPFS if available
-                if (metadata.imageCid) {
-                  imageUrl = pinataService.getGatewayUrl(metadata.imageCid);
-                  console.log(`Campaign ${id} image URL:`, imageUrl);
-                }
-                if (metadata.options && Array.isArray(metadata.options)) {
-                  options = metadata.options.map((label, idx) => ({
-                    id: String(idx),
-                    label: typeof label === 'string' ? label : `Option ${idx + 1}`,
-                    voteCount: Number(parsed[`votes_${idx}`] || 0),
-                  }));
-                }
-                if (metadata.minVotes != null && metadata.minVotes > 0) minVotes = metadata.minVotes;
-                if (metadata.category?.trim()) category = metadata.category.trim();
-              }
-            } catch (ipfsError) {
-              console.warn(`Could not fetch IPFS metadata for campaign ${id}:`, ipfsError);
-            }
-          }
-        } catch (e) {
-          console.warn(`Could not decode CID for campaign ${id}:`, e);
-        }
-      } else {
-        console.log(`Campaign ${id} has no CID parts in parsed data`);
-      }
-
-      // Generate default options if none found
-      if (options.length === 0) {
-        const optionCount = Number(parsed.option_count || 2);
-        options = Array.from({ length: optionCount }, (_, idx) => ({
-          id: String(idx),
-          label: `Option ${idx + 1}`,
-          voteCount: Number(parsed[`votes_${idx}`] || 0),
-        }));
-      }
-
-      return {
-        id: String(id),
-        title,
-        description,
-        imageUrl,
-        creator: parsed.creator || '',
-        startTime: new Date(Number(parsed.start_time || 0) * 1000),
-        endTime: new Date(Number(parsed.end_time || 0) * 1000),
-        options,
-        totalVotes: Number(parsed.total_votes || 0),
-        isActive: parsed.is_active === 'true',
-        createdAt: new Date(),
-        onChainId: id,
-        minVotes,
-        category,
-      };
-    } catch (err) {
-      console.error('Error parsing campaign:', err);
-      return null;
-    }
-  };
-
-  // Fetch campaign metadata from IPFS
-  const fetchCampaignMetadata = async (metadataHash: string): Promise<CampaignMetadata | null> => {
-    try {
-      if (!metadataHash) return null;
-      const cid = metadataHash.replace(/field$/, '');
-      const metadata = await pinataService.fetchJSON<CampaignMetadata>(cid);
-      return metadata;
-    } catch {
-      return null;
-    }
-  };
 
   useEffect(() => {
     const loadCampaign = async () => {
@@ -308,34 +143,11 @@ export default function CampaignDetailPage() {
           return;
         }
 
-        // Format inputs for Aleo
         const inputs = aleoService.formatCastVoteInputs(campaignIdNum, selectedOption, timestamp);
-
         const walletName = wallet?.adapter?.name;
-        console.log('Voting with wallet:', walletName);
-        console.log('Vote inputs:', inputs);
-
-        if (walletName === 'Puzzle Wallet') {
-          // Use Puzzle Wallet SDK
-          const puzzleParams = {
-            type: EventType.Execute,
-            programId: getProgramId(),
-            functionId: 'cast_vote',
-            fee: 0.3, // Fee in credits for Puzzle
-            inputs,
-          };
-          result = await createTransaction(puzzleParams, requestCreateEvent, walletName);
-        } else {
-          // Use Leo Wallet adapter
-          const leoParams = {
-            publicKey: address,
-            functionName: 'cast_vote',
-            inputs,
-            fee: 300000, // Fee in microcredits for Leo
-            feePrivate: false,
-          };
-          result = await createTransaction(leoParams, requestTransaction, walletName);
-        }
+        const params = buildVoteParams(inputs, address, walletName);
+        const execute = walletName === 'Puzzle Wallet' ? requestCreateEvent : requestTransaction;
+        result = await createTransaction(params, execute, walletName);
       }
 
       if (!result.success) {
@@ -385,27 +197,47 @@ export default function CampaignDetailPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const exportResults = () => {
+  const generateReport = async () => {
     if (!campaign) return;
-    const programId = aleoService.getProgramId();
-    const network = aleoService.getNetwork();
-    const explorerUrl = aleoService.getProgramExplorerUrl();
-    const payload = {
-      programId,
-      campaignId: campaign.onChainId ?? campaign.id,
-      network,
-      totalVotes: campaign.totalVotes,
-      votesPerOption: campaign.options.map((o, i) => ({ optionIndex: i, label: o.label, votes: o.voteCount, percentage: o.percentage })),
-      exportedAt: new Date().toISOString(),
-      explorerUrl,
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `campaign-${campaign.id}-results.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    setIsGeneratingReport(true);
+    try {
+      const programId = aleoService.getProgramId();
+      const explorerUrl = aleoService.getProgramExplorerUrl();
+      const res = await fetch('/api/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaignId: campaign.onChainId ?? campaign.id,
+          title: campaign.title,
+          totalVotes: campaign.totalVotes,
+          options: campaign.options.map((o) => ({
+            label: o.label,
+            votes: o.voteCount,
+            percentage: o.percentage,
+          })),
+          startTime: campaign.startTime.toISOString(),
+          endTime: campaign.endTime.toISOString(),
+          programId,
+          explorerUrl,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to generate report');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `privote-campaign-${campaign.id}-report.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      success('Report downloaded', 'Your campaign report PDF is ready.');
+    } catch (e) {
+      showError('Report failed', e instanceof Error ? e.message : 'Could not generate report');
+    } finally {
+      setIsGeneratingReport(false);
+    }
   };
 
   const getProofUrl = (): string => {
@@ -461,7 +293,7 @@ export default function CampaignDetailPage() {
     },
     upcoming: {
       label: 'Upcoming',
-      color: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+      color: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
     },
     ended: {
       label: 'Ended',
@@ -496,7 +328,7 @@ export default function CampaignDetailPage() {
             {/* Campaign Header */}
             <GlassCard className="overflow-hidden p-0">
               {/* Image */}
-              <div className="relative h-64 sm:h-80 bg-gradient-to-br from-indigo-500/20 to-purple-500/20">
+              <div className="relative h-64 sm:h-80 bg-white/[0.06]">
                 <img
                   src={campaign.imageUrl || '/images/default-campaign.svg'}
                   alt={campaign.title}
@@ -557,13 +389,9 @@ export default function CampaignDetailPage() {
 
               {hasVoted ? (
                 <div className="text-center py-8">
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4"
-                  >
+                  <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
                     <CheckCircle className="w-8 h-8 text-green-400" />
-                  </motion.div>
+                  </div>
                   <h3 className="text-xl font-semibold text-white mb-2">Vote Submitted!</h3>
                   <p className="text-white/60">
                     Your anonymous vote has been recorded on the blockchain.
@@ -610,10 +438,10 @@ export default function CampaignDetailPage() {
                     </button>
                   </div>
 
-                  <div className="flex items-start gap-3 mb-4 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-                    <Shield className="w-5 h-5 text-indigo-400 flex-shrink-0 mt-0.5" />
+                  <div className="flex items-start gap-3 mb-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                    <Shield className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
                     <div className="text-sm">
-                      <p className="text-indigo-400 font-medium mb-1">
+                      <p className="text-emerald-400 font-medium mb-1">
                         {useGasless ? 'Free Voting - No Gas Required' : 'Anonymous Voting'}
                       </p>
                       <p className="text-white/60">
@@ -683,7 +511,7 @@ export default function CampaignDetailPage() {
             <GlassCard>
               <h3 className="font-semibold text-white mb-4">Created By</h3>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center">
                   <span className="text-white font-semibold">
                     {campaign.creator ? campaign.creator.slice(5, 7).toUpperCase() : '??'}
                   </span>
@@ -712,19 +540,21 @@ export default function CampaignDetailPage() {
               </GlassButton>
             </GlassCard>
 
-            {/* Export results */}
+            {/* Generate report */}
             <GlassCard>
-              <h3 className="font-semibold text-white mb-4">Verifiable Results</h3>
+              <h3 className="font-semibold text-white mb-4">Campaign Report</h3>
               <GlassButton
                 fullWidth
                 variant="secondary"
-                onClick={exportResults}
+                onClick={generateReport}
+                loading={isGeneratingReport}
+                disabled={isGeneratingReport || (campaign?.totalVotes ?? 0) === 0}
                 icon={<Download className="w-5 h-5" />}
               >
-                Export results (JSON)
+                {isGeneratingReport ? 'Generating…' : 'Generate report (PDF)'}
               </GlassButton>
               <p className="text-xs text-white/50 mt-2">
-                Download results with program ID and explorer link to verify on-chain.
+                PDF with results, chart, and AI summary. Includes program ID and explorer link.
               </p>
             </GlassCard>
 
@@ -810,26 +640,24 @@ function VoteOptionCard({
   disabled: boolean;
 }) {
   return (
-    <motion.button
+    <button
+      type="button"
       onClick={onSelect}
       disabled={disabled}
       className={`
-        w-full text-left p-4 rounded-xl
-        transition-all duration-300
+        w-full text-left p-4 rounded-xl border transition-colors
         ${disabled && !showResults ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         ${isSelected
-          ? 'vote-option-selected'
-          : 'vote-option'
+          ? 'bg-white/10 border-emerald-500'
+          : 'bg-white/[0.04] border-white/[0.08] hover:bg-white/5'
         }
       `}
-      whileHover={!disabled ? { scale: 1.01 } : {}}
-      whileTap={!disabled ? { scale: 0.99 } : {}}
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-3">
           <div className={`
             w-6 h-6 rounded-full border-2 flex items-center justify-center
-            ${isSelected ? 'border-indigo-500 bg-indigo-500' : 'border-white/30'}
+            ${isSelected ? 'border-emerald-500 bg-emerald-500' : 'border-white/30'}
           `}>
             {isSelected && <Check className="w-4 h-4 text-white" />}
           </div>
@@ -846,16 +674,14 @@ function VoteOptionCard({
       {showResults && (
         <div className="mt-3">
           <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-            <motion.div
-              className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full"
-              initial={{ width: 0 }}
-              animate={{ width: `${option.percentage || 0}%` }}
-              transition={{ duration: 0.8, delay: index * 0.1 }}
+            <div
+              className="h-full bg-emerald-600 rounded-full transition-[width] duration-500"
+              style={{ width: `${option.percentage || 0}%` }}
             />
           </div>
           <p className="text-sm text-white/50 mt-2">{option.voteCount} votes</p>
         </div>
       )}
-    </motion.button>
+    </button>
   );
 }

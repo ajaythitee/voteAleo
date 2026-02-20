@@ -14,11 +14,11 @@ interface GlassButtonProps extends Omit<HTMLMotionProps<'button'>, 'children'> {
 }
 
 const variantStyles = {
-  primary: 'glass-button text-white',
-  secondary: 'bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20',
-  success: 'bg-gradient-to-r from-green-500/30 to-emerald-500/30 border border-green-500/30 hover:from-green-500/40 hover:to-emerald-500/40',
-  danger: 'bg-gradient-to-r from-red-500/30 to-pink-500/30 border border-red-500/30 hover:from-red-500/40 hover:to-pink-500/40',
-  ghost: 'bg-transparent hover:bg-white/5 border border-transparent hover:border-white/10',
+  primary: 'bg-emerald-600 text-white border border-emerald-500/30 hover:brightness-110',
+  secondary: 'bg-white/[0.06] border border-white/10 text-white hover:bg-white/[0.1] hover:border-white/20',
+  success: 'bg-green-600/80 text-white border border-green-500/30 hover:brightness-110',
+  danger: 'bg-red-600/80 text-white border border-red-500/30 hover:brightness-110',
+  ghost: 'bg-transparent text-white/80 hover:bg-white/5 border border-transparent hover:border-white/10',
 };
 
 const sizeStyles = {
@@ -49,8 +49,8 @@ export function GlassButton({
         ${disabled || loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         ${className}
       `}
-      whileHover={!disabled && !loading ? { scale: 1.02 } : {}}
-      whileTap={!disabled && !loading ? { scale: 0.98 } : {}}
+      whileHover={!disabled && !loading ? { opacity: 0.95 } : {}}
+      whileTap={!disabled && !loading ? { opacity: 0.9 } : {}}
       disabled={disabled || loading}
       {...props}
     >

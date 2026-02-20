@@ -130,6 +130,58 @@ export async function createTransaction(
 }
 
 /**
+ * Build params for create_campaign transition (Puzzle or Leo based on walletName).
+ */
+export function buildCreateCampaignParams(
+  inputs: string[],
+  address: string,
+  walletName: string | undefined
+): PuzzleParams | LeoParams {
+  if (walletName === 'Puzzle Wallet') {
+    return {
+      type: EventType.Execute,
+      programId: PROGRAM_ID,
+      functionId: 'create_campaign',
+      fee: 0.5,
+      inputs,
+    };
+  }
+  return {
+    publicKey: address,
+    functionName: 'create_campaign',
+    inputs,
+    fee: 500000,
+    feePrivate: false,
+  };
+}
+
+/**
+ * Build params for cast_vote transition (Puzzle or Leo based on walletName).
+ */
+export function buildVoteParams(
+  inputs: string[],
+  address: string,
+  walletName: string | undefined
+): PuzzleParams | LeoParams {
+  if (walletName === 'Puzzle Wallet') {
+    return {
+      type: EventType.Execute,
+      programId: PROGRAM_ID,
+      functionId: 'cast_vote',
+      fee: 0.3,
+      inputs,
+    };
+  }
+  return {
+    publicKey: address,
+    functionName: 'cast_vote',
+    inputs,
+    fee: 300000,
+    feePrivate: false,
+  };
+}
+
+/**
  * Get the program ID
  */
 export function getProgramId(): string {

@@ -1,4 +1,4 @@
-// VoteAleo Type Definitions
+// Privote Type Definitions
 
 export interface Campaign {
   id: string;

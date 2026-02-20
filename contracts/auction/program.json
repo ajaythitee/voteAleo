@@ -1,0 +1,14 @@
+{
+  "program": "privote_auction_4000.aleo",
+  "version": "1.0.0",
+  "description": "Privote Auction - First-price sealed-bid auction (private/public bids) on Aleo blockchain",
+  "license": "MIT",
+  "dependencies": [
+    {
+      "name": "credits.aleo",
+      "location": "network",
+      "network": "testnet",
+      "path": null
+    }
+  ]
+}

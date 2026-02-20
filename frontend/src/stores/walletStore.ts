@@ -61,7 +61,7 @@ export const useWalletStore = create<WalletState & WalletActions>()(
       reset: () => set(initialState),
     }),
     {
-      name: 'votealeo-wallet-storage',
+      name: 'privote-wallet-storage',
       partialize: (state) => ({
         address: state.address,
         network: state.network,

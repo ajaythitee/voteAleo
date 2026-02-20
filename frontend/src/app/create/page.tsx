@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
 import {
   Upload,
   Plus,
@@ -23,7 +22,7 @@ import { useToastStore } from '@/stores/toastStore';
 import { pinataService } from '@/services/pinata';
 import { aleoService } from '@/services/aleo';
 import { relayerService } from '@/services/relayer';
-import { createTransaction, EventType, requestCreateEvent, getProgramId } from '@/utils/transaction';
+import { createTransaction, requestCreateEvent, buildCreateCampaignParams } from '@/utils/transaction';
 
 const CAMPAIGN_CATEGORIES = ['governance', 'community', 'poll', 'dao', 'other'] as const;
 
@@ -226,34 +225,11 @@ export default function CreateCampaignPage() {
           return;
         }
 
-        // Format inputs for Aleo
         const inputs = [part1, part2, `${startTime}u64`, `${endTime}u64`, `${validOptions.length}u8`];
-
         const walletName = wallet?.adapter?.name;
-        console.log('Connected wallet:', walletName);
-        console.log('Creating campaign with inputs:', inputs);
-
-        if (walletName === 'Puzzle Wallet') {
-          // Use Puzzle Wallet SDK
-          const puzzleParams = {
-            type: EventType.Execute,
-            programId: getProgramId(),
-            functionId: 'create_campaign',
-            fee: 0.5, // Fee in credits for Puzzle
-            inputs,
-          };
-          result = await createTransaction(puzzleParams, requestCreateEvent, walletName);
-        } else {
-          // Use Leo Wallet adapter
-          const leoParams = {
-            publicKey: address,
-            functionName: 'create_campaign',
-            inputs,
-            fee: 500000, // Fee in microcredits for Leo
-            feePrivate: false,
-          };
-          result = await createTransaction(leoParams, requestTransaction, walletName);
-        }
+        const params = buildCreateCampaignParams(inputs, address, walletName);
+        const execute = walletName === 'Puzzle Wallet' ? requestCreateEvent : requestTransaction;
+        result = await createTransaction(params, execute, walletName);
       }
 
       if (!result.success) {
@@ -287,24 +263,20 @@ export default function CreateCampaignPage() {
         <div className="flex items-center justify-center mb-8">
           {[1, 2, 3].map((s) => (
             <div key={s} className="flex items-center">
-              <motion.div
+              <div
                 className={`
                   w-10 h-10 rounded-full flex items-center justify-center
-                  ${step >= s
-                    ? 'bg-gradient-to-br from-indigo-500 to-purple-500'
-                    : 'bg-white/10'
-                  }
+                  ${step >= s ? 'bg-emerald-600' : 'bg-white/10'}
                 `}
-                animate={{ scale: step === s ? 1.1 : 1 }}
               >
                 {step > s ? (
                   <CheckCircle className="w-5 h-5 text-white" />
                 ) : (
                   <span className="text-white font-semibold">{s}</span>
                 )}
-              </motion.div>
+              </div>
               {s < 3 && (
-                <div className={`w-16 h-0.5 ${step > s ? 'bg-indigo-500' : 'bg-white/10'}`} />
+                <div className={`w-16 h-0.5 ${step > s ? 'bg-emerald-600' : 'bg-white/10'}`} />
               )}
             </div>
           ))}
@@ -314,11 +286,7 @@ export default function CreateCampaignPage() {
         <GlassCard className="p-8">
           {/* Step 1: Basic Info */}
           {step === 1 && (
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="space-y-6"
-            >
+            <div className="space-y-6">
               <h2 className="text-xl font-semibold text-white mb-6">
                 Basic Information
               </h2>
@@ -346,7 +314,7 @@ export default function CreateCampaignPage() {
                 <select
                   value={formData.category ?? ''}
                   onChange={(e) => handleInputChange('category', e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                 >
                   <option value="">Select category</option>
                   {CAMPAIGN_CATEGORIES.map((c) => (
@@ -396,16 +364,12 @@ export default function CreateCampaignPage() {
                   Next: Voting Options
                 </GlassButton>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* Step 2: Voting Options */}
           {step === 2 && (
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="space-y-6"
-            >
+            <div className="space-y-6">
               <h2 className="text-xl font-semibold text-white mb-6">
                 Voting Options
               </h2>
@@ -460,16 +424,12 @@ export default function CreateCampaignPage() {
                   Next: Schedule
                 </GlassButton>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* Step 3: Schedule */}
           {step === 3 && (
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="space-y-6"
-            >
+            <div className="space-y-6">
               <h2 className="text-xl font-semibold text-white mb-6">
                 Voting Schedule
               </h2>
@@ -487,7 +447,7 @@ export default function CreateCampaignPage() {
                       value={formData.startDate}
                       onChange={(e) => handleInputChange('startDate', e.target.value)}
                       min={new Date().toISOString().split('T')[0]}
-                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                     />
                     {errors.startDate && (
                       <p className="text-xs text-red-400 mt-1">{errors.startDate}</p>
@@ -499,7 +459,7 @@ export default function CreateCampaignPage() {
                       type="time"
                       value={formData.startTime}
                       onChange={(e) => handleInputChange('startTime', e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                     />
                   </div>
                 </div>
@@ -519,7 +479,7 @@ export default function CreateCampaignPage() {
                     const v = e.target.value;
                     handleInputChange('minVotes', v === '' ? undefined : Math.max(0, parseInt(v, 10) || 0));
                   }}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                 />
                 <p className="text-xs text-white/50 mt-1">Results can show quorum status; leave empty for no minimum.</p>
               </div>
@@ -537,7 +497,7 @@ export default function CreateCampaignPage() {
                       value={formData.endDate}
                       onChange={(e) => handleInputChange('endDate', e.target.value)}
                       min={formData.startDate || new Date().toISOString().split('T')[0]}
-                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                     />
                     {errors.endDate && (
                       <p className="text-xs text-red-400 mt-1">{errors.endDate}</p>
@@ -549,7 +509,7 @@ export default function CreateCampaignPage() {
                       type="time"
                       value={formData.endTime}
                       onChange={(e) => handleInputChange('endTime', e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                     />
                   </div>
                 </div>
@@ -642,7 +602,7 @@ export default function CreateCampaignPage() {
                   {isSubmitting ? 'Creating...' : useGasless ? 'Create for Free' : 'Create Campaign'}
                 </GlassButton>
               </div>
-            </motion.div>
+            </div>
           )}
         </GlassCard>
       </div>

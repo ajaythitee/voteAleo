@@ -12,10 +12,10 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "VoteAleo - Privacy-Preserving Voting on Aleo",
+  title: "Privote - Privacy-Preserving Voting on Aleo",
   description: "Create campaigns, cast anonymous votes, and participate in decentralized governance with complete privacy using Aleo's zero-knowledge proofs.",
   keywords: ["voting", "aleo", "blockchain", "privacy", "zero-knowledge", "zk-snarks", "dao", "governance"],
-  authors: [{ name: "VoteAleo Team" }],
+  authors: [{ name: "Privote" }],
   icons: {
     icon: [
       { url: '/icon.svg', type: 'image/svg+xml' },
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     ],
   },
   openGraph: {
-    title: "VoteAleo - Privacy-Preserving Voting",
+    title: "Privote - Privacy-Preserving Voting",
     description: "Anonymous voting powered by Aleo blockchain",
     type: "website",
   },
@@ -38,10 +38,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={`${inter.variable} font-sans antialiased min-h-screen flex flex-col`}>
+      <body className={`${inter.variable} font-sans antialiased min-h-screen flex flex-col bg-background`}>
         <Providers>
-          {/* Aurora Background Effect */}
-          <div className="aurora-bg" />
+          <div className="aurora-bg" aria-hidden />
 
           {/* Header */}
           <Header />

@@ -1,20 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { Vote, Github, Twitter, MessageCircle } from 'lucide-react';
+import { Github, Twitter, MessageCircle } from 'lucide-react';
 
 export function Footer() {
   return (
-    <footer className="glass border-t border-white/5 mt-auto">
+    <footer className="border-t border-white/[0.08] bg-white/[0.02] mt-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand */}
           <div className="col-span-1 md:col-span-2">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                <Vote className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold gradient-text">VoteAleo</span>
+              <img src="/logo.svg" alt="" className="w-10 h-10 rounded-xl" width={40} height={40} />
+              <span className="text-xl font-bold text-white">Privote</span>
             </div>
             <p className="text-white/60 max-w-md">
               Privacy-preserving voting platform powered by Aleo blockchain.
@@ -116,7 +114,7 @@ export function Footer() {
 
         <div className="border-t border-white/10 mt-12 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-white/40 text-sm">
-            &copy; {new Date().getFullYear()} VoteAleo. All rights reserved.
+            &copy; {new Date().getFullYear()} Privote. All rights reserved.
           </p>
           <p className="text-white/40 text-sm">
             Built with privacy in mind on{' '}
@@ -124,7 +122,7 @@ export function Footer() {
               href="https://aleo.org"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-indigo-400 hover:underline"
+              className="text-emerald-400 hover:underline"
             >
               Aleo
             </a>
