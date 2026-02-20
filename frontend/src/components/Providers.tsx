@@ -2,6 +2,7 @@
 
 import { ReactNode } from 'react';
 import { WalletWrapper } from './wallet/WalletWrapper';
+import { ThemeProvider } from './ThemeProvider';
 
 interface ProvidersProps {
   children: ReactNode;
@@ -9,8 +10,10 @@ interface ProvidersProps {
 
 export function Providers({ children }: ProvidersProps) {
   return (
-    <WalletWrapper>
-      {children}
-    </WalletWrapper>
+    <ThemeProvider>
+      <WalletWrapper>
+        {children}
+      </WalletWrapper>
+    </ThemeProvider>
   );
 }

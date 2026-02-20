@@ -5,6 +5,7 @@ import { Providers } from "@/components/Providers";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ToastContainer } from "@/components/ui/Toast";
+import { Scene3D } from "@/components/Scene3D";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -37,10 +38,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.variable} font-sans antialiased min-h-screen flex flex-col bg-background`}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${inter.variable} font-sans antialiased min-h-screen flex flex-col bg-background transition-colors duration-500`}>
         <Providers>
           <div className="aurora-bg" aria-hidden />
+          <Scene3D />
 
           {/* Header */}
           <Header />
