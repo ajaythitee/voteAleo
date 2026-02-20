@@ -25,6 +25,8 @@ import { aleoService } from '@/services/aleo';
 import { relayerService } from '@/services/relayer';
 import { createTransaction, EventType, requestCreateEvent, getProgramId } from '@/utils/transaction';
 
+const CAMPAIGN_CATEGORIES = ['governance', 'community', 'poll', 'dao', 'other'] as const;
+
 interface FormData {
   title: string;
   description: string;
@@ -35,6 +37,8 @@ interface FormData {
   endDate: string;
   endTime: string;
   options: string[];
+  minVotes?: number;
+  category?: string;
 }
 
 const initialFormData: FormData = {
@@ -47,6 +51,8 @@ const initialFormData: FormData = {
   endDate: '',
   endTime: '18:00',
   options: ['', ''],
+  minVotes: undefined,
+  category: '',
 };
 
 export default function CreateCampaignPage() {
@@ -173,7 +179,7 @@ export default function CreateCampaignPage() {
       }
 
       // Upload metadata to IPFS
-      const metadata = {
+      const metadata: Record<string, unknown> = {
         title: formData.title,
         description: formData.description,
         options: formData.options.filter((opt) => opt.trim()),
@@ -181,6 +187,8 @@ export default function CreateCampaignPage() {
         createdAt: new Date().toISOString(),
         imageCid,
       };
+      if (formData.minVotes != null && formData.minVotes > 0) metadata.minVotes = formData.minVotes;
+      if (formData.category?.trim()) metadata.category = formData.category.trim();
 
       const metadataResult = await pinataService.uploadJSON(metadata);
 
@@ -331,6 +339,24 @@ export default function CreateCampaignPage() {
                 error={errors.description}
               />
 
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-2">
+                  Category (optional)
+                </label>
+                <select
+                  value={formData.category ?? ''}
+                  onChange={(e) => handleInputChange('category', e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                >
+                  <option value="">Select category</option>
+                  {CAMPAIGN_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c.charAt(0).toUpperCase() + c.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Image Upload */}
               <div>
                 <label className="block text-sm font-medium text-white/70 mb-2">
@@ -479,6 +505,25 @@ export default function CreateCampaignPage() {
                 </div>
               </div>
 
+              {/* Minimum votes (quorum) - optional */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                <label className="block text-sm font-medium text-white/70 mb-2">
+                  Minimum votes / Quorum (optional)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  placeholder="e.g. 10"
+                  value={formData.minVotes ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    handleInputChange('minVotes', v === '' ? undefined : Math.max(0, parseInt(v, 10) || 0));
+                  }}
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                />
+                <p className="text-xs text-white/50 mt-1">Results can show quorum status; leave empty for no minimum.</p>
+              </div>
+
               {/* End Date & Time */}
               <div className="p-4 rounded-xl bg-white/5 border border-white/10">
                 <label className="block text-sm font-medium text-white/70 mb-3">
@@ -536,6 +581,18 @@ export default function CreateCampaignPage() {
                       {useGasless ? 'Gasless (Free)' : wallet?.adapter?.name || 'Wallet Required'}
                     </span>
                   </div>
+                  {formData.category && (
+                    <div className="flex justify-between">
+                      <span className="text-white/50">Category:</span>
+                      <span className="text-white capitalize">{formData.category}</span>
+                    </div>
+                  )}
+                  {formData.minVotes != null && formData.minVotes > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-white/50">Quorum:</span>
+                      <span className="text-white">{formData.minVotes} votes</span>
+                    </div>
+                  )}
                 </div>
               </div>
 

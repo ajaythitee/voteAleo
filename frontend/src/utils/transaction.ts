@@ -4,7 +4,7 @@
 import { Transaction, WalletAdapterNetwork } from '@demox-labs/aleo-wallet-adapter-base';
 import { EventType, requestCreateEvent } from '@puzzlehq/sdk-core';
 
-const PROGRAM_ID = process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID || 'vote_privacy_2985.aleo';
+const PROGRAM_ID = process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID || 'vote_privacy_6723.aleo';
 const NETWORK = WalletAdapterNetwork.TestnetBeta;
 
 // Params for Puzzle Wallet

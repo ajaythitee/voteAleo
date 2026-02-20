@@ -25,10 +25,12 @@ import { pinataService } from '@/services/pinata';
 import { formatDistanceToNow, isPast, isFuture } from 'date-fns';
 
 type FilterType = 'all' | 'active' | 'ended' | 'upcoming';
+const CATEGORY_OPTIONS = ['', 'governance', 'community', 'poll', 'dao', 'other'] as const;
 
 export default function CampaignsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -119,6 +121,8 @@ export default function CampaignsPage() {
       let description = 'Campaign on VoteAleo';
       let imageUrl = '/images/default-campaign.svg';
       let options: { id: string; label: string; voteCount: number }[] = [];
+      let minVotes: number | undefined;
+      let category: string | undefined;
 
       // Try to decode CID from on-chain fields and fetch metadata from IPFS
       const cidPart1 = parsed['metadata_cid.part1'];
@@ -156,6 +160,8 @@ export default function CampaignsPage() {
                     voteCount: Number(parsed[`votes_${idx}`] || 0),
                   }));
                 }
+                if (metadata.minVotes != null && metadata.minVotes > 0) minVotes = metadata.minVotes;
+                if (metadata.category?.trim()) category = metadata.category.trim();
               }
             } catch (ipfsError) {
               console.warn(`Could not fetch IPFS metadata for campaign ${id}:`, ipfsError);
@@ -178,6 +184,8 @@ export default function CampaignsPage() {
         }));
       }
 
+      const totalVotes = Number(parsed.total_votes || 0);
+
       return {
         id: String(id),
         title,
@@ -187,10 +195,12 @@ export default function CampaignsPage() {
         startTime: new Date(Number(parsed.start_time || 0) * 1000),
         endTime: new Date(Number(parsed.end_time || 0) * 1000),
         options,
-        totalVotes: Number(parsed.total_votes || 0),
+        totalVotes,
         isActive: parsed.is_active === 'true',
         createdAt: new Date(),
         onChainId: id,
+        minVotes,
+        category,
       };
     } catch (err) {
       console.error('Error parsing campaign:', err);
@@ -292,8 +302,10 @@ export default function CampaignsPage() {
 
     const status = getCampaignStatus(campaign);
     const matchesFilter = filter === 'all' || status === filter;
+    const matchesCategory =
+      !categoryFilter || (campaign.category?.toLowerCase() ?? '') === categoryFilter.toLowerCase();
 
-    return matchesSearch && matchesFilter;
+    return matchesSearch && matchesFilter && matchesCategory;
   });
 
   const filterOptions: { value: FilterType; label: string; icon: any }[] = [
@@ -345,7 +357,7 @@ export default function CampaignsPage() {
             />
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {filterOptions.map((option) => (
               <motion.button
                 key={option.value}
@@ -365,6 +377,18 @@ export default function CampaignsPage() {
                 <span className="hidden sm:inline">{option.label}</span>
               </motion.button>
             ))}
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/80 focus:outline-none focus:border-indigo-500/50"
+            >
+              <option value="">All categories</option>
+              {CATEGORY_OPTIONS.filter(Boolean).map((c) => (
+                <option key={c} value={c}>
+                  {c.charAt(0).toUpperCase() + c.slice(1)}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -486,6 +510,12 @@ function CampaignCard({ campaign, index }: { campaign: Campaign; index: number }
               <StatusIcon className="w-3.5 h-3.5" />
               {config.label}
             </div>
+            {/* Category Badge */}
+            {campaign.category && (
+              <div className="absolute top-4 left-4 px-2.5 py-1 rounded-full text-xs font-medium bg-white/10 text-white/90 border border-white/20">
+                {campaign.category.charAt(0).toUpperCase() + campaign.category.slice(1)}
+              </div>
+            )}
           </div>
 
           {/* Content */}
@@ -496,6 +526,18 @@ function CampaignCard({ campaign, index }: { campaign: Campaign; index: number }
             <p className="text-sm text-white/60 mb-4 line-clamp-2 flex-1">
               {campaign.description}
             </p>
+
+            {/* Quorum */}
+            {campaign.minVotes != null && campaign.minVotes > 0 && (
+              <div className="text-xs mb-2">
+                <span className="text-white/50">Quorum: {campaign.minVotes} votes</span>
+                {campaign.totalVotes >= campaign.minVotes ? (
+                  <span className="ml-2 text-green-400">Reached</span>
+                ) : (
+                  <span className="ml-2 text-amber-400">{campaign.minVotes - campaign.totalVotes} more needed</span>
+                )}
+              </div>
+            )}
 
             {/* Stats */}
             <div className="flex items-center justify-between text-sm">

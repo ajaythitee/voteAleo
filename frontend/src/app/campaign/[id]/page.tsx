@@ -17,6 +17,8 @@ import {
   Check,
   AlertCircle,
   RefreshCw,
+  Download,
+  Share2,
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
@@ -46,6 +48,7 @@ export default function CampaignDetailPage() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [useGasless, setUseGasless] = useState(true); // Default to gasless
+  const [lastVoteProof, setLastVoteProof] = useState<{ transactionId?: string; eventId?: string; address?: string } | null>(null);
 
   const { publicKey, requestTransaction, wallet, connected } = useWallet();
   const { isConnected } = useWalletStore();
@@ -124,6 +127,8 @@ export default function CampaignDetailPage() {
       let description = 'Campaign on VoteAleo';
       let imageUrl = '/images/default-campaign.svg';
       let options: { id: string; label: string; voteCount: number }[] = [];
+      let minVotes: number | undefined;
+      let category: string | undefined;
 
       // Decode CID from on-chain and fetch metadata from IPFS
       const cidPart1 = parsed['metadata_cid.part1'];
@@ -161,6 +166,8 @@ export default function CampaignDetailPage() {
                     voteCount: Number(parsed[`votes_${idx}`] || 0),
                   }));
                 }
+                if (metadata.minVotes != null && metadata.minVotes > 0) minVotes = metadata.minVotes;
+                if (metadata.category?.trim()) category = metadata.category.trim();
               }
             } catch (ipfsError) {
               console.warn(`Could not fetch IPFS metadata for campaign ${id}:`, ipfsError);
@@ -196,6 +203,8 @@ export default function CampaignDetailPage() {
         isActive: parsed.is_active === 'true',
         createdAt: new Date(),
         onChainId: id,
+        minVotes,
+        category,
       };
     } catch (err) {
       console.error('Error parsing campaign:', err);
@@ -334,6 +343,11 @@ export default function CampaignDetailPage() {
       }
 
       setHasVoted(true);
+      setLastVoteProof({
+        transactionId: result.transactionId,
+        eventId: result.eventId,
+        address: address || undefined,
+      });
       success('Vote Cast!', useGasless
         ? 'Your vote has been submitted via gasless relay!'
         : 'Your anonymous vote has been recorded on the blockchain');
@@ -369,6 +383,48 @@ export default function CampaignDetailPage() {
     navigator.clipboard.writeText(window.location.href);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const exportResults = () => {
+    if (!campaign) return;
+    const programId = aleoService.getProgramId();
+    const network = aleoService.getNetwork();
+    const explorerUrl = aleoService.getProgramExplorerUrl();
+    const payload = {
+      programId,
+      campaignId: campaign.onChainId ?? campaign.id,
+      network,
+      totalVotes: campaign.totalVotes,
+      votesPerOption: campaign.options.map((o, i) => ({ optionIndex: i, label: o.label, votes: o.voteCount, percentage: o.percentage })),
+      exportedAt: new Date().toISOString(),
+      explorerUrl,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `campaign-${campaign.id}-results.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const getProofUrl = (): string => {
+    if (!lastVoteProof || !campaignId) return '';
+    const txId = lastVoteProof.transactionId || lastVoteProof.eventId || '';
+    const payload = { c: campaignId, t: txId, a: lastVoteProof.address ?? '' };
+    const token = typeof btoa !== 'undefined' ? btoa(unescape(encodeURIComponent(JSON.stringify(payload)))) : '';
+    if (typeof window === 'undefined') return '';
+    return `${window.location.origin}/proof?t=${encodeURIComponent(token)}`;
+  };
+
+  const copyProofLink = () => {
+    const url = getProofUrl();
+    if (url) {
+      navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      success('Proof link copied', 'Share this link to prove you participated (vote choice is not revealed).');
+    }
   };
 
   if (isLoading) {
@@ -453,17 +509,31 @@ export default function CampaignDetailPage() {
                 <div className={`absolute top-4 right-4 px-4 py-2 rounded-full text-sm font-medium border ${statusConfig[status].color}`}>
                   {statusConfig[status].label}
                 </div>
+                {campaign.category && (
+                  <div className="absolute top-4 left-4 px-3 py-1.5 rounded-full text-sm font-medium bg-white/10 text-white/90 border border-white/20">
+                    {campaign.category.charAt(0).toUpperCase() + campaign.category.slice(1)}
+                  </div>
+                )}
 
                 {/* Title Overlay */}
                 <div className="absolute bottom-0 left-0 right-0 p-6">
                   <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
                     {campaign.title}
                   </h1>
-                  <div className="flex items-center gap-4 text-white/60 text-sm">
+                  <div className="flex items-center gap-4 text-white/60 text-sm flex-wrap">
                     <span className="flex items-center gap-1">
                       <Users className="w-4 h-4" />
                       {campaign.totalVotes} votes
                     </span>
+                    {campaign.minVotes != null && campaign.minVotes > 0 && (
+                      <span className="flex items-center gap-1">
+                        {campaign.totalVotes >= campaign.minVotes ? (
+                          <span className="text-green-400">Quorum reached ({campaign.minVotes})</span>
+                        ) : (
+                          <span className="text-amber-400">Quorum: {campaign.minVotes - campaign.totalVotes} more needed</span>
+                        )}
+                      </span>
+                    )}
                     <span className="flex items-center gap-1">
                       <Calendar className="w-4 h-4" />
                       Created {format(campaign.createdAt, 'MMM d, yyyy')}
@@ -641,6 +711,40 @@ export default function CampaignDetailPage() {
                 {copied ? 'Link Copied!' : 'Copy Link'}
               </GlassButton>
             </GlassCard>
+
+            {/* Export results */}
+            <GlassCard>
+              <h3 className="font-semibold text-white mb-4">Verifiable Results</h3>
+              <GlassButton
+                fullWidth
+                variant="secondary"
+                onClick={exportResults}
+                icon={<Download className="w-5 h-5" />}
+              >
+                Export results (JSON)
+              </GlassButton>
+              <p className="text-xs text-white/50 mt-2">
+                Download results with program ID and explorer link to verify on-chain.
+              </p>
+            </GlassCard>
+
+            {/* Share proof (after voting) */}
+            {hasVoted && lastVoteProof && (
+              <GlassCard>
+                <h3 className="font-semibold text-white mb-4">Participation Proof</h3>
+                <GlassButton
+                  fullWidth
+                  variant="secondary"
+                  onClick={copyProofLink}
+                  icon={<Share2 className="w-5 h-5" />}
+                >
+                  {copied ? 'Copied!' : 'Share proof link'}
+                </GlassButton>
+                <p className="text-xs text-white/50 mt-2">
+                  Share this link to prove you voted. Your choice is not revealed.
+                </p>
+              </GlassCard>
+            )}
           </div>
         </div>
       </div>

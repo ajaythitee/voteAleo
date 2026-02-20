@@ -126,6 +126,27 @@ program vote_privacy_6723.aleo {
         return (receipt, finalize_cast_vote(campaign_id, option_index, BHP256::hash_to_field(self.caller)));
     }
 
+    // Dedicated vote-counting (tally) function: returns campaign with vote counts updated
+    inline apply_vote_tally(campaign: Campaign, option_index: u8) -> Campaign {
+        let new_votes_0: u64 = campaign.votes_0 + (option_index == 0u8 ? 1u64 : 0u64);
+        let new_votes_1: u64 = campaign.votes_1 + (option_index == 1u8 ? 1u64 : 0u64);
+        let new_votes_2: u64 = campaign.votes_2 + (option_index == 2u8 ? 1u64 : 0u64);
+        let new_votes_3: u64 = campaign.votes_3 + (option_index == 3u8 ? 1u64 : 0u64);
+        return Campaign {
+            creator: campaign.creator,
+            metadata_cid: campaign.metadata_cid,
+            start_time: campaign.start_time,
+            end_time: campaign.end_time,
+            option_count: campaign.option_count,
+            total_votes: campaign.total_votes + 1u64,
+            is_active: campaign.is_active,
+            votes_0: new_votes_0,
+            votes_1: new_votes_1,
+            votes_2: new_votes_2,
+            votes_3: new_votes_3,
+        };
+    }
+
     async function finalize_cast_vote(
         campaign_id: u64,
         option_index: u8,
@@ -148,26 +169,8 @@ program vote_privacy_6723.aleo {
         // Mark as voted
         Mapping::set(has_voted, voted_key, true);
 
-        // Update vote counts based on option
-        let new_votes_0: u64 = campaign.votes_0 + (option_index == 0u8 ? 1u64 : 0u64);
-        let new_votes_1: u64 = campaign.votes_1 + (option_index == 1u8 ? 1u64 : 0u64);
-        let new_votes_2: u64 = campaign.votes_2 + (option_index == 2u8 ? 1u64 : 0u64);
-        let new_votes_3: u64 = campaign.votes_3 + (option_index == 3u8 ? 1u64 : 0u64);
-
-        // Update campaign with new vote
-        let updated_campaign: Campaign = Campaign {
-            creator: campaign.creator,
-            metadata_cid: campaign.metadata_cid,
-            start_time: campaign.start_time,
-            end_time: campaign.end_time,
-            option_count: campaign.option_count,
-            total_votes: campaign.total_votes + 1u64,
-            is_active: campaign.is_active,
-            votes_0: new_votes_0,
-            votes_1: new_votes_1,
-            votes_2: new_votes_2,
-            votes_3: new_votes_3,
-        };
+        // Update vote counts via dedicated tally function
+        let updated_campaign: Campaign = apply_vote_tally(campaign, option_index);
         Mapping::set(campaigns, campaign_id, updated_campaign);
     }
 

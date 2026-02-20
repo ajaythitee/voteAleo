@@ -62,10 +62,10 @@ if [ $? -eq 0 ]; then
     echo -e "\n${GREEN}================================================${NC}"
     echo -e "${GREEN}   Deployment Successful!${NC}"
     echo -e "${GREEN}================================================${NC}"
-    echo -e "\n${YELLOW}IMPORTANT: Update your .env.local with the program ID:${NC}"
-    echo -e "NEXT_PUBLIC_VOTING_PROGRAM_ID=voting_votealeo_1234.aleo"
+    echo -e "\n${YELLOW}IMPORTANT: Update frontend/.env.local with the program ID (use the ID printed by leo deploy if different):${NC}"
+    echo -e "NEXT_PUBLIC_VOTING_PROGRAM_ID=vote_privacy_6723.aleo"
     echo -e "\n${YELLOW}Verify on Aleo Explorer:${NC}"
-    echo -e "https://explorer.aleo.org/program/voting_votealeo_1234.aleo"
+    echo -e "https://explorer.aleo.org/program/vote_privacy_6723.aleo"
 else
     echo -e "${RED}Deployment failed!${NC}"
     exit 1

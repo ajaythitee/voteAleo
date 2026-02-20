@@ -15,6 +15,10 @@ export interface Campaign {
   createdAt: Date;
   onChainId?: number;
   metadataHash?: string;
+  /** Minimum votes (quorum); display-only */
+  minVotes?: number;
+  /** Category for filtering (e.g. governance, community, poll) */
+  category?: string;
 }
 
 export interface VotingOption {
@@ -55,6 +59,8 @@ export interface CampaignFormData {
   startTime: Date;
   endTime: Date;
   options: string[];
+  minVotes?: number;
+  category?: string;
 }
 
 export interface Phase {
@@ -101,4 +107,8 @@ export interface CampaignMetadata {
   creator: string;
   createdAt: string;
   imageCid?: string;
+  /** Minimum votes (quorum); optional */
+  minVotes?: number;
+  /** Category (e.g. governance, community, poll, other) */
+  category?: string;
 }
