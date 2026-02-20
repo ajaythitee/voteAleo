@@ -27,6 +27,7 @@ import { aleoService } from '@/services/aleo';
 import { parseOnChainCampaign } from '@/services/campaignParser';
 import { auctionService } from '@/services/auction';
 import { parseOnChainAuction, type ParsedAuction } from '@/services/auctionParser';
+import { pinataService } from '@/services/pinata';
 import { formatDistanceToNow, isPast, format } from 'date-fns';
 import { PageShell, StatCard, EmptyState } from '@/components/layout';
 
@@ -373,10 +374,9 @@ function HistoryCard({ item }: { item: VoteHistory }) {
           <div className="w-16 h-16 rounded-lg overflow-hidden bg-white/[0.06] flex-shrink-0">
             {campaign.imageUrl ? (
               <img
-                src={campaign.imageUrl}
+                src={pinataService.getProxiedUrl(campaign.imageUrl)}
                 alt={campaign.title}
                 className="w-full h-full object-cover"
-                crossOrigin="anonymous"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
@@ -447,7 +447,7 @@ function AuctionHistoryCard({ item, address }: { item: AuctionHistoryItem; addre
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-lg overflow-hidden bg-white/[0.06] flex-shrink-0">
             {parsed?.imageUrl ? (
-              <img src={parsed.imageUrl} alt={name} className="w-full h-full object-cover" crossOrigin="anonymous" />
+              <img src={pinataService.getProxiedUrl(parsed.imageUrl)} alt={name} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <Gavel className="w-6 h-6 text-white/25" />

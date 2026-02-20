@@ -160,6 +160,25 @@ class PinataService {
   }
 
   /**
+   * Get proxied image URL to avoid COEP errors
+   * Uses our API route to proxy images from IPFS
+   */
+  getProxiedImageUrl(cid: string): string {
+    const directUrl = this.getGatewayUrl(cid);
+    return `/api/image-proxy?url=${encodeURIComponent(directUrl)}`;
+  }
+
+  /**
+   * Get proxied image URL from a full URL (for already-constructed URLs)
+   */
+  getProxiedUrl(imageUrl: string): string {
+    if (!imageUrl || imageUrl.startsWith('/') || imageUrl.startsWith('data:')) {
+      return imageUrl; // Already local or data URL
+    }
+    return `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+  }
+
+  /**
    * Check if Pinata is configured
    */
   isConfigured(): boolean {

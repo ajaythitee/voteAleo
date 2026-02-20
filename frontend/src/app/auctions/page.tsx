@@ -11,6 +11,7 @@ import { SkeletonCard } from '@/components/ui/LoadingSpinner';
 import { useWalletStore } from '@/stores/walletStore';
 import { auctionService } from '@/services/auction';
 import { parseOnChainAuction, type ParsedAuction } from '@/services/auctionParser';
+import { pinataService } from '@/services/pinata';
 import { PageShell, EmptyState } from '@/components/layout';
 
 type AuctionRow = { auctionId: string; index: number; data: unknown };
@@ -104,7 +105,7 @@ export default function AuctionsPage() {
                   <GlassCard hover className="h-full p-0 overflow-hidden flex flex-col rounded-[16px]">
                     {parsed?.imageUrl ? (
                       <div className="relative h-36 w-full bg-white/[0.06]">
-                        <img src={parsed.imageUrl} alt={name} className="h-full w-full object-cover" crossOrigin="anonymous" />
+                        <img src={pinataService.getProxiedUrl(parsed.imageUrl)} alt={name} className="h-full w-full object-cover" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                       </div>
                     ) : null}

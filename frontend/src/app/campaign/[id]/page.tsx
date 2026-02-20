@@ -309,10 +309,9 @@ export default function CampaignDetailPage() {
                 {campaign.imageUrl ? (
                   <a href={campaign.imageUrl} target="_blank" rel="noreferrer">
                     <img
-                      src={campaign.imageUrl}
+                      src={pinataService.getProxiedUrl(campaign.imageUrl)}
                       alt={campaign.title}
                       className="w-full h-full object-cover"
-                      crossOrigin="anonymous"
                     />
                   </a>
                 ) : (

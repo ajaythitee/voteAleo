@@ -12,6 +12,7 @@ import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { auctionService } from '@/services/auction';
 import { parseOnChainAuction, type ParsedAuction } from '@/services/auctionParser';
+import { pinataService } from '@/services/pinata';
 import {
   createTransaction,
   requestCreateEvent,
@@ -106,7 +107,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
   const name = parsed?.name ?? 'Untitled';
   const startingBid = parsed?.startingBid ?? 0;
   const description = parsed?.description;
-  const imageUrl = parsed?.imageUrl;
+  const imageUrl = parsed?.imageUrl ? pinataService.getProxiedUrl(parsed.imageUrl) : undefined;
   const minBid = highestBid > 0 ? highestBid + 1 : startingBid;
   const isEnded = !!winningBidId;
 
@@ -242,8 +243,8 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
           <GlassCard className="p-0 mb-8 overflow-hidden">
             {imageUrl ? (
               <div className="relative h-56 w-full bg-white/[0.06]">
-                <a href={imageUrl} target="_blank" rel="noreferrer">
-                  <img src={imageUrl} alt={name} className="h-full w-full object-cover" crossOrigin="anonymous" />
+                <a href={parsed?.imageUrl || imageUrl} target="_blank" rel="noreferrer">
+                  <img src={imageUrl} alt={name} className="h-full w-full object-cover" />
                 </a>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
               </div>

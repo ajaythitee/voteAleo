@@ -23,6 +23,7 @@ import { useWalletStore } from '@/stores/walletStore';
 import { Campaign } from '@/types';
 import { aleoService } from '@/services/aleo';
 import { parseOnChainCampaign } from '@/services/campaignParser';
+import { pinataService } from '@/services/pinata';
 import { formatDistanceToNow, isPast, isFuture } from 'date-fns';
 
 type FilterType = 'all' | 'active' | 'ended' | 'upcoming';
@@ -279,11 +280,10 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
           <div className="relative h-48 overflow-hidden bg-emerald-500/10">
             {campaign.imageUrl && campaign.imageUrl !== '/images/default-campaign.jpg' ? (
               <img
-                src={campaign.imageUrl}
+                src={pinataService.getProxiedUrl(campaign.imageUrl)}
                 alt={campaign.title}
                 className="w-full h-full object-cover"
                 onError={handleImageError}
-                crossOrigin="anonymous"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
