@@ -242,7 +242,9 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
           <GlassCard className="p-0 mb-8 overflow-hidden">
             {imageUrl ? (
               <div className="relative h-56 w-full bg-white/[0.06]">
-                <img src={imageUrl} alt={name} className="h-full w-full object-cover" />
+                <a href={imageUrl} target="_blank" rel="noreferrer">
+                  <img src={imageUrl} alt={name} className="h-full w-full object-cover" />
+                </a>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
               </div>
             ) : null}

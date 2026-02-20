@@ -371,15 +371,18 @@ function HistoryCard({ item }: { item: VoteHistory }) {
         <div className="flex items-center gap-4">
           {/* Image */}
           <div className="w-16 h-16 rounded-lg overflow-hidden bg-white/[0.06] flex-shrink-0">
+            {campaign.imageUrl ? (
               <img
-                src={campaign.imageUrl || '/images/default-campaign.svg'}
+                src={campaign.imageUrl}
                 alt={campaign.title}
                 className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.src = '/images/default-campaign.svg';
-                }}
               />
-            </div>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Vote className="w-6 h-6 text-white/25" />
+              </div>
+            )}
+          </div>
 
             {/* Content */}
             <div className="flex-1 min-w-0">

@@ -287,11 +287,6 @@ export default function CampaignDetailPage() {
     },
   };
 
-  // Handle image error - use default campaign image
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    e.currentTarget.src = '/images/default-campaign.svg';
-  };
-
   return (
     <div className="min-h-screen py-8">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
@@ -311,12 +306,19 @@ export default function CampaignDetailPage() {
             <GlassCard className="overflow-hidden p-0">
               {/* Image */}
               <div className="relative h-64 sm:h-80 bg-white/[0.06]">
-                <img
-                  src={campaign.imageUrl || '/images/default-campaign.svg'}
-                  alt={campaign.title}
-                  className="w-full h-full object-cover"
-                  onError={handleImageError}
-                />
+                {campaign.imageUrl ? (
+                  <a href={campaign.imageUrl} target="_blank" rel="noreferrer">
+                    <img
+                      src={campaign.imageUrl}
+                      alt={campaign.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </a>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Vote className="w-16 h-16 text-white/20" />
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
                 {/* Status Badge */}
