@@ -243,7 +243,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
             {imageUrl ? (
               <div className="relative h-56 w-full bg-white/[0.06]">
                 <a href={imageUrl} target="_blank" rel="noreferrer">
-                  <img src={imageUrl} alt={name} className="h-full w-full object-cover" />
+                  <img src={imageUrl} alt={name} className="h-full w-full object-cover" crossOrigin="anonymous" />
                 </a>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
               </div>

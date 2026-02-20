@@ -376,6 +376,7 @@ function HistoryCard({ item }: { item: VoteHistory }) {
                 src={campaign.imageUrl}
                 alt={campaign.title}
                 className="w-full h-full object-cover"
+                crossOrigin="anonymous"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
@@ -446,7 +447,7 @@ function AuctionHistoryCard({ item, address }: { item: AuctionHistoryItem; addre
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-lg overflow-hidden bg-white/[0.06] flex-shrink-0">
             {parsed?.imageUrl ? (
-              <img src={parsed.imageUrl} alt={name} className="w-full h-full object-cover" />
+              <img src={parsed.imageUrl} alt={name} className="w-full h-full object-cover" crossOrigin="anonymous" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <Gavel className="w-6 h-6 text-white/25" />

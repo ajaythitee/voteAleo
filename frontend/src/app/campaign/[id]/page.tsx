@@ -312,6 +312,7 @@ export default function CampaignDetailPage() {
                       src={campaign.imageUrl}
                       alt={campaign.title}
                       className="w-full h-full object-cover"
+                      crossOrigin="anonymous"
                     />
                   </a>
                 ) : (

@@ -59,13 +59,13 @@ async function generateWithGroq(prompt: string, groqApiKey: string, suggestOptio
           {
             role: 'system',
             content: suggestOptions
-              ? 'You are an expert product copywriter and campaign strategist. Return ONLY valid JSON. All text must be plain, human-friendly language without markdown formatting (no **, no #, no code blocks).'
-              : 'You are an expert product copywriter. Return ONLY valid JSON. All text must be plain, human-friendly language without markdown formatting (no **, no #, no code blocks).',
+              ? 'You are an expert product copywriter and campaign strategist. You MUST stay strictly on the same topic as the current title and description. Do NOT introduce unrelated themes or random concepts. Return ONLY valid JSON. All text must be plain, human-friendly language without markdown formatting (no **, no #, no code blocks).'
+              : 'You are an expert product copywriter. You MUST preserve the core topic and meaning of the current title and description. Do NOT change the subject to something unrelated. Return ONLY valid JSON. All text must be plain, human-friendly language without markdown formatting (no **, no #, no code blocks).',
           },
           { role: 'user', content: prompt },
         ],
-        temperature: 0.7,
-        max_tokens: suggestOptions ? 500 : 400,
+        temperature: suggestOptions ? 0.3 : 0.4,
+        max_tokens: suggestOptions ? 600 : 400,
         response_format: { type: 'json_object' },
       }),
     }, 1);
@@ -106,7 +106,7 @@ async function generateWithGroq(prompt: string, groqApiKey: string, suggestOptio
         .filter((opt: string) => opt.length > 0); // Remove any empty after cleaning
       
       if (validOptions.length >= 2) {
-        result.options = validOptions.slice(0, 4); // Max 4 options
+        result.options = validOptions.slice(0, 6); // Max 6 options
       }
     }
     
@@ -133,7 +133,7 @@ async function generateWithGemini(prompt: string, geminiApiKey: string, suggestO
     const model = genAI.getGenerativeModel({
       model: 'gemini-1.5-flash',
       generationConfig: {
-        temperature: 0.7,
+        temperature: suggestOptions ? 0.3 : 0.4,
         topP: 0.9,
         topK: 40,
       },
@@ -173,7 +173,7 @@ async function generateWithGemini(prompt: string, geminiApiKey: string, suggestO
         .filter((opt: string) => opt.length > 0); // Remove any empty after cleaning
       
       if (validOptions.length >= 2) {
-        resultObj.options = validOptions.slice(0, 4); // Max 4 options
+        resultObj.options = validOptions.slice(0, 6); // Max 6 options
       }
     }
     
@@ -224,8 +224,8 @@ export async function POST(request: NextRequest) {
 
     const isCampaign = context === 'campaign';
     const baseContext = isCampaign
-      ? 'You are improving the title and description for a privacy-preserving voting campaign on VeilProtocol (Aleo blockchain).'
-      : 'You are improving the title and description for a sealed-bid auction on VeilProtocol (Aleo blockchain).';
+      ? 'You are improving the title and description for a privacy-preserving voting campaign on VeilProtocol (Aleo blockchain). You must keep the same real-world topic as the current title and description. Do not invent a different subject.'
+      : 'You are improving the title and description for a sealed-bid auction on VeilProtocol (Aleo blockchain). You must keep the same real-world item or theme as the current title and description. Do not invent a different subject.';
 
     let prompt = `${baseContext}
 
@@ -235,26 +235,28 @@ Current description: "${description}"`;
     if (isCampaign && suggestOptions) {
       prompt += `
 
-Based on the campaign title and description, suggest 2-4 voting options that voters can choose from.
+Based on the campaign title and description, suggest 3-6 voting options that voters can choose from.
 Options should be:
 - Clear and concise (2-5 words each)
 - Mutually exclusive choices
-- Relevant to the campaign topic
+- Directly relevant to the exact campaign topic described above (do NOT introduce unrelated topics)
 - Human-friendly language (no markdown, no formatting)
+
+Do NOT change the core topic of the campaign. The improved title and description must clearly match the same subject as the current title and description.
 
 Return JSON with:
 {
-  "title": "improved title (plain text, no markdown)",
-  "description": "improved description (plain text, no markdown)",
-  "options": ["Option 1", "Option 2", "Option 3", "Option 4"]
+  "title": "improved title (plain text, no markdown) that keeps the same topic",
+  "description": "improved description (plain text, no markdown) that keeps the same topic",
+  "options": ["Option 1", "Option 2", "Option 3", "Option 4", "Option 5", "Option 6"]
 }`;
     } else {
       prompt += `
 
 Return JSON with:
 {
-  "title": "short, punchy, human-friendly title (plain text, no markdown)",
-  "description": "2-4 sentence description, clear and professional (plain text, no markdown)"
+  "title": "short, punchy, human-friendly title (plain text, no markdown) that keeps the same topic",
+  "description": "2-4 sentence description, clear and professional (plain text, no markdown) that keeps the same topic"
 }`;
     }
 

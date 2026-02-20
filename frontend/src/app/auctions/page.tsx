@@ -104,7 +104,7 @@ export default function AuctionsPage() {
                   <GlassCard hover className="h-full p-0 overflow-hidden flex flex-col rounded-[16px]">
                     {parsed?.imageUrl ? (
                       <div className="relative h-36 w-full bg-white/[0.06]">
-                        <img src={parsed.imageUrl} alt={name} className="h-full w-full object-cover" />
+                        <img src={parsed.imageUrl} alt={name} className="h-full w-full object-cover" crossOrigin="anonymous" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                       </div>
                     ) : null}

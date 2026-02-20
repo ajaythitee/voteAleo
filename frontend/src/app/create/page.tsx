@@ -164,15 +164,15 @@ export default function CreateCampaignPage() {
       
       // Update options if provided
       if (data.options && data.options.length >= 2) {
-        // Ensure we have at least 2 options (required) and max 4
-        const validOptions = data.options.slice(0, 4);
+        // Ensure we have at least 2 options (required), no upper limit
+        const validOptions = data.options;
         // Pad to match current form length if needed, but keep at least 2
         const currentLength = Math.max(formData.options.length, 2);
         const newOptions = [...validOptions];
-        while (newOptions.length < currentLength && newOptions.length < 4) {
+        while (newOptions.length < currentLength) {
           newOptions.push('');
         }
-        handleInputChange('options', newOptions.slice(0, Math.min(currentLength, 4)));
+        handleInputChange('options', newOptions);
         success('Options suggested', `AI suggested ${validOptions.length} voting options.`);
       } else {
         console.error('AI returned invalid options:', data.options);
@@ -191,9 +191,7 @@ export default function CreateCampaignPage() {
   };
 
   const addOption = () => {
-    if (formData.options.length < 10) {
-      handleInputChange('options', [...formData.options, '']);
-    }
+    handleInputChange('options', [...formData.options, '']);
   };
 
   const removeOption = (index: number) => {
@@ -476,15 +474,13 @@ export default function CreateCampaignPage() {
                 )}
 
                 <div className="flex items-center gap-3 pt-2">
-                  {formData.options.length < 10 && (
-                    <button
-                      onClick={addOption}
-                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/60"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Option
-                    </button>
-                  )}
+                  <button
+                    onClick={addOption}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/60"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Option
+                  </button>
                   <GlassButton
                     type="button"
                     variant="secondary"

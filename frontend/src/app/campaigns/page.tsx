@@ -283,6 +283,7 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
                 alt={campaign.title}
                 className="w-full h-full object-cover"
                 onError={handleImageError}
+                crossOrigin="anonymous"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
