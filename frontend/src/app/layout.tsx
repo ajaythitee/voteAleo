@@ -12,10 +12,10 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Privote - Voting & Auctions on Aleo",
+  title: "VeilProtocol - Voting & Auctions on Aleo",
   description: "Privacy-preserving voting and first-price sealed-bid auctions on Aleo. Create campaigns, cast anonymous votes, and run private auctions.",
   keywords: ["voting", "auction", "aleo", "blockchain", "privacy", "zero-knowledge", "zk-snarks", "dao", "governance"],
-  authors: [{ name: "Privote" }],
+  authors: [{ name: "VeilProtocol" }],
   icons: {
     icon: [
       { url: '/icon.svg', type: 'image/svg+xml' },
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     ],
   },
   openGraph: {
-    title: "Privote - Voting & Auctions",
+    title: "VeilProtocol - Voting & Auctions",
     description: "Voting and private auctions powered by Aleo blockchain",
     type: "website",
   },

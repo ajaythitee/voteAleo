@@ -1,4 +1,4 @@
-// Privote Type Definitions
+// VeilProtocol Type Definitions
 
 export interface Campaign {
   id: string;
@@ -93,7 +93,7 @@ export interface AleoConfig {
   votingProgramId: string;
 }
 
-// Auction (Privote Auction contract)
+// Auction (VeilProtocol Auction contract)
 export interface AuctionItem {
   id: string;
   offchainData?: string[];

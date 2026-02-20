@@ -1,6 +1,6 @@
 ## Contracts
 
-This folder contains the Leo smart contracts for Privote on Aleo testnet.
+This folder contains the Leo smart contracts for VeilProtocol on Aleo testnet.
 
 - **`vote`** – voting program `vote_privacy_8000.aleo`
 - **`auction`** – auction program `privote_auction_5000.aleo`

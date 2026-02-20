@@ -12,7 +12,7 @@ export function Footer() {
           <div>
             <div className="flex items-center gap-3 mb-4">
               <img src="/logo.svg" alt="" className="w-10 h-10 rounded-xl" width={40} height={40} />
-              <span className="text-xl font-bold text-white">Privote</span>
+              <span className="text-xl font-bold text-white">VeilProtocol</span>
             </div>
             <p className="text-white/60 max-w-md text-sm">
               Privacy-preserving voting and auctions on Aleo. Create campaigns, cast anonymous votes, and run sealed-bid auctions with a single unified experience.
@@ -117,7 +117,7 @@ export function Footer() {
 
         <div className="border-t border-white/10 mt-12 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-white/40 text-xs sm:text-sm">
-            &copy; {new Date().getFullYear()} Privote. All rights reserved.
+            &copy; {new Date().getFullYear()} VeilProtocol. All rights reserved.
           </p>
           <p className="text-white/40 text-xs sm:text-sm">
             Built with privacy in mind on{' '}

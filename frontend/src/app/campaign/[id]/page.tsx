@@ -217,6 +217,7 @@ export default function CampaignDetailPage() {
           })),
           startTime: campaign.startTime.toISOString(),
           endTime: campaign.endTime.toISOString(),
+          creator: campaign.creator,
           programId,
           explorerUrl,
         }),

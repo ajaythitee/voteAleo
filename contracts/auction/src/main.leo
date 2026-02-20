@@ -1,6 +1,6 @@
 import credits.aleo;
 
-// Privote Auction - First-price sealed-bid auction on Aleo blockchain
+// VeilProtocol Auction - First-price sealed-bid auction on Aleo blockchain
 // Supports private and public auctions with anonymous bidding
 program privote_auction_5000.aleo {
 
@@ -81,7 +81,7 @@ program privote_auction_5000.aleo {
     // Record of auctions in which the bidder has redeemed their bid.
     mapping redemptions: field => bool;
 
-    // Privote: index of public auctions for frontend listing (1-based).
+    // VeilProtocol: index of public auctions for frontend listing (1-based).
     mapping auction_counter: u8 => u64;
     mapping public_auction_index: u64 => field;
 
@@ -333,7 +333,7 @@ program privote_auction_5000.aleo {
         auction_privacy_settings.set(auction_id, settings);
         // Set the auction public key.
         auction_public_keys.set(auction_id, auction_public_key);
-        // Index for frontend listing (Privote).
+        // Index for frontend listing (VeilProtocol).
         let c: u64 = Mapping::get_or_use(auction_counter, 0u8, 0u64);
         auction_counter.set(0u8, c + 1u64);
         public_auction_index.set(c + 1u64, auction_id);

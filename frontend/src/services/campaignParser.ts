@@ -56,7 +56,7 @@ export async function parseOnChainCampaign(data: unknown, id: number): Promise<C
     if (!parsed) return null;
 
     let title = `Campaign #${id}`;
-    let description = 'Campaign on Privote';
+    let description = 'Campaign on VeilProtocol';
     let imageUrl = '/images/default-campaign.svg';
     let options: { id: string; label: string; voteCount: number }[] = [];
     let minVotes: number | undefined;

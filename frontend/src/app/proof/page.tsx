@@ -73,7 +73,7 @@ function ProofContent() {
         </div>
         <h1 className="text-xl font-semibold text-white text-center mb-2">Participation proof valid</h1>
         <p className="text-white/70 text-center mb-6">
-          This link proves that a voter participated in <strong>Campaign #{campaignId}</strong> on Privote.
+          This link proves that a voter participated in <strong>Campaign #{campaignId}</strong> on VeilProtocol.
           No vote choice is revealed (privacy-preserving).
         </p>
         <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-2 text-sm">
@@ -118,7 +118,7 @@ export default function ProofPage() {
   return (
     <PageShell
       title="Participation proof"
-      description="Verify a privacy-preserving proof that someone participated in a campaign on Privote."
+      description="Verify a privacy-preserving proof that someone participated in a campaign on VeilProtocol."
       maxWidth="lg"
     >
       <Suspense

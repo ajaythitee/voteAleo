@@ -1,4 +1,4 @@
-## Privote Auction Contract – `privote_auction_5000.aleo`
+## VeilProtocol Auction Contract – `privote_auction_5000.aleo`
 
 First‑price sealed‑bid auction contract for Aleo testnet. Supports **private**, **public**, and **mixed** bidding with on‑chain discovery for the frontend.
 

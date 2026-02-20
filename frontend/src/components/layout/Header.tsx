@@ -55,7 +55,7 @@ export function Header() {
           <div className="flex items-center justify-between h-16 md:h-20">
             <Link href="/" className="flex items-center gap-3">
               <img src="/logo.svg" alt="" className="w-10 h-10 rounded-xl" width={40} height={40} />
-              <span className="text-xl font-bold hidden sm:block text-white">Privote</span>
+              <span className="text-xl font-bold hidden sm:block text-white">VeilProtocol</span>
             </Link>
 
             <nav className="hidden md:flex items-center gap-1">

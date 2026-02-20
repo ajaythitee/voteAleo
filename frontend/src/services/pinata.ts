@@ -1,4 +1,4 @@
-// Pinata IPFS Service for Privote
+// Pinata IPFS Service for VeilProtocol
 
 import { IPFSUploadResult } from '@/types';
 

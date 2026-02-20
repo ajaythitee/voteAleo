@@ -1,4 +1,4 @@
-// Aleo Service for Privote contract interactions
+// Aleo Service for VeilProtocol contract interactions
 // Using the proven encoding approach from zk-auction-example
 
 import { AleoConfig, Campaign, VotingOption } from '@/types';

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Privote Contract Deployment Script
+# VeilProtocol Contract Deployment Script
 # This script deploys both the voting and auction contracts to Aleo Testnet
 
 set -e
@@ -12,7 +12,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 echo -e "${GREEN}================================================${NC}"
-echo -e "${GREEN}   Privote Contract Deployment Script${NC}"
+echo -e "${GREEN}   VeilProtocol Contract Deployment Script${NC}"
 echo -e "${GREEN}   Deploying Voting + Auction Contracts${NC}"
 echo -e "${GREEN}================================================${NC}"
 

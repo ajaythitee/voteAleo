@@ -1,6 +1,6 @@
 ## Voting Contract – `vote_privacy_8000.aleo`
 
-Privacy‑preserving voting contract for Privote. It manages campaign metadata, on‑chain tallies, and anti‑double‑voting while keeping voter identities private.
+Privacy‑preserving voting contract for VeilProtocol. It manages campaign metadata, on‑chain tallies, and anti‑double‑voting while keeping voter identities private.
 
 ---
 

@@ -1,10 +1,15 @@
-## Privote
+## VeilProtocol
 
-Privacy‑preserving governance & marketplace on the Aleo blockchain. It combines:
+[![Aleo Testnet](https://img.shields.io/badge/network-aleo%20testnet-6f42c1)](https://developer.aleo.org/)
+[![Contracts](https://img.shields.io/badge/contracts-leo-blue)](./contracts)
+[![Frontend](https://img.shields.io/badge/frontend-next.js%2014-black)](./frontend)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+Privacy‑preserving governance & marketplace on the Aleo blockchain:
 
 - **Private voting** (anonymous ballots, anti‑double‑voting, hidden tallies until end)
 - **First‑price sealed‑bid auctions** (private / public / mixed bids)
-- **Next.js frontend** with Aleo/Puzzle wallet support and **gasless UX** via a relayer
+- **Next.js frontend** with wallet support and **gasless UX** via a relayer
 
 ---
 
@@ -57,6 +62,19 @@ Privacy‑preserving governance & marketplace on the Aleo blockchain. It combine
 
 ---
 
+## Folder structure (high level)
+
+```text
+voteAleo/
+  contracts/
+    vote/          # Voting Leo program (vote_privacy_8000.aleo)
+    auction/       # Auction Leo program (privote_auction_5000.aleo)
+  frontend/        # Next.js app (UI + relayer APIs)
+  README.md        # Project overview (this file)
+```
+
+---
+
 ## Prerequisites
 
 - **Node.js** (for the frontend)
@@ -66,145 +84,33 @@ Privacy‑preserving governance & marketplace on the Aleo blockchain. It combine
 
 ---
 
-## Deployment
+## Basic commands
 
-### 1. Deploy the voting contract
+- **Run frontend in dev mode**
 
-From a bash‑compatible shell (WSL / Git Bash):
+  ```bash
+  cd frontend
+  npm install
+  npm run dev
+  ```
 
-```bash
-cd contracts/vote
+- **Build a contract (example: vote)**
 
-leo build
+  ```bash
+  cd contracts/vote
+  leo build
+  ```
 
-leo deploy \
-  --private-key "<YOUR_PRIVATE_KEY>" \
-  --network "testnet" \
-  --endpoint "https://api.explorer.provable.com/v1" \
-  --broadcast \
-  --yes
-```
+- **Deploy a contract (example: vote, testnet)**
 
-Take note of the deployed program ID (default source name is `vote_privacy_6723.aleo`).
-
-### 2. Deploy the auction contract
-
-```bash
-cd ../auction
-
-leo build
-
-leo deploy \
-  --private-key "<YOUR_PRIVATE_KEY>" \
-  --network "testnet" \
-  --endpoint "https://api.explorer.provable.com/v1" \
-  --broadcast \
-  --yes
-```
-
-The auction program is named `privote_auction_5000.aleo`.
-
-### 3. (Optional) Use the combined deploy script
-
-From the repo root:
-
-```bash
-cd contracts
-
-VOTING_PROGRAM_ID="vote_privacy_6723.aleo" \
-AUCTION_PROGRAM_ID="privote_auction_5000.aleo" \
-PRIVATE_KEY="<YOUR_PRIVATE_KEY>" \
-./deploy.sh
-```
-
-This script:
-- Builds both programs
-- Deploys to **testnet**
-- Prints explorer URLs for verification
-
----
-
-## Frontend setup
-
-### 1. Configure environment variables
-
-In `frontend`:
-
-```bash
-cd frontend
-cp .env.example .env.local
-```
-
-Then edit `.env.local` and set at minimum:
-
-- **Program configuration**
-  - `NEXT_PUBLIC_VOTING_PROGRAM_ID=vote_privacy_6723.aleo` (or your deployed ID)
-  - `NEXT_PUBLIC_AUCTION_PROGRAM_ID=privote_auction_5000.aleo`
-  - `NEXT_PUBLIC_ALEO_NETWORK=testnet`
-  - `NEXT_PUBLIC_ALEO_RPC_URL=https://api.explorer.provable.com/v1`
-
-- **Relayer configuration**
-  - `RELAYER_PRIVATE_KEY=<YOUR_PRIVATE_KEY>` (server‑only)
-
-- **IPFS / metadata (optional but recommended)**
-  - `NEXT_PUBLIC_PINATA_GATEWAY_URL=...`
-  - `PINATA_JWT=...`
-
-All variables are documented inline in `frontend/.env.example`.
-
-### 2. Run the app
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Open `http://localhost:3000`.
-
----
-
-## Verifying on‑chain connectivity
-
-### From the app
-
-With the dev server running:
-
-```bash
-curl http://localhost:3000/api/health/contract
-```
-
-You should see JSON like:
-
-- `ok: true`
-- `programId` (voting)
-- `campaignCount`
-
-### Direct RPC checks
-
-- **Voting campaign counter** (using the new program id; replace if you deployed a different one):
-
-```bash
-curl "https://api.explorer.provable.com/v1/testnet/program/vote_privacy_8000.aleo/mapping/campaign_counter/0u8"
-```
-
-- **First campaign (if any)**:
-
-```bash
-curl "https://api.explorer.provable.com/v1/testnet/program/vote_privacy_8000.aleo/mapping/campaigns/1u64"
-```
-
-- **Auction public key mapping** (replace `AUCTION_ID` with a field value):
-
-```bash
-curl "https://api.explorer.provable.com/v1/testnet/program/privote_auction_5000.aleo/mapping/auction_public_keys/AUCTION_ID"
-```
-
-- **Auction public data**:
-
-```bash
-curl "https://api.explorer.provable.com/v1/testnet/program/privote_auction_5000.aleo/mapping/public_auctions/AUCTION_ID"
-```
+  ```bash
+  leo deploy \
+    --private-key "<YOUR_PRIVATE_KEY>" \
+    --network "testnet" \
+    --endpoint "https://api.explorer.provable.com/v1" \
+    --broadcast \
+    --yes
+  ```
 
 ---
 

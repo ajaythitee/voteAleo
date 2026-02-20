@@ -120,7 +120,7 @@ export default function MyCampaignsPage() {
           <div>
             <h1 className="text-3xl font-bold text-white mb-2">My Campaigns</h1>
             <p className="text-white/60">
-              Campaigns you've created on Privote
+              Campaigns you've created on VeilProtocol
             </p>
           </div>
 

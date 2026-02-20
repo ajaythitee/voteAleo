@@ -259,7 +259,7 @@ export default function Home() {
               <Section
                 eyebrow="Roadmap"
                 title="What’s coming next"
-                description="Privote is evolving into a full governance and auction platform on Aleo, with more advanced voting and analytics."
+                description="VeilProtocol is evolving into a full governance and auction platform on Aleo, with more advanced voting and analytics."
               >
                 <GlassCard>
                   <ul className="space-y-3 text-white/80">

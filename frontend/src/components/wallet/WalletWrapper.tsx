@@ -15,7 +15,7 @@ import {
 } from '@demox-labs/aleo-wallet-adapter-base';
 import '@demox-labs/aleo-wallet-adapter-reactui/styles.css';
 
-// Program IDs for Privote (Voting + Auctions)
+// Program IDs for VeilProtocol (Voting + Auctions)
 const VOTING_PROGRAM_ID = process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID || 'privote_voting_1001.aleo';
 const AUCTION_PROGRAM_ID = process.env.NEXT_PUBLIC_AUCTION_PROGRAM_ID || 'privote_auction_1001.aleo';
 const PROGRAM_IDS = [VOTING_PROGRAM_ID, AUCTION_PROGRAM_ID, 'credits.aleo'];
@@ -33,7 +33,7 @@ export function WalletWrapper({ children }: WalletWrapperProps) {
       try {
         adapters.push(
           new LeoWalletAdapter({
-            appName: 'Privote',
+            appName: 'VeilProtocol',
           })
         );
       } catch (e) {
@@ -48,7 +48,7 @@ export function WalletWrapper({ children }: WalletWrapperProps) {
               [WalletAdapterNetwork.MainnetBeta]: PROGRAM_IDS,
               [WalletAdapterNetwork.TestnetBeta]: PROGRAM_IDS,
             },
-            appName: 'Privote',
+            appName: 'VeilProtocol',
             appDescription: 'Voting & private auctions on Aleo blockchain',
           })
         );
@@ -60,7 +60,7 @@ export function WalletWrapper({ children }: WalletWrapperProps) {
       try {
         adapters.push(
           new FoxWalletAdapter({
-            appName: 'Privote',
+            appName: 'VeilProtocol',
           })
         );
       } catch (e) {
@@ -71,7 +71,7 @@ export function WalletWrapper({ children }: WalletWrapperProps) {
       try {
         adapters.push(
           new SoterWalletAdapter({
-            appName: 'Privote',
+            appName: 'VeilProtocol',
           })
         );
       } catch (e) {

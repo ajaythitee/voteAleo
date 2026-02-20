@@ -1,4 +1,4 @@
-// Wallet Service for Privote
+// Wallet Service for VeilProtocol
 // Works with the Aleo wallet adapter for transactions
 
 import { aleoService } from './aleo';
