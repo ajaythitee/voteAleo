@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   Vote,
@@ -15,12 +15,14 @@ import {
   Clock,
   Calendar,
   Gavel,
+  Plus,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, useScroll, useTransform } from 'framer-motion';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { Badge } from '@/components/ui/Badge';
 import { SkeletonCard } from '@/components/ui/LoadingSpinner';
+import { RevealOnScroll } from '@/components/ui/RevealOnScroll';
 import { useWalletStore } from '@/stores/walletStore';
 import { Campaign } from '@/types';
 import { aleoService } from '@/services/aleo';
@@ -89,7 +91,7 @@ export default function Home() {
       }
 
       loadedCampaigns.sort((a, b) => b.endTime.getTime() - a.endTime.getTime());
-      setCampaigns(loadedCampaigns.slice(0, 6));
+      setCampaigns(loadedCampaigns.slice(0, 3));
     } catch (err) {
       console.error('Error loading campaigns:', err);
     } finally {
@@ -101,7 +103,7 @@ export default function Home() {
     setIsLoadingAuctions(true);
     try {
       const list = await auctionService.listPublicAuctions();
-      setAuctions(list.slice(0, 6));
+      setAuctions(list.slice(0, 3));
     } catch (e) {
       console.error(e);
     } finally {
@@ -115,23 +117,27 @@ export default function Home() {
     return 'active';
   };
 
+  const heroRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
+  const heroY = useTransform(scrollYProgress, [0, 0.5], [0, 80]);
+
   return (
     <div className="min-h-screen">
-      {/* Hero */}
-      <section className="relative py-24 lg:py-32" aria-labelledby="hero-heading">
+      {/* Hero - Parallax */}
+      <section ref={heroRef} className="relative py-28 lg:py-36 overflow-hidden" aria-labelledby="hero-heading">
         <div className="absolute top-12 right-4 md:right-12 opacity-80">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-sm">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[12px] text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-sm">
             zk-powered
           </span>
         </div>
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 id="hero-heading" className="text-4xl sm:text-5xl font-bold text-white mb-5">
+        <motion.div style={{ y: heroY }} className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h1 id="hero-heading" className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
             Voting &amp; Auctions on Aleo
           </h1>
-          <p className="text-lg text-white/60 mb-10">
+          <p className="text-lg sm:text-xl text-white/55 mb-12 max-w-2xl mx-auto leading-relaxed">
             Private voting and first-price sealed-bid auctions. Create campaigns, cast anonymous votes, or run auctions with privacy on Aleo.
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 flex-wrap">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 flex-wrap">
             <Link href="/campaigns">
               <GlassButton size="lg" icon={<Vote className="w-5 h-5" />}>
                 Campaigns
@@ -143,21 +149,14 @@ export default function Home() {
               </GlassButton>
             </Link>
             {isConnected && (
-              <>
-                <Link href="/create">
-                  <GlassButton size="lg" variant="secondary" icon={<ArrowRight className="w-5 h-5" />}>
-                    Create Campaign
-                  </GlassButton>
-                </Link>
-                <Link href="/auctions/create">
-                  <GlassButton size="lg" variant="secondary" icon={<Gavel className="w-5 h-5" />}>
-                    Create Auction
-                  </GlassButton>
-                </Link>
-              </>
+              <Link href="/create">
+                <GlassButton size="lg" variant="secondary" icon={<Plus className="w-5 h-5" />}>
+                  Create
+                </GlassButton>
+              </Link>
             )}
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-8 mt-16 text-white/50 text-sm">
+          <div className="flex flex-wrap items-center justify-center gap-8 mt-20 text-white/45 text-sm">
             {heroFeatures.map((f) => (
               <span key={f.title} className="flex items-center gap-2">
                 <f.icon className="w-4 h-4 text-emerald-400" />
@@ -165,14 +164,15 @@ export default function Home() {
               </span>
             ))}
           </div>
-        </div>
+        </motion.div>
       </section>
 
-      {/* What's next */}
-      <section className="py-16">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-bold text-white mb-6">What&apos;s next</h2>
-          <GlassCard className="p-6">
+      {/* What's next - glass highlight */}
+      <RevealOnScroll>
+        <section className="py-20">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-6">What&apos;s next</h2>
+            <div className="rounded-[16px] border border-white/[0.08] bg-white/[0.03] backdrop-blur-[12px] p-6 sm:p-8">
             <ul className="space-y-3 text-white/80">
               <li className="flex items-center gap-3">
                 <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
@@ -191,17 +191,19 @@ export default function Home() {
                 Cross-chain and reputation features
               </li>
             </ul>
-          </GlassCard>
-        </div>
-      </section>
+            </div>
+          </div>
+        </section>
+      </RevealOnScroll>
 
       {/* Featured Campaigns */}
-      <section className="py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
-            <div>
-              <h2 className="text-2xl font-bold text-white mb-2">Active Campaigns</h2>
-              <p className="text-white/60">
+      <RevealOnScroll>
+        <section className="py-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 mb-12">
+              <div>
+                <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">Active Campaigns</h2>
+                <p className="text-white/55 text-lg">
                 Participate in live voting campaigns on the Aleo blockchain
               </p>
             </div>
@@ -212,7 +214,7 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* Campaigns Grid */}
+            {/* Campaigns Grid */}
           {isLoadingCampaigns ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[...Array(3)].map((_, i) => (
@@ -239,7 +241,13 @@ export default function Home() {
               )}
             </GlassCard>
           ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <motion.div
+              className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: '-40px' }}
+              variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.08 } } }}
+            >
               {campaigns.map((campaign, index) => {
                 const status = getCampaignStatus(campaign);
                 const statusConfig = {
@@ -263,8 +271,9 @@ export default function Home() {
                 const StatusIcon = config.icon;
 
                 return (
-                  <Link key={campaign.id} href={`/campaign/${campaign.id}`}>
-                    <GlassCard hover className="h-full flex flex-col overflow-hidden p-0">
+                  <motion.div key={campaign.id} variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
+                  <Link href={`/campaign/${campaign.id}`}>
+                    <GlassCard hover className="h-full flex flex-col overflow-hidden p-0 rounded-[16px]">
                         {/* Image */}
                         <div className="relative h-48 overflow-hidden bg-emerald-500/10">
                           <img
@@ -326,20 +335,23 @@ export default function Home() {
                         </div>
                     </GlassCard>
                   </Link>
+                  </motion.div>
                 );
               })}
-            </div>
+            </motion.div>
           )}
-        </div>
-      </section>
+          </div>
+        </section>
+      </RevealOnScroll>
 
       {/* Auctions section */}
-      <section className="py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
-            <div>
-              <h2 className="text-2xl font-bold text-white mb-2">Public Auctions</h2>
-              <p className="text-white/60">
+      <RevealOnScroll>
+        <section className="py-20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 mb-12">
+              <div>
+                <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">Public Auctions</h2>
+                <p className="text-white/55 text-lg">
                 First-price sealed-bid auctions on Aleo. Place public or private bids.
               </p>
             </div>
@@ -374,15 +386,17 @@ export default function Home() {
               )}
             </GlassCard>
           ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <motion.div
+              className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: '-40px' }}
+              variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.08 } } }}
+            >
               {auctions.map((a, i) => (
-                <Link key={a.auctionId} href={`/auctions/${encodeURIComponent(a.auctionId)}`}>
-                  <motion.div
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                  >
-                    <GlassCard hover className="h-full p-6">
+                <motion.div key={a.auctionId} variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
+                <Link href={`/auctions/${encodeURIComponent(a.auctionId)}`}>
+                    <GlassCard hover className="h-full p-6 rounded-[16px]">
                       <div className="flex items-start justify-between mb-3">
                         <span className="text-xs text-white/50">Auction #{a.index}</span>
                         <Badge variant="active">Open</Badge>
@@ -403,20 +417,22 @@ export default function Home() {
                         <ArrowRight className="w-4 h-4 ml-1" />
                       </div>
                     </GlassCard>
-                  </motion.div>
                 </Link>
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
           )}
-        </div>
-      </section>
+          </div>
+        </section>
+      </RevealOnScroll>
 
       {/* CTA */}
-      <section className="py-16">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <GlassCard className="p-10">
-            <h2 className="text-2xl font-bold text-white mb-3">Ready to get started?</h2>
-            <p className="text-white/60 mb-6">
+      <RevealOnScroll>
+        <section className="py-24 pb-32">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <GlassCard className="p-10 sm:p-12 rounded-[16px]">
+              <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">Ready to get started?</h2>
+              <p className="text-white/55 text-lg mb-8">
               Connect your wallet to vote in campaigns or create and bid in private auctions on Aleo.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 flex-wrap">
@@ -436,7 +452,8 @@ export default function Home() {
             </div>
           </GlassCard>
         </div>
-      </section>
+        </section>
+      </RevealOnScroll>
     </div>
   );
 }

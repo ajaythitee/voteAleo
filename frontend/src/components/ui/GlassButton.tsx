@@ -49,8 +49,8 @@ export function GlassButton({
         ${disabled || loading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         ${className}
       `}
-      whileHover={!disabled && !loading ? { opacity: 0.95 } : {}}
-      whileTap={!disabled && !loading ? { opacity: 0.9 } : {}}
+      whileHover={!disabled && !loading ? { scale: 1.02 } : {}}
+      whileTap={!disabled && !loading ? { scale: 0.98 } : {}}
       disabled={disabled || loading}
       {...props}
     >
