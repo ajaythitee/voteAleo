@@ -384,7 +384,7 @@ export default function CreateCampaignPage() {
                 <select
                   value={formData.category ?? ''}
                   onChange={(e) => handleInputChange('category', e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                 >
                   <option value="">Select category</option>
                   {CAMPAIGN_CATEGORIES.map((c) => (
