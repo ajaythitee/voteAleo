@@ -13,7 +13,7 @@ interface ThemeState {
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
-      theme: 'system',
+      theme: 'dark',
       resolvedTheme: 'dark',
       setTheme: (theme) => set({ theme }),
       setResolvedTheme: (resolved) => set({ resolvedTheme: resolved }),

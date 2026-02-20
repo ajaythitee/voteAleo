@@ -1,111 +1,159 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { useRef, useEffect, useMemo } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useThemeStore } from '@/stores/themeStore';
 import * as THREE from 'three';
+import { Stars, PerspectiveCamera } from '@react-three/drei';
+import { EffectComposer, Bloom, ChromaticAberration, Vignette } from '@react-three/postprocessing';
 
-const ICOSA_R = 1.2;
-function buildIcosa() {
-  const g = new THREE.IcosahedronGeometry(ICOSA_R, 0);
-  const pos = g.attributes.position.array as Float32Array;
-  const vertices: [number, number, number][] = [];
-  for (let i = 0; i < pos.length; i += 3) {
-    vertices.push([pos[i], pos[i + 1], pos[i + 2]]);
-  }
-  const edges = new Set<string>();
-  const idx = g.index?.array;
-  if (idx) {
-    for (let i = 0; i < idx.length; i += 3) {
-      const a = idx[i];
-      const b = idx[i + 1];
-      const c = idx[i + 2];
-      const add = (x: number, y: number) => edges.add(`${Math.min(x, y)}-${Math.max(x, y)}`);
-      add(a, b);
-      add(b, c);
-      add(a, c);
+// Particle System
+function ParticleField({ count = 200, isDark = true }: { count?: number; isDark?: boolean }) {
+  const meshRef = useRef<THREE.Points>(null);
+  const particles = useMemo(() => {
+    const positions = new Float32Array(count * 3);
+    const sizes = new Float32Array(count);
+
+    for (let i = 0; i < count; i++) {
+      const i3 = i * 3;
+      positions[i3] = (Math.random() - 0.5) * 20;
+      positions[i3 + 1] = (Math.random() - 0.5) * 20;
+      positions[i3 + 2] = (Math.random() - 0.5) * 20;
+
+      sizes[i] = Math.random() * 0.008 + 0.004;
     }
-  }
-  return { vertices, edges };
-}
-const icosa = buildIcosa();
 
-function NetworkSphere() {
-  const groupRef = useRef<THREE.Group>(null);
-  const mouseRef = useRef({ x: 0, y: 0 });
-  const mouseTarget = useRef({ x: 0, y: 0 });
-  const scrollRef = useRef(0);
-  const { resolvedTheme } = useThemeStore();
-  const isDark = resolvedTheme === 'dark';
-  const nodeColor = isDark ? '#6366f1' : '#818cf8';
-  const edgeColor = isDark ? '#4f46e5' : '#a5b4fc';
+    return { positions, sizes };
+  }, [count, isDark]);
 
-  useFrame((_, delta) => {
-    if (groupRef.current) {
-      mouseRef.current.x += (mouseTarget.current.x - mouseRef.current.x) * 0.05;
-      mouseRef.current.y += (mouseTarget.current.y - mouseRef.current.y) * 0.05;
-      scrollRef.current = typeof window !== 'undefined' ? window.scrollY : 0;
-      groupRef.current.rotation.y += delta * 0.12 + mouseRef.current.x * 0.02;
-      groupRef.current.rotation.x = mouseRef.current.y * 0.15 + scrollRef.current * 0.0003;
-      groupRef.current.position.y = scrollRef.current * 0.015;
+  useFrame((state) => {
+    if (meshRef.current) {
+      // ultra subtle drift only (no obvious spinning blobs)
+      meshRef.current.rotation.y += 0.0001;
+      meshRef.current.rotation.x += 0.00005;
     }
   });
 
-  const linePositions = (() => {
-    const arr: number[] = [];
-    icosa.edges.forEach((key) => {
-      const [a, b] = key.split('-').map(Number);
-      const va = icosa.vertices[a];
-      const vb = icosa.vertices[b];
-      if (va && vb) arr.push(...va, ...vb);
-    });
-    return new Float32Array(arr);
-  })();
+  return (
+    <points ref={meshRef}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" count={count} array={particles.positions} itemSize={3} />
+        <bufferAttribute attach="attributes-size" count={count} array={particles.sizes} itemSize={1} />
+      </bufferGeometry>
+      <pointsMaterial
+        size={0.02}
+        color={isDark ? '#E8EEFF' : '#334155'}
+        transparent
+        opacity={isDark ? 0.35 : 0.22}
+        sizeAttenuation
+      />
+    </points>
+  );
+}
+
+// Camera Controller with smooth movement
+function CameraController() {
+  const { camera } = useThree();
+  const mouseRef = useRef({ x: 0, y: 0 });
+  const targetRef = useRef({ x: 0, y: 0, z: 5.5 });
 
   useEffect(() => {
     const onMouse = (e: MouseEvent) => {
       const x = (e.clientX / window.innerWidth) * 2 - 1;
       const y = -(e.clientY / window.innerHeight) * 2 + 1;
-      mouseTarget.current = { x: x * 0.4, y: y * 0.4 };
+      mouseRef.current = { x, y };
     };
     window.addEventListener('mousemove', onMouse);
     return () => window.removeEventListener('mousemove', onMouse);
   }, []);
 
-  return (
-    <group ref={groupRef}>
-      <lineSegments>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" count={linePositions.length / 3} array={linePositions} itemSize={3} />
-        </bufferGeometry>
-        <lineBasicMaterial color={edgeColor} transparent opacity={isDark ? 0.4 : 0.5} />
-      </lineSegments>
-      {icosa.vertices.map((pos, i) => (
-        <mesh key={i} position={pos as [number, number, number]}>
-          <sphereGeometry args={[0.055, 8, 6]} />
-          <meshBasicMaterial color={nodeColor} transparent opacity={0.85} />
-        </mesh>
-      ))}
-    </group>
-  );
+  useFrame(() => {
+    targetRef.current.x += (mouseRef.current.x * 0.3 - targetRef.current.x) * 0.05;
+    targetRef.current.y += (mouseRef.current.y * 0.3 - targetRef.current.y) * 0.05;
+    
+    camera.position.x += (targetRef.current.x - camera.position.x) * 0.05;
+    camera.position.y += (targetRef.current.y - camera.position.y) * 0.05;
+    camera.position.z = targetRef.current.z;
+    camera.lookAt(0, 0, 0);
+  });
+
+  return null;
 }
 
-export function Scene3DInner() {
+export function Scene3DInner({ className = '' }: { variant?: 'hero' | 'background'; className?: string }) {
   const { resolvedTheme } = useThemeStore();
   const isDark = resolvedTheme === 'dark';
 
   return (
-    <div className="fixed inset-0 -z-10 w-full h-full overflow-hidden pointer-events-none" style={{ opacity: 0.85 }}>
+    <div className={`w-full h-full overflow-hidden pointer-events-none ${className}`} style={{ opacity: isDark ? 0.7 : 0.6 }}>
       <Canvas
-        camera={{ position: [0, 0, 5.5], fov: 48 }}
+        camera={{ position: [0, 0, 5.5], fov: 50 }}
         dpr={[1, 2]}
-        gl={{ alpha: true, antialias: true, powerPreference: 'low-power' }}
-        onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}
+        gl={{ 
+          alpha: true, 
+          antialias: true, 
+          powerPreference: 'high-performance',
+          toneMapping: THREE.ACESFilmicToneMapping,
+          toneMappingExposure: 1.2
+        }}
+        onCreated={({ gl }) => {
+          gl.setClearColor(0x000000, 0);
+          gl.shadowMap.enabled = true;
+          gl.shadowMap.type = THREE.PCFSoftShadowMap;
+        }}
       >
+        <PerspectiveCamera makeDefault position={[0, 0, 5.5]} fov={50} />
+        <CameraController />
+        
+        {/* Lighting */}
         <ambientLight intensity={isDark ? 0.25 : 0.5} />
-        <pointLight position={[4, 4, 4]} intensity={isDark ? 0.5 : 0.35} color={isDark ? '#6366f1' : '#a5b4fc'} />
-        <pointLight position={[-3, -2, 3]} intensity={isDark ? 0.25 : 0.15} color={isDark ? '#8b5cf6' : '#c4b5fd'} />
-        <NetworkSphere />
+        <pointLight 
+          position={[4, 3, 4]} 
+          intensity={isDark ? 0.8 : 0.6} 
+          color={isDark ? '#6366f1' : '#818cf8'}
+          castShadow
+        />
+        <pointLight 
+          position={[-3, -2, 3]} 
+          intensity={isDark ? 0.4 : 0.3} 
+          color={isDark ? '#8b5cf6' : '#c4b5fd'}
+        />
+        <pointLight 
+          position={[0, -4, 2]} 
+          intensity={isDark ? 0.3 : 0.25} 
+          color={isDark ? '#10b981' : '#34d399'}
+        />
+        <directionalLight 
+          position={[5, 5, 5]} 
+          intensity={isDark ? 0.2 : 0.15}
+          color={isDark ? '#ffffff' : '#f8fafc'}
+        />
+
+        {/* Stars background */}
+        <Stars 
+          radius={100} 
+          depth={50} 
+          count={isDark ? 3000 : 2400} 
+          factor={3.2} 
+          saturation={0}
+          fade
+          speed={0.15}
+        />
+
+        {/* Particle Field */}
+        <ParticleField count={isDark ? 420 : 320} isDark={isDark} />
+
+        {/* Post-processing Effects */}
+        <EffectComposer>
+          <Bloom 
+            intensity={isDark ? 0.18 : 0.08} 
+            luminanceThreshold={0.98} 
+            luminanceSmoothing={0.9}
+            height={300}
+          />
+          <ChromaticAberration offset={[0.00035, 0.00025]} />
+          <Vignette eskil={false} offset={0.12} darkness={isDark ? 0.55 : 0.22} />
+        </EffectComposer>
       </Canvas>
     </div>
   );

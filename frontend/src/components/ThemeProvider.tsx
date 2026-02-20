@@ -10,7 +10,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const resolve = (): 'dark' | 'light' => {
       if (theme === 'dark') return 'dark';
       if (theme === 'light') return 'light';
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     };
     const resolved = resolve();
     setResolvedTheme(resolved);

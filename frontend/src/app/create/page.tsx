@@ -189,7 +189,7 @@ export default function CreateCampaignPage() {
       if (formData.minVotes != null && formData.minVotes > 0) metadata.minVotes = formData.minVotes;
       if (formData.category?.trim()) metadata.category = formData.category.trim();
 
-      const metadataResult = await pinataService.uploadJSON(metadata);
+      const metadataResult = await pinataService.uploadJSON(metadata, { name: `campaign-${Date.now()}.json`, type: 'campaign-metadata' });
 
       // Create campaign on-chain
       const startTime = Math.floor(

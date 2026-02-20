@@ -1,10 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  experimental: {
-    // Exclude @provablehq/sdk from server-side bundling (it has WASM that doesn't bundle well)
-    serverComponentsExternalPackages: ['@provablehq/sdk'],
-  },
+  // Use webpack explicitly since we need it for WASM support
+  // Turbopack config is empty to silence the warning
+  turbopack: {},
+  // Next 16: moved from experimental.serverComponentsExternalPackages
+  serverExternalPackages: ['@provablehq/sdk'],
+  // Fix “multiple lockfiles root” warning if present
+  outputFileTracingRoot: new URL('.', import.meta.url).pathname,
   images: {
     remotePatterns: [
       {

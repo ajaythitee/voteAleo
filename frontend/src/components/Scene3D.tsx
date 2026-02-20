@@ -7,6 +7,6 @@ const Scene3DInner = dynamic(() => import('./Scene3DInner').then((m) => m.Scene3
   loading: () => null,
 });
 
-export function Scene3D() {
-  return <Scene3DInner />;
+export function Scene3D(props: { variant?: 'hero' | 'background'; className?: string }) {
+  return <Scene3DInner {...props} />;
 }

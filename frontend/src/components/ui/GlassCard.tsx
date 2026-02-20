@@ -23,13 +23,13 @@ export function GlassCard({
 }: GlassCardProps) {
   const baseClass = variant === 'glass'
     ? 'glass-card p-6'
-    : 'rounded-2xl border border-white/[0.08] bg-white/[0.04] p-6';
+    : 'rounded-2xl border border-white/[0.08] bg-white/[0.04] p-6 light:bg-white light:border-slate-900/10 light:shadow-[0_10px_30px_rgba(2,6,23,0.08)]';
 
   return (
     <motion.div
       className={`
         ${baseClass}
-        ${hover ? (variant === 'glass' ? 'glass-card-hover' : 'transition-colors hover:bg-white/[0.06] hover:border-white/[0.12]') : ''}
+        ${hover ? (variant === 'glass' ? 'glass-card-hover' : 'transition-colors hover:bg-white/[0.06] hover:border-white/[0.12] light:hover:bg-slate-50') : ''}
         ${glow ? 'shadow-[0_0_24px_rgba(99,102,241,0.15)]' : ''}
         ${className}
       `}
@@ -52,13 +52,13 @@ export function GlassCardCompact({
 }: GlassCardProps) {
   const baseClass = variant === 'glass'
     ? 'glass-card p-4'
-    : 'rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4';
+    : 'rounded-2xl border border-white/[0.08] bg-white/[0.04] p-4 light:bg-white light:border-slate-900/10 light:shadow-[0_10px_30px_rgba(2,6,23,0.08)]';
 
   return (
     <motion.div
       className={`
         ${baseClass}
-        ${hover ? 'transition-colors hover:bg-white/[0.06] hover:border-white/[0.12]' : ''}
+        ${hover ? 'transition-colors hover:bg-white/[0.06] hover:border-white/[0.12] light:hover:bg-slate-50' : ''}
         ${className}
       `}
       {...props}

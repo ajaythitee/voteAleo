@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ToastContainer } from "@/components/ui/Toast";
-import { Scene3D } from "@/components/Scene3D";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -32,6 +32,15 @@ export const metadata: Metadata = {
   },
 };
 
+const themeScript = `
+(function(){
+  const t=localStorage.getItem('privote-theme');
+  let d='dark';
+  if(t){try{const p=JSON.parse(t);if(p.state?.theme==='light')d='light';else if(p.state?.theme==='system')d=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';}catch(e){}}
+  document.documentElement.classList.add(d);
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -40,9 +49,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased min-h-screen flex flex-col bg-background transition-colors duration-500`}>
+        <Script id="theme-init" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: themeScript }} />
         <Providers>
           <div className="aurora-bg" aria-hidden />
-          <Scene3D />
 
           {/* Header */}
           <Header />

@@ -10,8 +10,11 @@ import { Badge } from '@/components/ui/Badge';
 import { SkeletonCard } from '@/components/ui/LoadingSpinner';
 import { useWalletStore } from '@/stores/walletStore';
 import { auctionService } from '@/services/auction';
+import { aleoService } from '@/services/aleo';
+import { pinataService } from '@/services/pinata';
 
 type AuctionRow = { auctionId: string; index: number; data: unknown };
+type AuctionMeta = { name?: string; description?: string; imageUrl?: string };
 
 function parseAuctionData(data: unknown): { name: string; startingBid: number } {
   if (data && typeof data === 'object' && 'starting_bid' in (data as object)) {
@@ -27,6 +30,7 @@ function parseAuctionData(data: unknown): { name: string; startingBid: number } 
 export default function AuctionsPage() {
   const [list, setList] = useState<AuctionRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [metaById, setMetaById] = useState<Record<string, AuctionMeta>>({});
   const { isConnected } = useWalletStore();
 
   const load = async () => {
@@ -34,6 +38,30 @@ export default function AuctionsPage() {
     try {
       const items = await auctionService.listPublicAuctions();
       setList(items);
+
+      // Best-effort: hydrate metadata (image/description) from offchain CID fields
+      const next: Record<string, AuctionMeta> = {};
+      await Promise.all(
+        items.slice(0, 24).map(async (a) => {
+          const raw = a.data as any;
+          const off = raw?.item?.offchain_data;
+          if (!off || off.length < 2) return;
+          const cid = aleoService.decodeFieldsToCid(String(off[0]), String(off[1]));
+          if (!cid) return;
+          try {
+            const json = await pinataService.fetchJSON<Record<string, unknown>>(cid);
+            const imageCid = typeof json.imageCid === 'string' ? json.imageCid : '';
+            next[a.auctionId] = {
+              name: typeof json.name === 'string' ? json.name : undefined,
+              description: typeof json.description === 'string' ? json.description : undefined,
+              imageUrl: imageCid ? pinataService.getGatewayUrl(imageCid) : undefined,
+            };
+          } catch {
+            // ignore metadata failures
+          }
+        })
+      );
+      if (Object.keys(next).length) setMetaById((prev) => ({ ...prev, ...next }));
     } catch (e) {
       console.error(e);
     } finally {
@@ -88,7 +116,10 @@ export default function AuctionsPage() {
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {list.map((a, i) => {
-                const { name, startingBid } = parseAuctionData(a.data);
+                const chain = parseAuctionData(a.data);
+                const meta = metaById[a.auctionId];
+                const name = meta?.name || chain.name;
+                const startingBid = chain.startingBid;
                 return (
                   <Link key={a.auctionId} href={`/auctions/${encodeURIComponent(a.auctionId)}`}>
                     <motion.div
@@ -96,18 +127,29 @@ export default function AuctionsPage() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.04 }}
                     >
-                      <GlassCard hover className="h-full p-6 flex flex-col">
+                      <GlassCard hover className="h-full p-0 overflow-hidden flex flex-col">
+                        {meta?.imageUrl ? (
+                          <div className="relative h-36 w-full bg-white/[0.06]">
+                            <img src={meta.imageUrl} alt={name} className="h-full w-full object-cover" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                          </div>
+                        ) : null}
+                        <div className="p-6 flex flex-col flex-1">
                         <div className="flex items-start justify-between mb-3">
                           <span className="text-xs text-white/50">#{a.index}</span>
                           <Badge variant="active">Open</Badge>
                         </div>
                         <h3 className="text-lg font-semibold text-white mb-2 line-clamp-2">{name}</h3>
+                        {meta?.description ? (
+                          <p className="text-sm text-white/60 mb-3 line-clamp-2">{meta.description}</p>
+                        ) : null}
                         <p className="text-sm text-white/60 mb-4">
                           Starting bid: <span className="text-emerald-400">{startingBid} credits</span>
                         </p>
                         <div className="mt-auto flex items-center text-emerald-400 text-sm">
                           <span>View & place bid</span>
                           <ArrowRight className="w-4 h-4 ml-1" />
+                        </div>
                         </div>
                       </GlassCard>
                     </motion.div>

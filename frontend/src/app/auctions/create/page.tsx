@@ -3,22 +3,39 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Gavel, ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
+import { Gavel, ArrowLeft, Loader2, AlertCircle, Upload, X, CheckCircle } from 'lucide-react';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
-import { GlassInput } from '@/components/ui/GlassInput';
+import { GlassInput, GlassTextarea } from '@/components/ui/GlassInput';
 import { useWallet } from '@demox-labs/aleo-wallet-adapter-react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { aleoService } from '@/services/aleo';
+import { pinataService } from '@/services/pinata';
 import { createTransaction, requestCreateEvent, buildCreatePublicAuctionParams, getAuctionProgramId } from '@/utils/transaction';
 
 export default function CreateAuctionPage() {
   const router = useRouter();
-  const [name, setName] = useState('');
-  const [itemId, setItemId] = useState('');
-  const [startingBid, setStartingBid] = useState('');
-  const [bidType, setBidType] = useState<'1' | '2'>('1');
+  const [step, setStep] = useState(1);
+  const [formData, setFormData] = useState<{
+    name: string;
+    description: string;
+    image: File | null;
+    imagePreview: string | null;
+    itemId: string;
+    startingBid: string;
+    bidType: '1' | '2';
+    revealCreator: boolean;
+  }>({
+    name: '',
+    description: '',
+    image: null,
+    imagePreview: null,
+    itemId: '',
+    startingBid: '',
+    bidType: '1',
+    revealCreator: true,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -28,25 +45,43 @@ export default function CreateAuctionPage() {
   const address = publicKey ?? '';
   const walletName = wallet?.adapter?.name;
 
-  const handleInputChange = (field: string, value: string) => {
-    if (field === 'name') setName(value);
-    else if (field === 'itemId') setItemId(value);
-    else if (field === 'startingBid') setStartingBid(value);
-    else if (field === 'bidType') setBidType(value as '1' | '2');
-    if (errors[field]) setErrors((p) => ({ ...p, [field]: '' }));
+  const handleInputChange = (field: keyof typeof formData, value: any) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (errors[field as string]) setErrors((p) => ({ ...p, [field as string]: '' }));
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        showError('File too large', 'Image must be less than 5MB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        handleInputChange('image', file);
+        handleInputChange('imagePreview', reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    handleInputChange('image', null);
+    handleInputChange('imagePreview', null);
   };
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (!name.trim()) newErrors.name = 'Auction name is required';
-    const startBid = Math.floor(Number(startingBid));
+    if (!formData.name.trim()) newErrors.name = 'Auction name is required';
+    if (!formData.description.trim()) newErrors.description = 'Description is required';
+    const startBid = Math.floor(Number(formData.startingBid));
     if (!Number.isFinite(startBid) || startBid < 0) newErrors.startingBid = 'Enter a valid starting bid (credits)';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     if (!validateForm()) return;
     if (!address || !walletName) {
       showError('Wallet required', 'Connect a wallet to create an auction.');
@@ -55,18 +90,39 @@ export default function CreateAuctionPage() {
 
     setIsSubmitting(true);
     try {
-      const auctionNameField = aleoService.encodeStringToSingleField(name.trim());
-      const itemIdField = (itemId.trim() || '0').match(/^\d+$/) ? `${itemId.trim()}field` : aleoService.encodeStringToSingleField(itemId.trim() || '0');
-      const offchain = ['0field', '0field', '0field', '0field'];
+      // Upload image + metadata to IPFS
+      let imageCid = '';
+      if (formData.image) {
+        const imageResult = await pinataService.uploadFile(formData.image);
+        imageCid = imageResult.cid;
+      }
+      const metadata = {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        creator: address,
+        createdAt: new Date().toISOString(),
+        imageCid,
+        itemId: formData.itemId.trim(),
+        startingBid: Math.floor(Number(formData.startingBid)),
+        bidType: formData.bidType,
+      } satisfies Record<string, unknown>;
+
+      const metadataResult = await pinataService.uploadJSON(metadata, { name: `auction-${Date.now()}.json`, type: 'auction-metadata' });
+      const { part1, part2 } = aleoService.encodeCidToFields(metadataResult.cid);
+
+      const auctionNameField = aleoService.encodeStringToSingleField(formData.name.trim());
+      const itemIdClean = formData.itemId.trim() || '0';
+      const itemIdField = itemIdClean.match(/^\d+$/) ? `${itemIdClean}field` : aleoService.encodeStringToSingleField(itemIdClean);
+      const offchain = [part1, part2, '0field', '0field'];
       const nonce = Math.floor(Math.random() * 1e15) + 1;
       const inputs = [
         auctionNameField,
-        `${bidType}field`,
+        `${formData.bidType}field`,
         itemIdField,
         ...offchain,
-        `${Math.floor(Number(startingBid))}u64`,
+        `${Math.floor(Number(formData.startingBid))}u64`,
         `${nonce}scalar`,
-        'false',
+        formData.revealCreator ? 'true' : 'false',
       ];
       const params = buildCreatePublicAuctionParams(inputs, address, walletName);
       const execute = walletName === 'Puzzle Wallet' ? requestCreateEvent : requestTransaction;
@@ -113,61 +169,154 @@ export default function CreateAuctionPage() {
             <ArrowLeft className="w-4 h-4" />
             Back to Auctions
           </Link>
-          <h1 className="text-3xl font-bold text-white mb-2">Create public auction</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">Create Auction</h1>
           <p className="text-white/60">Set up a new first-price sealed-bid auction on Aleo</p>
         </div>
 
-        {/* Form Card - same style as Create Campaign */}
+        {/* Progress Steps */}
+        <div className="flex items-center justify-center mb-8">
+          {[1, 2].map((s) => (
+            <div key={s} className="flex items-center">
+              <div
+                className={`
+                  w-10 h-10 rounded-full flex items-center justify-center
+                  ${step >= s ? 'bg-emerald-600' : 'bg-white/10'}
+                `}
+              >
+                {step > s ? (
+                  <CheckCircle className="w-5 h-5 text-white" />
+                ) : (
+                  <span className="text-white font-semibold">{s}</span>
+                )}
+              </div>
+              {s < 2 && <div className={`w-16 h-0.5 ${step > s ? 'bg-emerald-600' : 'bg-white/10'}`} />}
+            </div>
+          ))}
+        </div>
+
+        {/* Form Card */}
         <GlassCard className="p-8 rounded-[16px]">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <GlassInput
-              label="Auction name"
-              placeholder="e.g. Rare NFT #1"
-              value={name}
-              onChange={(e) => handleInputChange('name', e.target.value)}
-              error={errors.name}
-            />
+          {step === 1 && (
+            <div className="space-y-6">
+              <h2 className="text-xl font-semibold text-white mb-2">Basic Information</h2>
 
-            <GlassInput
-              label="Item ID (optional)"
-              placeholder="0 or any identifier"
-              value={itemId}
-              onChange={(e) => handleInputChange('itemId', e.target.value)}
-            />
+              <GlassInput
+                label="Auction name"
+                placeholder="e.g. Rare NFT #1"
+                value={formData.name}
+                onChange={(e) => handleInputChange('name', e.target.value)}
+                error={errors.name}
+              />
 
-            <GlassInput
-              label="Starting bid (credits)"
-              type="number"
-              min={0}
-              placeholder="0"
-              value={startingBid}
-              onChange={(e) => handleInputChange('startingBid', e.target.value)}
-              error={errors.startingBid}
-            />
+              <GlassTextarea
+                label="Description"
+                placeholder="Describe what is being auctioned…"
+                value={formData.description}
+                onChange={(e) => handleInputChange('description', e.target.value)}
+                error={errors.description}
+              />
 
-            <div>
-              <label className="block text-sm font-medium text-white/70 mb-2">Bid types accepted</label>
-              <select
-                value={bidType}
-                onChange={(e) => handleInputChange('bidType', e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
-              >
-                <option value="1">Public bids only</option>
-                <option value="2">Public and private (mix)</option>
-              </select>
+              {/* Image Upload */}
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-2">Auction image (optional)</label>
+                {formData.imagePreview ? (
+                  <div className="relative rounded-xl overflow-hidden">
+                    <img src={formData.imagePreview} alt="Preview" className="w-full h-48 object-cover" />
+                    <button
+                      onClick={removeImage}
+                      className="absolute top-2 right-2 p-2 rounded-lg bg-black/50 hover:bg-black/70 transition-colors"
+                      type="button"
+                    >
+                      <X className="w-5 h-5 text-white" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-full h-48 rounded-xl border-2 border-dashed border-white/10 hover:border-white/20 cursor-pointer transition-colors">
+                    <Upload className="w-10 h-10 text-white/30 mb-2" />
+                    <span className="text-white/50 text-sm">Click to upload image</span>
+                    <span className="text-white/30 text-xs mt-1">Max 5MB (JPG, PNG)</span>
+                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                  </label>
+                )}
+              </div>
+
+              <div className="flex justify-end">
+                <GlassButton onClick={() => setStep(2)}>Next: Auction Settings</GlassButton>
+              </div>
             </div>
+          )}
 
-            <div className="pt-4">
-              <GlassButton
-                type="submit"
-                disabled={isSubmitting}
-                icon={isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gavel className="w-4 h-4" />}
-                className="w-full"
-              >
-                {isSubmitting ? 'Creating…' : 'Create auction'}
-              </GlassButton>
+          {step === 2 && (
+            <div className="space-y-6">
+              <h2 className="text-xl font-semibold text-white mb-2">Auction Settings</h2>
+
+              <GlassInput
+                label="Item ID (optional)"
+                placeholder="0 or any identifier"
+                value={formData.itemId}
+                onChange={(e) => handleInputChange('itemId', e.target.value)}
+              />
+
+              <GlassInput
+                label="Starting bid (credits)"
+                type="number"
+                min={0}
+                placeholder="0"
+                value={formData.startingBid}
+                onChange={(e) => handleInputChange('startingBid', e.target.value)}
+                error={errors.startingBid}
+              />
+
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-2">Bid types accepted</label>
+                <select
+                  value={formData.bidType}
+                  onChange={(e) => handleInputChange('bidType', e.target.value as '1' | '2')}
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                >
+                  <option value="1">Public bids only</option>
+                  <option value="2">Public and private (mix)</option>
+                </select>
+              </div>
+
+              {/* Reveal creator toggle */}
+              <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
+                <div>
+                  <p className="text-sm text-white/80 font-medium">Reveal creator address</p>
+                  <p className="text-xs text-white/50">If enabled, your address is shown as the auction owner (needed for “Created by me”).</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleInputChange('revealCreator', !formData.revealCreator)}
+                  className={`
+                    relative w-12 h-6 rounded-full transition-colors
+                    ${formData.revealCreator ? 'bg-emerald-600' : 'bg-white/20'}
+                  `}
+                >
+                  <div
+                    className={`
+                      absolute top-1 w-4 h-4 rounded-full bg-white transition-transform
+                      ${formData.revealCreator ? 'translate-x-7' : 'translate-x-1'}
+                    `}
+                  />
+                </button>
+              </div>
+
+              <div className="flex justify-between pt-2">
+                <GlassButton variant="secondary" onClick={() => setStep(1)}>
+                  Back
+                </GlassButton>
+                <GlassButton
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                  loading={isSubmitting}
+                  icon={<Gavel className="w-5 h-5" />}
+                >
+                  {isSubmitting ? 'Creating…' : 'Create Auction'}
+                </GlassButton>
+              </div>
             </div>
-          </form>
+          )}
         </GlassCard>
       </div>
     </div>

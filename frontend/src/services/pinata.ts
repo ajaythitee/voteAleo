@@ -1,6 +1,6 @@
 // Pinata IPFS Service for Privote
 
-import { IPFSUploadResult, CampaignMetadata } from '@/types';
+import { IPFSUploadResult } from '@/types';
 
 const PINATA_JWT = process.env.NEXT_PUBLIC_PINATA_JWT;
 const PINATA_GATEWAY = process.env.NEXT_PUBLIC_PINATA_GATEWAY || 'gateway.pinata.cloud';
@@ -71,7 +71,10 @@ class PinataService {
   /**
    * Upload JSON metadata to IPFS
    */
-  async uploadJSON(metadata: CampaignMetadata): Promise<IPFSUploadResult> {
+  async uploadJSON(
+    metadata: Record<string, unknown>,
+    opts?: { name?: string; type?: string }
+  ): Promise<IPFSUploadResult> {
     if (!this.jwt) {
       throw new Error('Pinata JWT not configured');
     }
@@ -87,10 +90,10 @@ class PinataService {
         body: JSON.stringify({
           pinataContent: metadata,
           pinataMetadata: {
-            name: `campaign-${Date.now()}.json`,
+            name: opts?.name || `metadata-${Date.now()}.json`,
             keyvalues: {
               app: 'privote',
-              type: 'campaign-metadata',
+              type: opts?.type || 'metadata',
             },
           },
           pinataOptions: {

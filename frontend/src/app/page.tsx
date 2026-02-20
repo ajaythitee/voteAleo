@@ -23,6 +23,8 @@ import { GlassButton } from '@/components/ui/GlassButton';
 import { Badge } from '@/components/ui/Badge';
 import { SkeletonCard } from '@/components/ui/LoadingSpinner';
 import { RevealOnScroll } from '@/components/ui/RevealOnScroll';
+import { DoomSection } from '@/components/ui/DoomSection';
+import { Scene3D } from '@/components/Scene3D';
 import { useWalletStore } from '@/stores/walletStore';
 import { Campaign } from '@/types';
 import { aleoService } from '@/services/aleo';
@@ -123,18 +125,30 @@ export default function Home() {
 
   return (
     <div className="min-h-screen">
+      {/* Subtle starfield background across homepage */}
+      <div className="fixed inset-0 -z-20 opacity-60">
+        <Scene3D variant="background" className="h-full w-full" />
+      </div>
       {/* Hero - Parallax */}
       <section ref={heroRef} className="relative py-28 lg:py-36 overflow-hidden" aria-labelledby="hero-heading">
+        {/* 3D hero background */}
+        <div className="absolute inset-0 -z-10">
+          <Scene3D
+            variant="hero"
+            className="h-full w-full"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-transparent dark:from-black/40 dark:via-black/20 light:from-white/30 light:via-white/10 light:to-transparent" />
+        </div>
         <div className="absolute top-12 right-4 md:right-12 opacity-80">
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[12px] text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-sm">
             zk-powered
           </span>
         </div>
         <motion.div style={{ y: heroY }} className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 id="hero-heading" className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
+          <h1 id="hero-heading" className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white dark:text-white light:text-slate-900 mb-6 leading-tight drop-shadow-lg">
             Voting &amp; Auctions on Aleo
           </h1>
-          <p className="text-lg sm:text-xl text-white/55 mb-12 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-lg sm:text-xl text-white/55 dark:text-white/55 light:text-slate-700 mb-12 max-w-2xl mx-auto leading-relaxed drop-shadow-md">
             Private voting and first-price sealed-bid auctions. Create campaigns, cast anonymous votes, or run auctions with privacy on Aleo.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 flex-wrap">
@@ -156,10 +170,10 @@ export default function Home() {
               </Link>
             )}
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-8 mt-20 text-white/45 text-sm">
+          <div className="flex flex-wrap items-center justify-center gap-8 mt-20 text-white/45 dark:text-white/45 light:text-slate-600 text-sm">
             {heroFeatures.map((f) => (
               <span key={f.title} className="flex items-center gap-2">
-                <f.icon className="w-4 h-4 text-emerald-400" />
+                <f.icon className="w-4 h-4 text-emerald-400 dark:text-emerald-400 light:text-emerald-600" />
                 {f.title}
               </span>
             ))}
@@ -168,37 +182,40 @@ export default function Home() {
       </section>
 
       {/* What's next - glass highlight */}
-      <RevealOnScroll>
-        <section className="py-20">
+      <DoomSection intensity={0.9}>
+        <RevealOnScroll>
+          <section className="py-20">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-6">What&apos;s next</h2>
-            <div className="rounded-[16px] border border-white/[0.08] bg-white/[0.03] backdrop-blur-[12px] p-6 sm:p-8">
-            <ul className="space-y-3 text-white/80">
+            <h2 className="text-2xl sm:text-3xl font-bold text-white dark:text-white light:text-slate-900 mb-6">What&apos;s next</h2>
+            <div className="rounded-[16px] border border-white/[0.08] bg-white/[0.03] backdrop-blur-[12px] p-6 sm:p-8 light:border-slate-900/10 light:bg-white/70">
+            <ul className="space-y-3 text-white/80 dark:text-white/80 light:text-slate-700">
               <li className="flex items-center gap-3">
                 <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
                 Core voting: campaigns, Leo/Puzzle wallets, gasless voting, private tally
               </li>
               <li className="flex items-center gap-3">
-                <Circle className="w-5 h-5 text-white/40 flex-shrink-0" />
+                <Circle className="w-5 h-5 text-white/40 dark:text-white/40 light:text-slate-400 flex-shrink-0" />
                 Campaign analytics and ranked-choice voting
               </li>
               <li className="flex items-center gap-3">
-                <Circle className="w-5 h-5 text-white/40 flex-shrink-0" />
+                <Circle className="w-5 h-5 text-white/40 dark:text-white/40 light:text-slate-400 flex-shrink-0" />
                 Multi-language support and DAO governance
               </li>
               <li className="flex items-center gap-3">
-                <Circle className="w-5 h-5 text-white/40 flex-shrink-0" />
+                <Circle className="w-5 h-5 text-white/40 dark:text-white/40 light:text-slate-400 flex-shrink-0" />
                 Cross-chain and reputation features
               </li>
             </ul>
             </div>
           </div>
-        </section>
-      </RevealOnScroll>
+          </section>
+        </RevealOnScroll>
+      </DoomSection>
 
       {/* Featured Campaigns */}
-      <RevealOnScroll>
-        <section className="py-20">
+      <DoomSection intensity={1}>
+        <RevealOnScroll>
+          <section className="py-20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 mb-12">
               <div>
@@ -341,12 +358,14 @@ export default function Home() {
             </motion.div>
           )}
           </div>
-        </section>
-      </RevealOnScroll>
+          </section>
+        </RevealOnScroll>
+      </DoomSection>
 
       {/* Auctions section */}
-      <RevealOnScroll>
-        <section className="py-20">
+      <DoomSection intensity={1}>
+        <RevealOnScroll>
+          <section className="py-20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 mb-12">
               <div>
@@ -423,12 +442,14 @@ export default function Home() {
             </motion.div>
           )}
           </div>
-        </section>
-      </RevealOnScroll>
+          </section>
+        </RevealOnScroll>
+      </DoomSection>
 
       {/* CTA */}
-      <RevealOnScroll>
-        <section className="py-24 pb-32">
+      <DoomSection intensity={0.85}>
+        <RevealOnScroll>
+          <section className="py-24 pb-32">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <GlassCard className="p-10 sm:p-12 rounded-[16px]">
               <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">Ready to get started?</h2>
@@ -452,8 +473,9 @@ export default function Home() {
             </div>
           </GlassCard>
         </div>
-        </section>
-      </RevealOnScroll>
+          </section>
+        </RevealOnScroll>
+      </DoomSection>
     </div>
   );
 }
