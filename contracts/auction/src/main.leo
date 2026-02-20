@@ -2,7 +2,11 @@ import credits.aleo;
 
 // Privote Auction - First-price sealed-bid auction on Aleo blockchain
 // Supports private and public auctions with anonymous bidding
-program privote_auction_4000.aleo {
+program privote_auction_5000.aleo {
+
+    // Constructor required for Leo 3.4.0+
+    @noupgrade
+    async constructor() {}
 
     ////////////////////////////////////////
     ///// ----- DATA DEFINITIONS ----- /////

@@ -5,7 +5,7 @@
 // - Gasless Voting (via relayer)
 // - Hidden Results Until Voting Ends
 
-program vote_privacy_6723.aleo {
+program vote_privacy_8000.aleo {
     // IPFS CID storage (CIDv1 base32 encoded, split into 2 fields)
     // Each field can hold ~31 bytes, CID is ~59 chars max
     struct IpfsCid {

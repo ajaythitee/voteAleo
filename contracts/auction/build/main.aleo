@@ -1,5 +1,5 @@
 import credits.aleo;
-program privote_auction_4000.aleo;
+program privote_auction_5000.aleo;
 
 struct item:
     id as field;
@@ -116,7 +116,7 @@ function create_private_auction:
     cast self.signer r12 r15 r10 into r16 as AuctionTicket.record;
     async create_private_auction r15 r7 into r17;
     output r16 as AuctionTicket.record;
-    output r17 as privote_auction_4000.aleo/create_private_auction.future;
+    output r17 as privote_auction_5000.aleo/create_private_auction.future;
 
 finalize create_private_auction:
     input r0 as field.public;
@@ -148,7 +148,7 @@ function create_public_auction:
     cast self.signer r13 r16 r11 into r17 as AuctionTicket.record;
     async create_public_auction r13 r16 r8 self.signer r11 into r18;
     output r17 as AuctionTicket.record;
-    output r18 as privote_auction_4000.aleo/create_public_auction.future;
+    output r18 as privote_auction_5000.aleo/create_public_auction.future;
 
 finalize create_public_auction:
     input r0 as auction.public;
@@ -159,7 +159,7 @@ finalize create_public_auction:
     contains auction_public_keys[r1] into r5;
     not r5 into r6;
     assert.eq r6 true;
-    is.neq r3 privote_auction_4000.aleo into r7;
+    is.neq r3 privote_auction_5000.aleo into r7;
     branch.eq r7 false to end_then_0_0;
     set r3 into auction_owners[r1];
     branch.eq true true to end_otherwise_0_1;
@@ -179,7 +179,7 @@ function publish_address:
     async publish_address r0.auction_id self.signer into r1;
     cast r0.owner r0.auction r0.auction_id r0.settings into r2 as AuctionTicket.record;
     output r2 as AuctionTicket.record;
-    output r1 as privote_auction_4000.aleo/publish_address.future;
+    output r1 as privote_auction_5000.aleo/publish_address.future;
 
 finalize publish_address:
     input r0 as field.public;
@@ -194,7 +194,7 @@ function publish_auction_data:
     async publish_auction_data r0.auction_id r0.auction into r1;
     cast r0.owner r0.auction r0.auction_id r0.settings into r2 as AuctionTicket.record;
     output r2 as AuctionTicket.record;
-    output r1 as privote_auction_4000.aleo/publish_auction_data.future;
+    output r1 as privote_auction_5000.aleo/publish_auction_data.future;
 
 finalize publish_auction_data:
     input r0 as field.public;
@@ -220,7 +220,7 @@ function select_winner_private:
     gte r1.bid.amount r0.auction.starting_bid into r2;
     assert.eq r2 true;
     async select_winner_private r1.bid.amount r1.bid.auction_id r1.bid_id into r3;
-    output r3 as privote_auction_4000.aleo/select_winner_private.future;
+    output r3 as privote_auction_5000.aleo/select_winner_private.future;
 
 finalize select_winner_private:
     input r0 as u64.public;
@@ -238,7 +238,7 @@ function select_winner_public:
     gte r1.amount r0.auction.starting_bid into r3;
     assert.eq r3 true;
     async select_winner_public r0.auction_id r2 r1 into r4;
-    output r4 as privote_auction_4000.aleo/select_winner_public.future;
+    output r4 as privote_auction_5000.aleo/select_winner_public.future;
 
 finalize select_winner_public:
     input r0 as field.public;
@@ -263,10 +263,10 @@ function bid_public:
     mul r8 r7 into r9;
     cast r9 into r10 as field;
     cast self.signer r1 r5 r10 into r11 as BidReceipt.record;
-    ternary r3 self.signer privote_auction_4000.aleo into r12;
+    ternary r3 self.signer privote_auction_5000.aleo into r12;
     async bid_public r5 r10 r12 into r13;
     output r11 as BidReceipt.record;
-    output r13 as privote_auction_4000.aleo/bid_public.future;
+    output r13 as privote_auction_5000.aleo/bid_public.future;
 
 finalize bid_public:
     input r0 as bid.public;
@@ -291,7 +291,7 @@ finalize bid_public:
     branch.eq true true to end_otherwise_0_3;
     position end_then_0_2;
     position end_otherwise_0_3;
-    is.neq r2 privote_auction_4000.aleo into r12;
+    is.neq r2 privote_auction_5000.aleo into r12;
     branch.eq r12 false to end_then_0_4;
     set r2 into public_bid_owners[r1];
     branch.eq true true to end_otherwise_0_5;
@@ -316,7 +316,7 @@ function bid_private:
     async bid_private r0 r1 into r14;
     output r12 as BidReceipt.record;
     output r13 as PrivateBid.record;
-    output r14 as privote_auction_4000.aleo/bid_private.future;
+    output r14 as privote_auction_5000.aleo/bid_private.future;
 
 finalize bid_private:
     input r0 as u64.public;
@@ -342,7 +342,7 @@ function redeem_bid_public:
     input r1 as BidReceipt.record;
     call credits.aleo/transfer_public_as_signer r0 r1.bid.amount into r2;
     async redeem_bid_public r0 r1.bid.auction_id r1.bid_id r2 into r3;
-    output r3 as privote_auction_4000.aleo/redeem_bid_public.future;
+    output r3 as privote_auction_5000.aleo/redeem_bid_public.future;
 
 finalize redeem_bid_public:
     input r0 as address.public;
@@ -367,7 +367,7 @@ function redeem_bid_private_to_public:
     assert.eq r3 true;
     call credits.aleo/transfer_private_to_public r2 r0 r1.bid.amount into r4 r5;
     async redeem_bid_private_to_public r0 r1.bid.auction_id r1.bid_id r5 into r6;
-    output r6 as privote_auction_4000.aleo/redeem_bid_private_to_public.future;
+    output r6 as privote_auction_5000.aleo/redeem_bid_private_to_public.future;
 
 finalize redeem_bid_private_to_public:
     input r0 as address.public;
@@ -392,7 +392,7 @@ function redeem_bid_private:
     assert.eq r3 true;
     call credits.aleo/transfer_private r2 r0.auctioneer r1.bid.amount into r4 r5;
     async redeem_bid_private r1.bid.auction_id r1.bid_id into r6;
-    output r6 as privote_auction_4000.aleo/redeem_bid_private.future;
+    output r6 as privote_auction_5000.aleo/redeem_bid_private.future;
 
 finalize redeem_bid_private:
     input r0 as field.public;
@@ -403,3 +403,6 @@ finalize redeem_bid_private:
     not r3 into r4;
     assert.eq r4 true;
     set true into redemptions[r0];
+
+constructor:
+    assert.eq edition 0u16;

@@ -2,7 +2,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 **Live App**: [https://vote-aleo.vercel.app/](https://vote-aleo.vercel.app/)
 
-**Smart Contract**: `vote_privacy_6723.aleo`
+**Smart Contract**: `vote_privacy_8000.aleo` (or the program id you deployed)
 
 ## Getting Started
 

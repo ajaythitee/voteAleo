@@ -16,8 +16,8 @@ import {
 import '@demox-labs/aleo-wallet-adapter-reactui/styles.css';
 
 // Program IDs for Privote (Voting + Auctions)
-const VOTING_PROGRAM_ID = process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID || 'vote_privacy_6723.aleo';
-const AUCTION_PROGRAM_ID = process.env.NEXT_PUBLIC_AUCTION_PROGRAM_ID || 'privote_auction_4000.aleo';
+const VOTING_PROGRAM_ID = process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID || 'privote_voting_1001.aleo';
+const AUCTION_PROGRAM_ID = process.env.NEXT_PUBLIC_AUCTION_PROGRAM_ID || 'privote_auction_1001.aleo';
 const PROGRAM_IDS = [VOTING_PROGRAM_ID, AUCTION_PROGRAM_ID, 'credits.aleo'];
 
 interface WalletWrapperProps {

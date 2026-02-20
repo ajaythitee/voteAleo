@@ -1,4 +1,4 @@
-program vote_privacy_6723.aleo;
+program vote_privacy_8000.aleo;
 
 record VoteReceipt:
     owner as address.private;
@@ -48,7 +48,7 @@ function create_campaign:
     and r6 r7 into r8;
     assert.eq r8 true;
     async create_campaign self.caller r0 r1 r2 r3 r4 into r9;
-    output r9 as vote_privacy_6723.aleo/create_campaign.future;
+    output r9 as vote_privacy_8000.aleo/create_campaign.future;
 
 finalize create_campaign:
     input r0 as address.public;
@@ -74,7 +74,7 @@ function cast_vote:
     hash.bhp256 self.caller into r5 as field;
     async cast_vote r0 r1 r5 into r6;
     output r4 as VoteReceipt.record;
-    output r6 as vote_privacy_6723.aleo/cast_vote.future;
+    output r6 as vote_privacy_8000.aleo/cast_vote.future;
 
 finalize cast_vote:
     input r0 as u64.public;
@@ -110,7 +110,7 @@ finalize cast_vote:
 function end_campaign:
     input r0 as u64.public;
     async end_campaign r0 self.caller into r1;
-    output r1 as vote_privacy_6723.aleo/end_campaign.future;
+    output r1 as vote_privacy_8000.aleo/end_campaign.future;
 
 finalize end_campaign:
     input r0 as u64.public;

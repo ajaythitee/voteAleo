@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Account, ProgramManager, AleoNetworkClient, NetworkRecordProvider } from '@provablehq/sdk';
 
 const PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY;
-const PROGRAM_ID = process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID || 'vote_privacy_6723.aleo';
+const PROGRAM_ID = process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID as string;
 const NETWORK_URL = 'https://api.explorer.provable.com/v1';
 
 // Priority fee in microcredits (0.5 credits = 500,000 microcredits for create which is heavier)

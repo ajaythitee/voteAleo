@@ -86,17 +86,18 @@ deploy_contract() {
 }
 
 # Deploy Voting Contract
-deploy_contract "voting_votealeo" "Voting Contract" "vote_privacy_6723.aleo"
+deploy_contract "vote" "Voting Contract" "${VOTING_PROGRAM_ID:-vote_privacy_8000.aleo}"
 
 # Deploy Auction Contract
-deploy_contract "auction" "Auction Contract" "privote_auction_4000.aleo"
+deploy_contract "auction" "Auction Contract" "${AUCTION_PROGRAM_ID:-privote_auction_5000.aleo}"
 
 # Final summary
 echo -e "\n${GREEN}================================================${NC}"
 echo -e "${GREEN}   All Contracts Deployed Successfully!${NC}"
 echo -e "${GREEN}================================================${NC}"
 echo -e "\n${YELLOW}Deployed Contracts:${NC}"
-echo -e "  - Voting: vote_privacy_6723.aleo"
-echo -e "  - Auction: privote_auction_4000.aleo"
-echo -e "\n${YELLOW}IMPORTANT: Update frontend/.env.local with the voting program ID:${NC}"
-echo -e "NEXT_PUBLIC_VOTING_PROGRAM_ID=vote_privacy_6723.aleo"
+echo -e "  - Voting: ${VOTING_PROGRAM_ID:-vote_privacy_8000.aleo}"
+echo -e "  - Auction: ${AUCTION_PROGRAM_ID:-privote_auction_5000.aleo}"
+echo -e "\n${YELLOW}IMPORTANT: Update frontend/.env.local with the program IDs:${NC}"
+echo -e "NEXT_PUBLIC_VOTING_PROGRAM_ID=\${VOTING_PROGRAM_ID:-vote_privacy_8000.aleo}"
+echo -e "NEXT_PUBLIC_AUCTION_PROGRAM_ID=\${AUCTION_PROGRAM_ID:-privote_auction_5000.aleo}"

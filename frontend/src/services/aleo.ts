@@ -6,7 +6,7 @@ import { AleoConfig, Campaign, VotingOption } from '@/types';
 const config: AleoConfig = {
   network: (process.env.NEXT_PUBLIC_ALEO_NETWORK as 'testnet' | 'mainnet') || 'testnet',
   rpcUrl: process.env.NEXT_PUBLIC_ALEO_RPC_URL || 'https://api.explorer.provable.com/v1',
-  votingProgramId: process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID || 'vote_privacy_6723.aleo',
+  votingProgramId: process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID || 'privote_voting_1001.aleo',
 };
 
 // Aleo field modulus for proper field arithmetic

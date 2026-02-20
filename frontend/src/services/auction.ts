@@ -1,6 +1,6 @@
-// Auction service for Privote Auction contract (privote_auction_4000.aleo)
+// Auction service for Privote Auction contract – program ID must be provided via NEXT_PUBLIC_AUCTION_PROGRAM_ID
 
-const AUCTION_PROGRAM_ID = process.env.NEXT_PUBLIC_AUCTION_PROGRAM_ID || 'privote_auction_4000.aleo';
+const AUCTION_PROGRAM_ID = process.env.NEXT_PUBLIC_AUCTION_PROGRAM_ID as string;
 const RPC_URL = process.env.NEXT_PUBLIC_ALEO_RPC_URL || 'https://api.explorer.provable.com/v1';
 const NETWORK = process.env.NEXT_PUBLIC_ALEO_NETWORK || 'testnet';
 
