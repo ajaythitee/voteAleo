@@ -9,7 +9,7 @@ Privacy‑preserving governance & marketplace on the Aleo blockchain:
 
 - **Private voting** (anonymous ballots, anti‑double‑voting, hidden tallies until end)
 - **First‑price sealed‑bid auctions** (private / public / mixed bids)
-- **Next.js frontend** with wallet support and **gasless UX** via a relayer
+- **Next.js frontend** with wallet support for transactions
 
 ---
 
@@ -33,7 +33,7 @@ Privacy‑preserving governance & marketplace on the Aleo blockchain:
     - Multiple redemption flows (public, private‑to‑public, fully private) via `credits.aleo`
 - **`frontend`** – Next.js 14 app (TypeScript, Tailwind)
   - Campaign creation & voting UI
-  - Gasless flows using a server‑side relayer (`/api/relay/*`)
+  - Wallet-based transactions (users pay fees)
   - Auction listing via on‑chain mappings (using `auctionService`)
 
 ---
@@ -45,11 +45,10 @@ Privacy‑preserving governance & marketplace on the Aleo blockchain:
   - Votes are recorded as private records; public tallies are stored on‑chain per option.
   - Double‑voting is prevented via a hashed `(campaign_id + voter_hash)` key.
 
-- **Gasless UX via relayer**
-  - The Next.js backend signs & submits Aleo transactions using `RELAYER_PRIVATE_KEY`.
-  - Frontend users don’t need balance to:
-    - **Create campaigns** (`create_campaign`)
-    - **Cast votes** (`cast_vote`)
+- **Wallet-based transactions**
+  - Users connect their Aleo wallet (Leo Wallet or Puzzle Wallet)
+  - Users pay transaction fees directly from their wallet balance
+  - All transactions require wallet connection and sufficient credits
 
 - **Auctions for governance assets**
   - Auctioneer can create **private** or **public** auctions.
@@ -69,7 +68,7 @@ voteAleo/
   contracts/
     vote/          # Voting Leo program (vote_privacy_8000.aleo)
     auction/       # Auction Leo program (privote_auction_5000.aleo)
-  frontend/        # Next.js app (UI + relayer APIs)
+  frontend/        # Next.js app (UI + wallet integration)
   README.md        # Project overview (this file)
 ```
 
@@ -80,7 +79,7 @@ voteAleo/
 - **Node.js** (for the frontend)
 - **Leo CLI 3.4.0+** (for building/deploying the Leo contracts)  
   See: `https://developer.aleo.org/leo/installation`
-- A funded Aleo **testnet** account (for contract deployment & relayer)
+- A funded Aleo **testnet** account (for contract deployment)
 
 ---
 
@@ -119,13 +118,13 @@ voteAleo/
 - **Phase 1 (current)**
   - Core voting flows (create, vote, end)
   - Basic auction flows (create, bid, finalize, redeem)
-  - Gasless UX via relayer
+  - Wallet-based transactions
   - Basic campaign list & auction list UI
 
 - **Phase 2**
   - Richer frontend for auctions (bid history, winner view)
   - Governance dashboards (per‑campaign stats, charts)
-  - Better error reporting around relayer & Aleo RPC
+  - Better error reporting and transaction handling
 
 - **Phase 3**
   - Role‑based governance (admins, proposers, voters)

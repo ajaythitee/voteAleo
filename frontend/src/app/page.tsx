@@ -42,8 +42,8 @@ const heroFeatures = [
   },
   {
     icon: Zap,
-    title: 'Gasless Voting',
-    description: 'Vote freely without transaction fees',
+    title: 'Fast & Secure',
+    description: 'Quick transactions on Aleo blockchain',
   },
   {
     icon: Eye,
@@ -203,7 +203,7 @@ export default function Home() {
                           Private voting campaigns
                         </h3>
                         <p className="text-sm text-white/65 mb-3">
-                          Create campaigns with anonymous voting, gasless relayers, and verifiable results that never expose individual choices.
+                          Create campaigns with anonymous voting and verifiable results that never expose individual choices.
                         </p>
                         <ul className="space-y-1.5 text-xs text-white/55">
                           <li className="flex items-center gap-2">
@@ -212,7 +212,7 @@ export default function Home() {
                           </li>
                           <li className="flex items-center gap-2">
                             <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-                            Gasless voting via relayer
+                            Wallet-based transactions
                           </li>
                         </ul>
                       </div>
@@ -265,7 +265,7 @@ export default function Home() {
                   <ul className="space-y-3 text-white/80">
                     <li className="flex items-center gap-3">
                       <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-                      Core voting: campaigns, Leo/Puzzle wallets, gasless voting, private tally
+                      Core voting: campaigns, Leo/Puzzle wallets, private tally
                     </li>
                     <li className="flex items-center gap-3">
                       <Circle className="w-5 h-5 text-white/40 flex-shrink-0" />

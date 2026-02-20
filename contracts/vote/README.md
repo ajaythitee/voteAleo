@@ -237,38 +237,20 @@ Potential future extensions:
 
 ---
 
-### How the frontend and relayer use this contract
+### How the frontend uses this contract
 
-#### Frontend
-
-The frontend uses `NEXT_PUBLIC_VOTING_PROGRAM_ID` to talk to Aleo RPC:
+The frontend uses `NEXT_PUBLIC_VOTING_PROGRAM_ID` to interact with the contract:
 
 - To **read campaigns**:
   - `campaign_counter[0u8]` to get the highest `campaign_id`.
   - `campaigns[id]` to fetch campaign metadata and tallies.
 - To **display results**:
   - `total_votes` and `votes_0..votes_3` per campaign.
-
-The frontend never manages private records directly; it delegates transaction creation to the relayer.
-
-#### Relayer (backend)
-
-The Next.js API routes:
-
-- `/api/relay/create-campaign`
-- `/api/relay/vote`
-
-use `@provablehq/sdk`:
-
-- `ProgramManager.execute` with:
-  - `programName = NEXT_PUBLIC_VOTING_PROGRAM_ID` (e.g. `vote_privacy_8000.aleo`)
-  - `functionName = "create_campaign"` or `"cast_vote"`
-  - Properly formatted inputs (`field`, `u64`, `u8` with suffixes)
-
-This means:
-
-- Users do not need to hold Aleo credits to create campaigns or vote.
-- The relayer account pays the fees using `RELAYER_PRIVATE_KEY`.
+- To **create campaigns and vote**:
+  - Users connect their Aleo wallet (Leo Wallet or Puzzle Wallet)
+  - The frontend calls `create_campaign` or `cast_vote` transitions via wallet adapters
+  - Users pay transaction fees directly from their wallet balance
+  - All transactions require wallet connection and sufficient Aleo credits
 
 ---
 

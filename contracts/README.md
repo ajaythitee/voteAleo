@@ -8,7 +8,7 @@ This folder contains the Leo smart contracts for VeilProtocol on Aleo testnet.
 Both programs are designed to be:
 
 - **Config‑driven**: program IDs are not hard‑coded in the frontend; they are injected via env vars.
-- **Composable**: the frontend and relayer call public transitions only; all internal structs/mappings stay encapsulated.
+- **Composable**: the frontend calls public transitions only; all internal structs/mappings stay encapsulated.
 
 ### Deployment
 

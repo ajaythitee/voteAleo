@@ -2,7 +2,7 @@
 // Phase 1: Core Features
 // - Campaign Creation
 // - Anonymous Voting with zk-SNARKs
-// - Gasless Voting (via relayer)
+// - Wallet-based transactions
 // - Hidden Results Until Voting Ends
 
 program vote_privacy_8000.aleo {
