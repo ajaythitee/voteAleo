@@ -5,19 +5,17 @@ import { Github, Twitter, MessageCircle } from 'lucide-react';
 
 export function Footer() {
   return (
-    <footer className="border-t border-white/[0.08] bg-white/[0.02] mt-auto">
+    <footer className="border-t border-white/[0.08] bg-[rgba(10,10,15,0.9)] mt-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
           {/* Brand */}
-          <div className="col-span-1 md:col-span-2">
+          <div>
             <div className="flex items-center gap-3 mb-4">
               <img src="/logo.svg" alt="" className="w-10 h-10 rounded-xl" width={40} height={40} />
               <span className="text-xl font-bold text-white">Privote</span>
             </div>
-            <p className="text-white/60 max-w-md">
-              Privacy-preserving voting platform powered by Aleo blockchain.
-              Create campaigns, cast anonymous votes, and participate in
-              decentralized governance with complete privacy.
+            <p className="text-white/60 max-w-md text-sm">
+              Privacy-preserving voting and auctions on Aleo. Create campaigns, cast anonymous votes, and run sealed-bid auctions with a single unified experience.
             </p>
             <div className="flex gap-4 mt-6">
               <a
@@ -47,18 +45,23 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Quick Links */}
+          {/* Product */}
           <div>
-            <h3 className="font-semibold text-white mb-4">Quick Links</h3>
+            <h3 className="font-semibold text-white mb-4 text-sm tracking-wide uppercase">Product</h3>
             <ul className="space-y-3">
               <li>
                 <Link href="/campaigns" className="text-white/60 hover:text-white transition-colors">
-                  Browse Campaigns
+                  Browse campaigns
                 </Link>
               </li>
               <li>
                 <Link href="/create" className="text-white/60 hover:text-white transition-colors">
-                  Create Campaign
+                  Create campaign
+                </Link>
+              </li>
+              <li>
+                <Link href="/auctions" className="text-white/60 hover:text-white transition-colors">
+                  Explore auctions
                 </Link>
               </li>
               <li>
@@ -68,15 +71,15 @@ export function Footer() {
                   rel="noopener noreferrer"
                   className="text-white/60 hover:text-white transition-colors"
                 >
-                  About Aleo
+                  What is Aleo?
                 </a>
               </li>
             </ul>
           </div>
 
-          {/* Resources */}
+          {/* Ecosystem */}
           <div>
-            <h3 className="font-semibold text-white mb-4">Resources</h3>
+            <h3 className="font-semibold text-white mb-4 text-sm tracking-wide uppercase">Ecosystem</h3>
             <ul className="space-y-3">
               <li>
                 <a
@@ -113,10 +116,10 @@ export function Footer() {
         </div>
 
         <div className="border-t border-white/10 mt-12 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-white/40 text-sm">
+          <p className="text-white/40 text-xs sm:text-sm">
             &copy; {new Date().getFullYear()} Privote. All rights reserved.
           </p>
-          <p className="text-white/40 text-sm">
+          <p className="text-white/40 text-xs sm:text-sm">
             Built with privacy in mind on{' '}
             <a
               href="https://aleo.org"

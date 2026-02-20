@@ -4,10 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Plus, LayoutGrid, Home, Gavel, ChevronDown, Vote, History, Sun, Moon } from 'lucide-react';
+import { Menu, X, Plus, LayoutGrid, Home, Gavel, ChevronDown, Vote, History } from 'lucide-react';
 import { WalletConnect } from '@/components/wallet/WalletConnect';
 import { useWalletStore } from '@/stores/walletStore';
-import { useThemeStore } from '@/stores/themeStore';
 
 const navLinks = [
   { href: '/', label: 'Home', icon: Home },
@@ -22,7 +21,6 @@ export function Header() {
   const createRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const { isConnected } = useWalletStore();
-  const { theme, setTheme, resolvedTheme } = useThemeStore();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -46,13 +44,9 @@ export function Header() {
     <header className="fixed top-0 left-0 right-0 z-50">
       <motion.div
         className={`border-b backdrop-blur-[12px] transition-all duration-300 ${
-          resolvedTheme === 'light'
-            ? scrolled
-              ? 'border-slate-200/60 bg-white/80 shadow-lg shadow-slate-900/5'
-              : 'border-slate-200/50 bg-white/90'
-            : scrolled
-              ? 'border-white/[0.06] bg-[rgba(10,10,15,0.7)] shadow-lg shadow-black/10'
-              : 'border-white/[0.08] bg-[rgba(10,10,15,0.85)]'
+          scrolled
+            ? 'border-white/[0.06] bg-[rgba(10,10,15,0.7)] shadow-lg shadow-black/10'
+            : 'border-white/[0.08] bg-[rgba(10,10,15,0.85)]'
         }`}
         initial={false}
         animate={{ opacity: 1 }}
@@ -61,7 +55,7 @@ export function Header() {
           <div className="flex items-center justify-between h-16 md:h-20">
             <Link href="/" className="flex items-center gap-3">
               <img src="/logo.svg" alt="" className="w-10 h-10 rounded-xl" width={40} height={40} />
-              <span className={`text-xl font-bold hidden sm:block ${resolvedTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>Privote</span>
+              <span className="text-xl font-bold hidden sm:block text-white">Privote</span>
             </Link>
 
             <nav className="hidden md:flex items-center gap-1">
@@ -72,9 +66,7 @@ export function Header() {
                   <Link key={link.href} href={link.href}>
                     <motion.div
                       className={`flex items-center gap-2 px-4 py-2.5 rounded-[12px] transition-colors ${
-                        resolvedTheme === 'light'
-                          ? isActive ? 'text-slate-900 bg-slate-200/50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-                          : isActive ? 'text-white bg-white/10' : 'text-white/60 hover:text-white hover:bg-white/5'
+                        isActive ? 'text-white bg-white/10' : 'text-white/60 hover:text-white hover:bg-white/5'
                       }`}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
@@ -85,15 +77,17 @@ export function Header() {
                   </Link>
                 );
               })}
+            </nav>
 
+            <div className="hidden md:flex items-center gap-4">
               {isConnected && (
                 <div ref={createRef} className="relative">
                   <motion.button
                     onClick={() => setCreateOpen(!createOpen)}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-[12px] transition-colors ${
                       pathname === '/create' || pathname === '/auctions/create'
-                        ? resolvedTheme === 'light' ? 'text-emerald-700 bg-emerald-100 border border-emerald-300' : 'text-white bg-emerald-500/20 border border-emerald-500/30'
-                        : resolvedTheme === 'light' ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80' : 'text-white/60 hover:text-white hover:bg-white/5'
+                        ? 'text-white bg-emerald-500/20 border border-emerald-500/30'
+                        : 'text-white/70 hover:text-white hover:bg-white/5 border border-white/10/0'
                     }`}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
@@ -128,24 +122,12 @@ export function Header() {
                   </AnimatePresence>
                 </div>
               )}
-            </nav>
-
-            <div className="hidden md:flex items-center gap-4">
-              <motion.button
-                onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-                className={`p-2.5 rounded-[12px] border transition-colors ${resolvedTheme === 'light' ? 'bg-slate-100 border-slate-200 hover:bg-slate-200' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                aria-label="Toggle theme"
-              >
-                {resolvedTheme === 'dark' ? <Sun className="w-4 h-4 text-white/70" /> : <Moon className="w-4 h-4 text-slate-700" />}
-              </motion.button>
               <WalletConnect />
             </div>
 
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className={`md:hidden p-2 rounded-[12px] transition-colors ${resolvedTheme === 'light' ? 'hover:bg-slate-100 text-slate-900' : 'hover:bg-white/5 text-white'}`}
+              className="md:hidden p-2 rounded-[12px] transition-colors hover:bg-white/5 text-white"
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -169,9 +151,7 @@ export function Header() {
                   <Link key={link.href} href={link.href} onClick={() => setMobileMenuOpen(false)}>
                     <motion.div
                       className={`flex items-center gap-3 px-4 py-3 rounded-[12px] transition-colors ${
-                        resolvedTheme === 'light'
-                          ? isActive ? 'bg-slate-200/50 text-slate-900' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-                          : isActive ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white hover:bg-white/5'
+                        isActive ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white hover:bg-white/5'
                       }`}
                       whileTap={{ scale: 0.98 }}
                     >
@@ -203,15 +183,7 @@ export function Header() {
                   </Link>
                 </>
               )}
-              <div className="pt-4 border-t border-white/10 flex items-center gap-3">
-                <motion.button
-                  onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-                  className={`p-2.5 rounded-[12px] border ${resolvedTheme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-white/5 border-white/10'}`}
-                  whileTap={{ scale: 0.98 }}
-                  aria-label="Toggle theme"
-                >
-                  {resolvedTheme === 'dark' ? <Sun className="w-4 h-4 text-white/70" /> : <Moon className="w-4 h-4 text-slate-700" />}
-                </motion.button>
+              <div className="pt-4 border-t border-white/10">
                 <WalletConnect />
               </div>
             </div>

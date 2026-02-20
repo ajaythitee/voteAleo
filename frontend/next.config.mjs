@@ -1,3 +1,6 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -7,7 +10,7 @@ const nextConfig = {
   // Next 16: moved from experimental.serverComponentsExternalPackages
   serverExternalPackages: ['@provablehq/sdk'],
   // Fix “multiple lockfiles root” warning if present
-  outputFileTracingRoot: new URL('.', import.meta.url).pathname,
+  outputFileTracingRoot: path.dirname(fileURLToPath(import.meta.url)),
   images: {
     remotePatterns: [
       {

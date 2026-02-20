@@ -15,20 +15,15 @@ interface GlassButtonProps extends Omit<HTMLMotionProps<'button'>, 'children'> {
 
 const variantStyles = {
   primary:
-    'bg-emerald-600 text-white border border-emerald-500/30 hover:brightness-110 ' +
-    'light:bg-slate-900 light:text-white light:border-slate-900/10 light:hover:bg-slate-800',
+    'bg-emerald-500 text-white border border-emerald-400/40 hover:bg-emerald-400 hover:border-emerald-300/60 shadow-glow',
   secondary:
-    'bg-white/[0.06] border border-white/10 text-white hover:bg-white/[0.1] hover:border-white/20 ' +
-    'light:bg-white light:text-slate-900 light:border-slate-900/10 light:hover:bg-slate-50',
+    'bg-white/5 border border-border-subtle text-white hover:bg-white/10 hover:border-border-strong',
   success:
-    'bg-green-600/80 text-white border border-green-500/30 hover:brightness-110 ' +
-    'light:bg-emerald-600 light:text-white light:border-emerald-700/10',
+    'bg-emerald-600 text-white border border-emerald-500/40 hover:bg-emerald-500 hover:border-emerald-400/60',
   danger:
-    'bg-red-600/80 text-white border border-red-500/30 hover:brightness-110 ' +
-    'light:bg-rose-600 light:text-white light:border-rose-700/10',
+    'bg-rose-600 text-white border border-rose-500/40 hover:bg-rose-500 hover:border-rose-400/60',
   ghost:
-    'bg-transparent text-white/80 hover:bg-white/5 border border-transparent hover:border-white/10 ' +
-    'light:text-slate-700 light:hover:bg-slate-900/5 light:hover:border-slate-900/10',
+    'bg-transparent text-white/80 hover:bg-white/5 border border-transparent hover:border-border-subtle',
 };
 
 const sizeStyles = {

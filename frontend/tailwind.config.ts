@@ -12,6 +12,13 @@ const config: Config = {
       colors: {
         background: '#0a0a0f',
         'background-end': '#111118',
+        'surface-default': '#111118',
+        'surface-elevated': '#15151f',
+        'surface-muted': '#020617',
+        'border-subtle': 'rgba(148, 163, 184, 0.35)',
+        'border-strong': 'rgba(148, 163, 184, 0.7)',
+        'text-muted': 'rgba(148, 163, 184, 0.85)',
+        'text-subtle': 'rgba(148, 163, 184, 0.65)',
         primary: {
           50: '#ecfdf5',
           100: '#d1fae5',

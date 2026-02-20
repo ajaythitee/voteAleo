@@ -7,6 +7,7 @@ import { CheckCircle, Shield, ArrowLeft, ExternalLink } from 'lucide-react';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { aleoService } from '@/services/aleo';
+import { PageShell } from '@/components/layout';
 
 function ProofContent() {
   const searchParams = useSearchParams();
@@ -115,7 +116,11 @@ function ProofContent() {
 
 export default function ProofPage() {
   return (
-    <div className="min-h-screen py-16 px-4">
+    <PageShell
+      title="Participation proof"
+      description="Verify a privacy-preserving proof that someone participated in a campaign on Privote."
+      maxWidth="lg"
+    >
       <Suspense
         fallback={
           <div className="max-w-lg mx-auto">
@@ -127,6 +132,6 @@ export default function ProofPage() {
       >
         <ProofContent />
       </Suspense>
-    </div>
+    </PageShell>
   );
 }

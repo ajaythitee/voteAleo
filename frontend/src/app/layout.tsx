@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
@@ -32,24 +31,14 @@ export const metadata: Metadata = {
   },
 };
 
-const themeScript = `
-(function(){
-  const t=localStorage.getItem('privote-theme');
-  let d='dark';
-  if(t){try{const p=JSON.parse(t);if(p.state?.theme==='light')d='light';else if(p.state?.theme==='system')d=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';}catch(e){}}
-  document.documentElement.classList.add(d);
-})();
-`;
-
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="dark" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased min-h-screen flex flex-col bg-background transition-colors duration-500`}>
-        <Script id="theme-init" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: themeScript }} />
         <Providers>
           <div className="aurora-bg" aria-hidden />
 

@@ -18,6 +18,7 @@ import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassInput } from '@/components/ui/GlassInput';
 import { Badge } from '@/components/ui/Badge';
 import { SkeletonCard } from '@/components/ui/LoadingSpinner';
+import { PageShell, Section, EmptyState } from '@/components/layout';
 import { useWalletStore } from '@/stores/walletStore';
 import { Campaign } from '@/types';
 import { aleoService } from '@/services/aleo';
@@ -141,37 +142,34 @@ export default function CampaignsPage() {
   ];
 
   return (
-    <div className="min-h-screen py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" role="main">
-        <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Campaigns</h1>
-            <p className="text-white/60">
-              Browse and participate in active voting campaigns
-            </p>
-          </div>
-
-          <div className="flex gap-3">
-            <GlassButton
-              onClick={loadCampaigns}
-              icon={<RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />}
-              variant="secondary"
-            >
-              Refresh
-            </GlassButton>
-
-            {isConnected && (
-              <Link href="/create">
-                <GlassButton icon={<Plus className="w-5 h-5" />}>
-                  Create Campaign
-                </GlassButton>
-              </Link>
-            )}
-          </div>
-        </header>
-
-        {/* Search and Filters */}
-        <section className="flex flex-col sm:flex-row gap-4 mb-8" aria-label="Filters">
+    <PageShell
+      title="Campaigns"
+      description="Browse and participate in active voting campaigns."
+      actions={
+        <>
+          <GlassButton
+            onClick={loadCampaigns}
+            icon={<RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />}
+            variant="secondary"
+          >
+            Refresh
+          </GlassButton>
+          {isConnected && (
+            <Link href="/create">
+              <GlassButton icon={<Plus className="w-5 h-5" />}>
+                Create campaign
+              </GlassButton>
+            </Link>
+          )}
+        </>
+      }
+      maxWidth="7xl"
+    >
+      <Section
+        title="Find a campaign"
+        description="Filter by status or category, or search by name."
+      >
+        <div className="flex flex-col sm:flex-row gap-4" aria-label="Filters">
           <div className="flex-1">
             <GlassInput
               placeholder="Search campaigns..."
@@ -189,7 +187,7 @@ export default function CampaignsPage() {
                 onClick={() => setFilter(option.value)}
                 className={`
                   flex items-center gap-2 px-4 py-2.5 rounded-xl border
-                  transition-colors
+                  transition-colors text-sm
                   ${filter === option.value
                     ? 'bg-emerald-600 border-emerald-500 text-white'
                     : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10 hover:text-white/80'
@@ -203,7 +201,7 @@ export default function CampaignsPage() {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/[0.1] text-white/80 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
+              className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/[0.1] text-white/80 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30 text-sm"
             >
               <option value="">All categories</option>
               {CATEGORY_OPTIONS.filter(Boolean).map((c) => (
@@ -213,59 +211,56 @@ export default function CampaignsPage() {
               ))}
             </select>
           </div>
-        </section>
+        </div>
+      </Section>
 
-        {/* Error Message */}
-        {error && (
-          <GlassCard className="p-6 mb-8 border-red-500/30">
-            <p className="text-red-400">{error}</p>
-            <button
-              onClick={loadCampaigns}
-              className="mt-2 text-sm text-emerald-400 hover:underline"
-            >
-              Try again
-            </button>
-          </GlassCard>
-        )}
+      {error && (
+        <GlassCard className="p-6 border border-red-500/40 bg-red-500/5">
+          <p className="text-red-400 text-sm">{error}</p>
+          <button
+            onClick={loadCampaigns}
+            className="mt-2 text-xs text-emerald-400 hover:underline"
+          >
+            Try again
+          </button>
+        </GlassCard>
+      )}
 
-        {/* Campaigns Grid */}
-        {isLoading ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(6)].map((_, i) => (
-              <SkeletonCard key={i} />
-            ))}
-          </div>
-        ) : filteredCampaigns.length === 0 ? (
-          <GlassCard className="p-12 text-center relative overflow-hidden">
-            <div className="absolute top-6 right-6 w-20 h-20 rounded-full bg-emerald-500/5 border border-emerald-500/10" aria-hidden />
-            <Vote className="w-16 h-16 text-white/20 mx-auto mb-4 relative" />
-            <h2 className="text-xl font-semibold text-white mb-2">
-              No campaigns found
-            </h2>
-            <p className="text-white/60 mb-6">
-              {searchQuery
-                ? 'Try adjusting your search query'
-                : campaigns.length === 0
-                  ? 'No campaigns have been created yet. Be the first to create one!'
-                  : 'No campaigns match your filter criteria'}
-            </p>
-            {isConnected && (
+      {isLoading ? (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
+      ) : filteredCampaigns.length === 0 ? (
+        <EmptyState
+          title="No campaigns found"
+          description={
+            searchQuery
+              ? 'Try adjusting your search or filters.'
+              : campaigns.length === 0
+                ? 'No campaigns have been created yet. Be the first to launch one.'
+                : 'No campaigns match your current filters.'
+          }
+          icon={<Vote className="w-10 h-10" />}
+          action={
+            isConnected ? (
               <Link href="/create">
                 <GlassButton icon={<Plus className="w-5 h-5" />}>
-                  Create Campaign
+                  Create campaign
                 </GlassButton>
               </Link>
-            )}
-          </GlassCard>
-        ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredCampaigns.map((campaign) => (
-              <CampaignCard key={campaign.id} campaign={campaign} />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+            ) : null
+          }
+        />
+      ) : (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredCampaigns.map((campaign) => (
+            <CampaignCard key={campaign.id} campaign={campaign} />
+          ))}
+        </div>
+      )}
+    </PageShell>
   );
 }
 
@@ -302,7 +297,7 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
 
   // Handle image error - use placeholder
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    e.currentTarget.src = 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=800';
+    e.currentTarget.src = '/images/default-campaign.svg';
   };
 
   return (

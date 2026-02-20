@@ -1,18 +1,31 @@
 'use client';
 
-import { useRef, useEffect, useMemo } from 'react';
+import { useRef, useEffect, useMemo, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { useThemeStore } from '@/stores/themeStore';
 import * as THREE from 'three';
 import { Stars, PerspectiveCamera } from '@react-three/drei';
 import { EffectComposer, Bloom, ChromaticAberration, Vignette } from '@react-three/postprocessing';
 
 // Particle System
-function ParticleField({ count = 200, isDark = true }: { count?: number; isDark?: boolean }) {
+function ParticleField({
+  count = 200,
+  isDark = true,
+  size = 0.02,
+  opacity = 0.22,
+}: {
+  count?: number;
+  isDark?: boolean;
+  size?: number;
+  opacity?: number;
+}) {
   const meshRef = useRef<THREE.Points>(null);
   const particles = useMemo(() => {
     const positions = new Float32Array(count * 3);
-    const sizes = new Float32Array(count);
+    const colors = new Float32Array(count * 3);
+
+    const palette = isDark
+      ? [new THREE.Color('#E8EEFF'), new THREE.Color('#A5B4FC'), new THREE.Color('#6EE7B7')]
+      : [new THREE.Color('#0F172A'), new THREE.Color('#334155'), new THREE.Color('#4F46E5')];
 
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
@@ -20,10 +33,13 @@ function ParticleField({ count = 200, isDark = true }: { count?: number; isDark?
       positions[i3 + 1] = (Math.random() - 0.5) * 20;
       positions[i3 + 2] = (Math.random() - 0.5) * 20;
 
-      sizes[i] = Math.random() * 0.008 + 0.004;
+      const c = palette[Math.floor(Math.random() * palette.length)];
+      colors[i3] = c.r;
+      colors[i3 + 1] = c.g;
+      colors[i3 + 2] = c.b;
     }
 
-    return { positions, sizes };
+    return { positions, colors };
   }, [count, isDark]);
 
   useFrame((state) => {
@@ -37,14 +53,14 @@ function ParticleField({ count = 200, isDark = true }: { count?: number; isDark?
   return (
     <points ref={meshRef}>
       <bufferGeometry>
-        <bufferAttribute attach="attributes-position" count={count} array={particles.positions} itemSize={3} />
-        <bufferAttribute attach="attributes-size" count={count} array={particles.sizes} itemSize={1} />
+        <bufferAttribute attach="attributes-position" args={[particles.positions, 3]} />
+        <bufferAttribute attach="attributes-color" args={[particles.colors, 3]} />
       </bufferGeometry>
       <pointsMaterial
-        size={0.02}
-        color={isDark ? '#E8EEFF' : '#334155'}
+        size={size}
+        vertexColors
         transparent
-        opacity={isDark ? 0.35 : 0.22}
+        opacity={opacity}
         sizeAttenuation
       />
     </points>
@@ -81,11 +97,19 @@ function CameraController() {
 }
 
 export function Scene3DInner({ className = '' }: { variant?: 'hero' | 'background'; className?: string }) {
-  const { resolvedTheme } = useThemeStore();
-  const isDark = resolvedTheme === 'dark';
+  const isDark = true;
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const update = () => setIsMobile(window.innerWidth < 768);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   return (
-    <div className={`w-full h-full overflow-hidden pointer-events-none ${className}`} style={{ opacity: isDark ? 0.7 : 0.6 }}>
+    <div className={`w-full h-full overflow-hidden pointer-events-none ${className}`} style={{ opacity: 0.7 }}>
       <Canvas
         camera={{ position: [0, 0, 5.5], fov: 50 }}
         dpr={[1, 2]}
@@ -133,7 +157,7 @@ export function Scene3DInner({ className = '' }: { variant?: 'hero' | 'backgroun
         <Stars 
           radius={100} 
           depth={50} 
-          count={isDark ? 3000 : 2400} 
+          count={isMobile ? 1800 : 3000}
           factor={3.2} 
           saturation={0}
           fade
@@ -141,7 +165,8 @@ export function Scene3DInner({ className = '' }: { variant?: 'hero' | 'backgroun
         />
 
         {/* Particle Field */}
-        <ParticleField count={isDark ? 420 : 320} isDark={isDark} />
+        <ParticleField count={isMobile ? 160 : 220} isDark={isDark} size={0.03} opacity={0.18} />
+        <ParticleField count={isMobile ? 360 : 520} isDark={isDark} size={0.012} opacity={0.26} />
 
         {/* Post-processing Effects */}
         <EffectComposer>

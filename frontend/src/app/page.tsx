@@ -25,6 +25,7 @@ import { SkeletonCard } from '@/components/ui/LoadingSpinner';
 import { RevealOnScroll } from '@/components/ui/RevealOnScroll';
 import { DoomSection } from '@/components/ui/DoomSection';
 import { Scene3D } from '@/components/Scene3D';
+import { Section } from '@/components/layout';
 import { useWalletStore } from '@/stores/walletStore';
 import { Campaign } from '@/types';
 import { aleoService } from '@/services/aleo';
@@ -137,7 +138,7 @@ export default function Home() {
             variant="hero"
             className="h-full w-full"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-transparent dark:from-black/40 dark:via-black/20 light:from-white/30 light:via-white/10 light:to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/30 to-transparent" />
         </div>
         <div className="absolute top-12 right-4 md:right-12 opacity-80">
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[12px] text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-sm">
@@ -145,10 +146,10 @@ export default function Home() {
           </span>
         </div>
         <motion.div style={{ y: heroY }} className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 id="hero-heading" className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white dark:text-white light:text-slate-900 mb-6 leading-tight drop-shadow-lg">
+          <h1 id="hero-heading" className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight drop-shadow-lg">
             Voting &amp; Auctions on Aleo
           </h1>
-          <p className="text-lg sm:text-xl text-white/55 dark:text-white/55 light:text-slate-700 mb-12 max-w-2xl mx-auto leading-relaxed drop-shadow-md">
+          <p className="text-lg sm:text-xl text-white/60 mb-12 max-w-2xl mx-auto leading-relaxed drop-shadow-md">
             Private voting and first-price sealed-bid auctions. Create campaigns, cast anonymous votes, or run auctions with privacy on Aleo.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 flex-wrap">
@@ -170,10 +171,10 @@ export default function Home() {
               </Link>
             )}
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-8 mt-20 text-white/45 dark:text-white/45 light:text-slate-600 text-sm">
+          <div className="flex flex-wrap items-center justify-center gap-8 mt-20 text-white/45 text-sm">
             {heroFeatures.map((f) => (
               <span key={f.title} className="flex items-center gap-2">
-                <f.icon className="w-4 h-4 text-emerald-400 dark:text-emerald-400 light:text-emerald-600" />
+                <f.icon className="w-4 h-4 text-emerald-400" />
                 {f.title}
               </span>
             ))}
@@ -181,33 +182,107 @@ export default function Home() {
         </motion.div>
       </section>
 
+      {/* Product pillars */}
+      <DoomSection intensity={0.7}>
+        <RevealOnScroll>
+          <section className="py-16">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <Section
+                eyebrow="Built for Aleo"
+                title="Private voting and sealed-bid auctions in one place"
+                description="Design secure voting campaigns or run first-price sealed-bid auctions, all powered by Aleo’s privacy-preserving infrastructure."
+              >
+                <div className="grid gap-6 md:grid-cols-2">
+                  <GlassCard>
+                    <div className="flex items-start gap-4">
+                      <div className="mt-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 p-2.5">
+                        <Vote className="w-5 h-5 text-emerald-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-white mb-1.5">
+                          Private voting campaigns
+                        </h3>
+                        <p className="text-sm text-white/65 mb-3">
+                          Create campaigns with anonymous voting, gasless relayers, and verifiable results that never expose individual choices.
+                        </p>
+                        <ul className="space-y-1.5 text-xs text-white/55">
+                          <li className="flex items-center gap-2">
+                            <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                            Zero-knowledge protected ballots
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                            Gasless voting via relayer
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </GlassCard>
+
+                  <GlassCard>
+                    <div className="flex items-start gap-4">
+                      <div className="mt-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 p-2.5">
+                        <Gavel className="w-5 h-5 text-emerald-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-white mb-1.5">
+                          Sealed-bid auctions
+                        </h3>
+                        <p className="text-sm text-white/65 mb-3">
+                          Run first-price auctions where bids stay hidden until reveal time, with on-chain settlement and transparent outcomes.
+                        </p>
+                        <ul className="space-y-1.5 text-xs text-white/55">
+                          <li className="flex items-center gap-2">
+                            <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                            Sealed bids on Aleo
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                            Public or private participation
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </GlassCard>
+                </div>
+              </Section>
+            </div>
+          </section>
+        </RevealOnScroll>
+      </DoomSection>
+
       {/* What's next - glass highlight */}
       <DoomSection intensity={0.9}>
         <RevealOnScroll>
-          <section className="py-20">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className="text-2xl sm:text-3xl font-bold text-white dark:text-white light:text-slate-900 mb-6">What&apos;s next</h2>
-            <div className="rounded-[16px] border border-white/[0.08] bg-white/[0.03] backdrop-blur-[12px] p-6 sm:p-8 light:border-slate-900/10 light:bg-white/70">
-            <ul className="space-y-3 text-white/80 dark:text-white/80 light:text-slate-700">
-              <li className="flex items-center gap-3">
-                <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
-                Core voting: campaigns, Leo/Puzzle wallets, gasless voting, private tally
-              </li>
-              <li className="flex items-center gap-3">
-                <Circle className="w-5 h-5 text-white/40 dark:text-white/40 light:text-slate-400 flex-shrink-0" />
-                Campaign analytics and ranked-choice voting
-              </li>
-              <li className="flex items-center gap-3">
-                <Circle className="w-5 h-5 text-white/40 dark:text-white/40 light:text-slate-400 flex-shrink-0" />
-                Multi-language support and DAO governance
-              </li>
-              <li className="flex items-center gap-3">
-                <Circle className="w-5 h-5 text-white/40 dark:text-white/40 light:text-slate-400 flex-shrink-0" />
-                Cross-chain and reputation features
-              </li>
-            </ul>
+          <section className="py-16">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <Section
+                eyebrow="Roadmap"
+                title="What’s coming next"
+                description="Privote is evolving into a full governance and auction platform on Aleo, with more advanced voting and analytics."
+              >
+                <GlassCard>
+                  <ul className="space-y-3 text-white/80">
+                    <li className="flex items-center gap-3">
+                      <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                      Core voting: campaigns, Leo/Puzzle wallets, gasless voting, private tally
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <Circle className="w-5 h-5 text-white/40 flex-shrink-0" />
+                      Campaign analytics, richer insights, and ranked-choice voting
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <Circle className="w-5 h-5 text-white/40 flex-shrink-0" />
+                      Multi-language support and DAO-focused workflows
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <Circle className="w-5 h-5 text-white/40 flex-shrink-0" />
+                      Cross-chain integrations and optional reputation layers
+                    </li>
+                  </ul>
+                </GlassCard>
+              </Section>
             </div>
-          </div>
           </section>
         </RevealOnScroll>
       </DoomSection>

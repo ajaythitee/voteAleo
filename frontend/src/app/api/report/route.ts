@@ -106,7 +106,10 @@ export async function POST(request: NextRequest) {
     }
 
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const pageW = doc.getPageWidth();
+    const pageW =
+      (doc as any).internal?.pageSize?.getWidth?.() ??
+      (doc as any).internal?.pageSize?.width ??
+      210;
     const margin = 20;
     let y = 20;
 

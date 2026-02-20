@@ -157,7 +157,7 @@ export default function CampaignDetailPage() {
       setHasVoted(true);
       setLastVoteProof({
         transactionId: result.transactionId,
-        eventId: result.eventId,
+        eventId: 'eventId' in result ? (result as { eventId?: string }).eventId : undefined,
         address: address || undefined,
       });
       success('Vote Cast!', useGasless

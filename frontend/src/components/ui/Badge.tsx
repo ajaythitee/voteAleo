@@ -6,7 +6,7 @@ const variants = {
   active: 'bg-green-500/20 text-green-400 border-green-500/30',
   upcoming: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
   ended: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
-  category: 'bg-white/10 text-white/90 border-white/20 light:bg-slate-900/5 light:text-slate-700 light:border-slate-900/10',
+  category: 'bg-white/10 text-white/90 border-border-subtle',
   voted: 'bg-green-500/20 text-green-400 border-green-500/30',
   'your-campaign': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
   featured: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',

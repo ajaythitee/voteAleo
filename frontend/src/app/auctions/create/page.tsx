@@ -13,6 +13,7 @@ import { useToastStore } from '@/stores/toastStore';
 import { aleoService } from '@/services/aleo';
 import { pinataService } from '@/services/pinata';
 import { createTransaction, requestCreateEvent, buildCreatePublicAuctionParams, getAuctionProgramId } from '@/utils/transaction';
+import { Stepper } from '@/components/layout';
 
 export default function CreateAuctionPage() {
   const router = useRouter();
@@ -160,8 +161,8 @@ export default function CreateAuctionPage() {
   return (
     <div className="min-h-screen py-8">
       <div className="max-w-3xl mx-auto px-4 sm:px-6">
-        {/* Header - same as Create Campaign */}
-        <div className="mb-8">
+        {/* Header */}
+        <div className="mb-6">
           <Link
             href="/auctions"
             className="inline-flex items-center gap-2 text-white/60 hover:text-white mb-6 transition-colors"
@@ -169,30 +170,20 @@ export default function CreateAuctionPage() {
             <ArrowLeft className="w-4 h-4" />
             Back to Auctions
           </Link>
-          <h1 className="text-3xl font-bold text-white mb-2">Create Auction</h1>
-          <p className="text-white/60">Set up a new first-price sealed-bid auction on Aleo</p>
+          <h1 className="text-3xl font-bold text-white mb-2">Create auction</h1>
+          <p className="text-white/60 text-sm">
+            Configure the item, starting bid, and privacy for your first-price sealed-bid auction on Aleo.
+          </p>
         </div>
 
-        {/* Progress Steps */}
-        <div className="flex items-center justify-center mb-8">
-          {[1, 2].map((s) => (
-            <div key={s} className="flex items-center">
-              <div
-                className={`
-                  w-10 h-10 rounded-full flex items-center justify-center
-                  ${step >= s ? 'bg-emerald-600' : 'bg-white/10'}
-                `}
-              >
-                {step > s ? (
-                  <CheckCircle className="w-5 h-5 text-white" />
-                ) : (
-                  <span className="text-white font-semibold">{s}</span>
-                )}
-              </div>
-              {s < 2 && <div className={`w-16 h-0.5 ${step > s ? 'bg-emerald-600' : 'bg-white/10'}`} />}
-            </div>
-          ))}
-        </div>
+        <Stepper
+          steps={[
+            { id: 'details', label: 'Details', description: 'Name, description, and image' },
+            { id: 'settings', label: 'Settings', description: 'Starting bid and visibility' },
+          ]}
+          currentStepId={step === 1 ? 'details' : 'settings'}
+          className="mb-8"
+        />
 
         {/* Form Card */}
         <GlassCard className="p-8 rounded-[16px]">

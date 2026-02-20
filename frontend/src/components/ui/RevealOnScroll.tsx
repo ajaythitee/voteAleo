@@ -1,9 +1,9 @@
-'use client';
+ 'use client';
 
-import { useRef } from 'react';
-import { motion, useInView } from 'framer-motion';
+import { useRef, useState, useEffect } from 'react';
+import { motion, useInView, type Variants } from 'framer-motion';
 
-const defaultVariants = {
+const defaultVariants: Variants = {
   hidden: { opacity: 0, y: 24 },
   visible: { opacity: 1, y: 0 },
 };
@@ -19,10 +19,29 @@ export function RevealOnScroll({
   className?: string;
   delay?: number;
   duration?: number;
-  variants?: { hidden: object; visible: object };
+  variants?: Variants;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: '-60px' });
+
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReduceMotion(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
+  if (reduceMotion) {
+    return (
+      <div ref={ref} className={className}>
+        {children}
+      </div>
+    );
+  }
 
   return (
     <motion.div

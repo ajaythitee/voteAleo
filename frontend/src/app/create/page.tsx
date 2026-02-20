@@ -23,6 +23,7 @@ import { pinataService } from '@/services/pinata';
 import { aleoService } from '@/services/aleo';
 import { relayerService } from '@/services/relayer';
 import { createTransaction, requestCreateEvent, buildCreateCampaignParams } from '@/utils/transaction';
+import { Stepper } from '@/components/layout';
 
 const CAMPAIGN_CATEGORIES = ['governance', 'community', 'poll', 'dao', 'other'] as const;
 
@@ -252,35 +253,22 @@ export default function CreateCampaignPage() {
     <div className="min-h-screen py-8">
       <div className="max-w-3xl mx-auto px-4 sm:px-6">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Create Campaign</h1>
-          <p className="text-white/60">
-            Set up a new voting campaign for your community
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-white mb-2">Create campaign</h1>
+          <p className="text-white/60 text-sm">
+            Configure your campaign details, options, and schedule. You can use gasless creation or your wallet.
           </p>
         </div>
 
-        {/* Progress Steps */}
-        <div className="flex items-center justify-center mb-8">
-          {[1, 2, 3].map((s) => (
-            <div key={s} className="flex items-center">
-              <div
-                className={`
-                  w-10 h-10 rounded-full flex items-center justify-center
-                  ${step >= s ? 'bg-emerald-600' : 'bg-white/10'}
-                `}
-              >
-                {step > s ? (
-                  <CheckCircle className="w-5 h-5 text-white" />
-                ) : (
-                  <span className="text-white font-semibold">{s}</span>
-                )}
-              </div>
-              {s < 3 && (
-                <div className={`w-16 h-0.5 ${step > s ? 'bg-emerald-600' : 'bg-white/10'}`} />
-              )}
-            </div>
-          ))}
-        </div>
+        <Stepper
+          steps={[
+            { id: 'info', label: 'Basic info', description: 'Title, description, and category' },
+            { id: 'options', label: 'Options', description: 'Define what people can vote for' },
+            { id: 'schedule', label: 'Schedule', description: 'Set voting period and quorum' },
+          ]}
+          currentStepId={step === 1 ? 'info' : step === 2 ? 'options' : 'schedule'}
+          className="mb-8"
+        />
 
         {/* Form Card */}
         <GlassCard className="p-8">

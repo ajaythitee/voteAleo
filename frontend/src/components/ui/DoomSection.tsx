@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 
 export function DoomSection({
@@ -18,21 +18,36 @@ export function DoomSection({
     offset: ['start 0.92', 'end 0.08'],
   });
 
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReduceMotion(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
   const y = useTransform(scrollYProgress, [0, 0.5, 1], [26 * intensity, 0, -26 * intensity]);
   const scale = useTransform(scrollYProgress, [0, 0.5, 1], [0.985, 1, 0.985]);
-  const rotateX = useTransform(scrollYProgress, [0, 0.5, 1], [6 * intensity, 0, -6 * intensity]);
+  const rotateX = useTransform(scrollYProgress, [0, 0.5, 1], [4 * intensity, 0, -4 * intensity]);
 
   return (
     <motion.section
       ref={ref}
       className={className}
-      style={{
-        y,
-        scale,
-        rotateX,
-        transformPerspective: 1200,
-        transformStyle: 'preserve-3d',
-      }}
+      style={
+        reduceMotion
+          ? undefined
+          : {
+              y,
+              scale,
+              rotateX,
+              transformPerspective: 1200,
+              transformStyle: 'preserve-3d',
+            }
+      }
     >
       {children}
     </motion.section>

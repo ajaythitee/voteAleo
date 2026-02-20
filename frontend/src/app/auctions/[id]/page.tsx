@@ -165,7 +165,8 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     );
   }
 
-  const name = metadata?.name || (data.name != null ? String(data.name) : 'Untitled');
+  const chainName = data.name != null ? aleoService.decodeFieldToString(`${String(data.name).replace(/field$/, '')}field`) : '';
+  const name = metadata?.name || (chainName || (data.name != null ? String(data.name) : 'Untitled'));
   const startingBid = Number(data.starting_bid) || 0;
   const description = metadata?.description;
   const imageUrl = metadata?.imageCid ? pinataService.getGatewayUrl(metadata.imageCid) : '';
