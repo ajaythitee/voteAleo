@@ -491,8 +491,7 @@ export default function Home() {
                 <motion.div key={a.auctionId} variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}>
                 <Link href={`/auctions/${encodeURIComponent(a.auctionId)}`}>
                     <GlassCard hover className="h-full p-6 rounded-[16px]">
-                      <div className="flex items-start justify-between mb-3">
-                        <span className="text-xs text-white/50">Auction #{a.index}</span>
+                      <div className="flex items-start justify-end mb-3">
                         <Badge variant="active">Open</Badge>
                       </div>
                       <h3 className="text-lg font-semibold text-white mb-2 line-clamp-2">

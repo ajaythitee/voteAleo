@@ -125,28 +125,11 @@ class AleoService {
    * Uses the field modulus approach for reliable encoding/decoding
    */
   encodeCidToFields(cid: string): { part1: string; part2: string } {
-    console.log(`Encoding CID: "${cid}" (length: ${cid.length})`);
-
     const fields = this.stringToFields(cid, 2);
-    const part1 = `${fields[0]}field`;
-    const part2 = `${fields[1]}field`;
-
-    console.log(`Part1 field: ${part1.slice(0, 40)}...`);
-    console.log(`Part2 field: ${part2.slice(0, 40)}...`);
-
-    // Verify encoding
-    const decoded = this.fieldsToString(fields);
-    console.log(`Verification - Decoded CID: "${decoded}"`);
-
-    if (decoded !== cid) {
-      console.error('ENCODING VERIFICATION FAILED!');
-      console.error(`  Expected: "${cid}"`);
-      console.error(`  Got: "${decoded}"`);
-    } else {
-      console.log('Encoding verification: PASSED');
-    }
-
-    return { part1, part2 };
+    return {
+      part1: `${fields[0]}field`,
+      part2: `${fields[1]}field`,
+    };
   }
 
   /**
@@ -154,31 +137,14 @@ class AleoService {
    * Uses field modulus approach for reliable decoding
    */
   decodeFieldsToCid(part1: string, part2: string): string {
-    console.log(`Decoding CID from fields:`);
-    console.log(`  Part1 field: ${part1.slice(0, 40)}...`);
-    console.log(`  Part2 field: ${part2.slice(0, 40)}...`);
-
     try {
       // Extract the numeric value from field strings
       const field1 = BigInt(part1.replace(/field$/, '').trim());
       const field2 = BigInt(part2.replace(/field$/, '').trim());
 
       const result = this.fieldsToString([field1, field2]);
-      console.log(`  Decoded CID: "${result}"`);
-
-      // Validate the result looks like a CID
-      if (result && (result.startsWith('Qm') || result.startsWith('bafy') || result.startsWith('bafk'))) {
-        console.log('CID validation: PASSED');
-        return result;
-      }
-
-      // For CIDv1, check if it has valid base32 characters
-      if (result && result.length >= 46 && /^[a-z2-7]+$/i.test(result)) {
-        console.log('CID validation: PASSED (base32 format)');
-        return result;
-      }
-
-      console.warn(`CID validation: Result doesn't match known CID formats`);
+      if (result && (result.startsWith('Qm') || result.startsWith('bafy') || result.startsWith('bafk'))) return result;
+      if (result && result.length >= 46 && /^[a-z2-7]+$/i.test(result)) return result;
       return result;
     } catch (e) {
       console.error('Error decoding CID:', e);
@@ -345,8 +311,13 @@ class AleoService {
         return 0;
       }
 
-      const data = await response.json();
-      return parseInt(data) || 0;
+      // RPC typically returns a simple string like "1u64" or just a number
+      const text = await response.text();
+      const match = text.match(/(\d+)/);
+      if (!match) return 0;
+      const value = Number(match[1]);
+      if (!Number.isFinite(value) || value < 0) return 0;
+      return value;
     } catch (error) {
       console.error('Error fetching campaign count:', error);
       return 0;

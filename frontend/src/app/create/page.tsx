@@ -60,6 +60,7 @@ export default function CreateCampaignPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isImproving, setIsImproving] = useState(false);
+  const [isSuggestingOptions, setIsSuggestingOptions] = useState(false);
   const [step, setStep] = useState(1);
 
   // Get wallet info including wallet adapter name
@@ -112,17 +113,75 @@ export default function CreateCampaignPage() {
         }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'AI could not improve text');
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        console.error('AI suggest error:', err);
+        throw new Error(err.error || `AI request failed (${res.status})`);
       }
       const data = (await res.json()) as { title?: string; description?: string };
-      if (data.title) handleInputChange('title', data.title);
-      if (data.description) handleInputChange('description', data.description);
-      success('Text improved', 'Title and description have been refined by AI.');
+      console.log('AI suggest response:', data);
+      if (data.title || data.description) {
+        if (data.title) handleInputChange('title', data.title);
+        if (data.description) handleInputChange('description', data.description);
+        success('Text improved', 'Title and description have been refined by AI.');
+      } else {
+        throw new Error('AI returned empty response');
+      }
     } catch (e: any) {
       showError('AI suggestion failed', e?.message || 'Could not improve text');
     } finally {
       setIsImproving(false);
+    }
+  };
+
+  const suggestOptionsWithAI = async () => {
+    if (!formData.title.trim() && !formData.description.trim()) {
+      showError('Missing context', 'Add a title and description first to suggest options.');
+      return;
+    }
+    setIsSuggestingOptions(true);
+    try {
+      const res = await fetch('/api/ai/suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context: 'campaign',
+          title: formData.title,
+          description: formData.description,
+          suggestOptions: true,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        console.error('AI suggest options error:', err);
+        throw new Error(err.error || `AI request failed (${res.status})`);
+      }
+      const data = (await res.json()) as { title?: string; description?: string; options?: string[] };
+      console.log('AI suggest options response:', data);
+      
+      // Update title/description if provided
+      if (data.title) handleInputChange('title', data.title);
+      if (data.description) handleInputChange('description', data.description);
+      
+      // Update options if provided
+      if (data.options && data.options.length >= 2) {
+        // Ensure we have at least 2 options (required) and max 4
+        const validOptions = data.options.slice(0, 4);
+        // Pad to match current form length if needed, but keep at least 2
+        const currentLength = Math.max(formData.options.length, 2);
+        const newOptions = [...validOptions];
+        while (newOptions.length < currentLength && newOptions.length < 4) {
+          newOptions.push('');
+        }
+        handleInputChange('options', newOptions.slice(0, Math.min(currentLength, 4)));
+        success('Options suggested', `AI suggested ${validOptions.length} voting options.`);
+      } else {
+        console.error('AI returned invalid options:', data.options);
+        showError('Invalid suggestions', `AI did not return valid options (got ${data.options?.length || 0}, need at least 2).`);
+      }
+    } catch (e: any) {
+      showError('AI suggestion failed', e?.message || 'Could not suggest options');
+    } finally {
+      setIsSuggestingOptions(false);
     }
   };
 
@@ -416,15 +475,27 @@ export default function CreateCampaignPage() {
                   </p>
                 )}
 
-                {formData.options.length < 10 && (
-                  <button
-                    onClick={addOption}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/60"
+                <div className="flex items-center gap-3 pt-2">
+                  {formData.options.length < 10 && (
+                    <button
+                      onClick={addOption}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/60"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Option
+                    </button>
+                  )}
+                  <GlassButton
+                    type="button"
+                    variant="secondary"
+                    onClick={suggestOptionsWithAI}
+                    loading={isSuggestingOptions}
+                    disabled={isSuggestingOptions || !formData.title.trim()}
+                    className="ml-auto"
                   >
-                    <Plus className="w-4 h-4" />
-                    Add Option
-                  </button>
-                )}
+                    {isSuggestingOptions ? 'Suggesting…' : 'Suggest Options with AI'}
+                  </GlassButton>
+                </div>
               </div>
 
               <div className="flex justify-between pt-4">

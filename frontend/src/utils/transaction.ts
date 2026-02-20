@@ -253,6 +253,34 @@ export function buildBidPublicParams(
 }
 
 /**
+ * Build params for select_winner_public (Puzzle or Leo).
+ * inputs: [winning_bid_amount, auction_id, bid_public_key, winning_bid_id]
+ * Note: auction_ticket is a record - wallet must have it and will prompt to select.
+ */
+export function buildSelectWinnerParams(
+  inputs: string[],
+  address: string,
+  walletName: string | undefined
+): PuzzleParams | LeoParams {
+  if (walletName === 'Puzzle Wallet') {
+    return {
+      type: EventType.Execute,
+      programId: AUCTION_PROGRAM_ID,
+      functionId: 'select_winner_public',
+      fee: 0.5,
+      inputs,
+    };
+  }
+  return {
+    publicKey: address,
+    functionName: 'select_winner_public',
+    inputs,
+    fee: 500000,
+    feePrivate: false,
+  };
+}
+
+/**
  * Get the network
  */
 export function getNetwork(): WalletAdapterNetwork {

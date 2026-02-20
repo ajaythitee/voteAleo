@@ -133,7 +133,6 @@ class PinataService {
 
     for (const gatewayUrl of gateways) {
       try {
-        console.log(`Trying IPFS gateway: ${gatewayUrl}`);
         const response = await fetch(gatewayUrl, {
           headers: {
             'Accept': 'application/json',
@@ -142,7 +141,6 @@ class PinataService {
 
         if (response.ok) {
           const data = await response.json();
-          console.log(`Successfully fetched from ${gatewayUrl}:`, data);
           return data as T;
         }
       } catch (e) {

@@ -16,13 +16,13 @@ export const auctionService = {
     try {
       const res = await fetch(rpcUrl('auction_counter/0u8'));
       if (!res.ok) return 0;
-      const data = await res.json().catch(async () => ({ raw: await res.text() }));
-      if (typeof data === 'number') return Math.min(data, 100);
-      if (data?.raw) {
-        const match = String(data.raw).match(/(\d+)u64/);
-        return match ? Math.min(Number(match[1]), 100) : 0;
-      }
-      return 0;
+      const text = await res.text();
+      // RPC typically returns a simple string like "1u64"
+      const match = text.match(/(\d+)/);
+      if (!match) return 0;
+      const value = Number(match[1]);
+      if (!Number.isFinite(value) || value < 0) return 0;
+      return Math.min(value, 100);
     } catch {
       return 0;
     }
@@ -54,13 +54,82 @@ export const auctionService = {
     }
   },
 
-  /** Get public auction data by auction_id (field key) */
+  /** Get public auction data by auction_id (field key).
+   * Prefer raw text to handle RPC returning struct-as-string (like campaigns).
+   */
   async getPublicAuction(auctionIdKey: string): Promise<unknown> {
     try {
       const keyEncoded = encodeURIComponent(auctionIdKey);
       const res = await fetch(rpcUrl(`public_auctions/${keyEncoded}`));
       if (!res.ok) return null;
-      return await res.json().catch(() => res.text());
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        return text;
+      }
+    } catch {
+      return null;
+    }
+  },
+
+  /** Get bid count for an auction */
+  async getBidCount(auctionIdKey: string): Promise<number> {
+    try {
+      const keyEncoded = encodeURIComponent(auctionIdKey);
+      const res = await fetch(rpcUrl(`bid_count/${keyEncoded}`));
+      if (!res.ok) return 0;
+      const text = await res.text();
+      const match = text.match(/(\d+)/);
+      return match ? Number(match[1]) : 0;
+    } catch {
+      return 0;
+    }
+  },
+
+  /** Get highest bid amount for an auction */
+  async getHighestBid(auctionIdKey: string): Promise<number> {
+    try {
+      const keyEncoded = encodeURIComponent(auctionIdKey);
+      const res = await fetch(rpcUrl(`highest_bids/${keyEncoded}`));
+      if (!res.ok) return 0;
+      const text = await res.text();
+      const match = text.match(/(\d+)/);
+      return match ? Number(match[1]) : 0;
+    } catch {
+      return 0;
+    }
+  },
+
+  /** Get winning bid id (if auction ended) */
+  async getWinningBidId(auctionIdKey: string): Promise<string | null> {
+    try {
+      const keyEncoded = encodeURIComponent(auctionIdKey);
+      const res = await fetch(rpcUrl(`winning_bids/${keyEncoded}`));
+      if (!res.ok) return null;
+      const data = await res.json().catch(async () => (await res.text())?.trim());
+      return data != null && String(data).length > 0 ? String(data) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  /** Get a single public bid by bid_id */
+  async getPublicBid(
+    bidIdKey: string
+  ): Promise<{ amount: number; auction_id: string; bid_public_key?: string } | null> {
+    try {
+      const keyEncoded = encodeURIComponent(bidIdKey);
+      const res = await fetch(rpcUrl(`public_bids/${keyEncoded}`));
+      if (!res.ok) return null;
+      const raw = await res.json().catch(() => res.text());
+      if (!raw || typeof raw !== 'object') return null;
+      const d = raw as any;
+      const amount =
+        typeof d.amount === 'number' ? d.amount : parseInt(String(d.amount || 0).replace(/\D/g, ''), 10) || 0;
+      const auction_id = d.auction_id != null ? String(d.auction_id) : '';
+      const bid_public_key = d.bid_public_key != null ? String(d.bid_public_key) : undefined;
+      return { amount, auction_id, bid_public_key };
     } catch {
       return null;
     }

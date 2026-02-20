@@ -121,8 +121,7 @@ export default function MyAuctionsPage() {
                       transition={{ delay: i * 0.04 }}
                     >
                       <GlassCard hover className="h-full p-6 flex flex-col">
-                        <div className="flex items-start justify-between mb-3">
-                          <span className="text-xs text-white/50">#{a.index}</span>
+                        <div className="flex items-start justify-end mb-3">
                           <Badge variant="your-campaign">Yours</Badge>
                         </div>
                         <h3 className="text-lg font-semibold text-white mb-2 line-clamp-2">{name}</h3>

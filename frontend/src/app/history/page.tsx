@@ -26,7 +26,7 @@ import { Campaign } from '@/types';
 import { aleoService } from '@/services/aleo';
 import { parseOnChainCampaign } from '@/services/campaignParser';
 import { auctionService } from '@/services/auction';
-import { pinataService } from '@/services/pinata';
+import { parseOnChainAuction, type ParsedAuction } from '@/services/auctionParser';
 import { formatDistanceToNow, isPast, format } from 'date-fns';
 import { PageShell, StatCard, EmptyState } from '@/components/layout';
 
@@ -36,18 +36,11 @@ interface VoteHistory {
   hasVoted: boolean;
 }
 
-type AuctionData = {
-  starting_bid?: number;
-  name?: string;
-  item?: { offchain_data?: string[] };
-};
-
 type AuctionHistoryItem = {
   auctionId: string;
   index: number;
-  data: AuctionData;
   owner: string | null;
-  meta?: { name?: string; description?: string; imageUrl?: string };
+  parsed: ParsedAuction | null;
 };
 
 export default function HistoryPage() {
@@ -135,27 +128,9 @@ export default function HistoryPage() {
       const items = await auctionService.listPublicAuctions();
       const enriched: AuctionHistoryItem[] = await Promise.all(
         items.slice(0, 80).map(async (a) => {
-          const raw = (a.data || {}) as AuctionData;
           const owner = await auctionService.getAuctionOwner(a.auctionId);
-          const off = raw?.item?.offchain_data;
-          let meta: AuctionHistoryItem['meta'] | undefined = undefined;
-          if (off && off.length >= 2) {
-            const cid = aleoService.decodeFieldsToCid(String(off[0]), String(off[1]));
-            if (cid) {
-              try {
-                const json = await pinataService.fetchJSON<Record<string, unknown>>(cid);
-                const imageCid = typeof json.imageCid === 'string' ? json.imageCid : '';
-                meta = {
-                  name: typeof json.name === 'string' ? json.name : undefined,
-                  description: typeof json.description === 'string' ? json.description : undefined,
-                  imageUrl: imageCid ? pinataService.getGatewayUrl(imageCid) : undefined,
-                };
-              } catch {
-                // ignore
-              }
-            }
-          }
-          return { auctionId: a.auctionId, index: a.index, data: raw, owner, meta };
+          const parsed = await parseOnChainAuction(a.data, a.auctionId);
+          return { auctionId: a.auctionId, index: a.index, owner, parsed };
         })
       );
       setAuctionHistory(enriched);
@@ -186,7 +161,7 @@ export default function HistoryPage() {
     : auctionHistory
   ).filter((a) => {
     if (!normalizedQ) return true;
-    const name = (a.meta?.name || a.data?.name || 'Untitled').toLowerCase();
+    const name = (a.parsed?.name || 'Untitled').toLowerCase();
     return name.includes(normalizedQ);
   });
 
@@ -457,8 +432,9 @@ function HistoryCard({ item }: { item: VoteHistory }) {
 }
 
 function AuctionHistoryCard({ item, address }: { item: AuctionHistoryItem; address: string }) {
-  const name = item.meta?.name || (item.data?.name != null ? String(item.data.name) : 'Untitled');
-  const startingBid = Number(item.data?.starting_bid) || 0;
+  const parsed = item.parsed;
+  const name = parsed?.name ?? 'Untitled';
+  const startingBid = parsed?.startingBid ?? 0;
   const mine = !!(item.owner && address && item.owner.toLowerCase() === address.toLowerCase());
 
   return (
@@ -466,8 +442,8 @@ function AuctionHistoryCard({ item, address }: { item: AuctionHistoryItem; addre
       <GlassCard hover className="p-4">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-lg overflow-hidden bg-white/[0.06] flex-shrink-0">
-            {item.meta?.imageUrl ? (
-              <img src={item.meta.imageUrl} alt={name} className="w-full h-full object-cover" />
+            {parsed?.imageUrl ? (
+              <img src={parsed.imageUrl} alt={name} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
                 <Gavel className="w-6 h-6 text-white/25" />
@@ -485,16 +461,13 @@ function AuctionHistoryCard({ item, address }: { item: AuctionHistoryItem; addre
                 </span>
               )}
             </div>
-            {item.meta?.description ? (
-              <p className="text-sm text-white/60 truncate mb-2">{item.meta.description}</p>
-            ) : null}
+            <p className="text-sm text-white/60 truncate mb-2">
+              {parsed?.description ?? ''}
+            </p>
             <div className="flex items-center gap-4 text-xs text-white/50">
               <span className="flex items-center gap-1">
                 <Gavel className="w-3 h-3" />
                 Starting: {startingBid} credits
-              </span>
-              <span className="flex items-center gap-1 font-mono">
-                #{item.index}
               </span>
             </div>
           </div>
