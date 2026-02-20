@@ -12,9 +12,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Privote - Privacy-Preserving Voting on Aleo",
-  description: "Create campaigns, cast anonymous votes, and participate in decentralized governance with complete privacy using Aleo's zero-knowledge proofs.",
-  keywords: ["voting", "aleo", "blockchain", "privacy", "zero-knowledge", "zk-snarks", "dao", "governance"],
+  title: "Privote - Voting & Auctions on Aleo",
+  description: "Privacy-preserving voting and first-price sealed-bid auctions on Aleo. Create campaigns, cast anonymous votes, and run private auctions.",
+  keywords: ["voting", "auction", "aleo", "blockchain", "privacy", "zero-knowledge", "zk-snarks", "dao", "governance"],
   authors: [{ name: "Privote" }],
   icons: {
     icon: [
@@ -25,8 +25,8 @@ export const metadata: Metadata = {
     ],
   },
   openGraph: {
-    title: "Privote - Privacy-Preserving Voting",
-    description: "Anonymous voting powered by Aleo blockchain",
+    title: "Privote - Voting & Auctions",
+    description: "Voting and private auctions powered by Aleo blockchain",
     type: "website",
   },
 };

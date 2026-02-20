@@ -4,16 +4,19 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Plus, LayoutGrid, Home, User, History } from 'lucide-react';
+import { Menu, X, Plus, LayoutGrid, Home, User, History, Gavel, PlusCircle } from 'lucide-react';
 import { WalletConnect } from '@/components/wallet/WalletConnect';
 import { useWalletStore } from '@/stores/walletStore';
 
 const navLinks = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/campaigns', label: 'Campaigns', icon: LayoutGrid },
+  { href: '/auctions', label: 'Auctions', icon: Gavel },
   { href: '/my-campaigns', label: 'My Campaigns', icon: User, requiresAuth: true },
+  { href: '/my-auctions', label: 'My Auctions', icon: Gavel, requiresAuth: true },
   { href: '/history', label: 'History', icon: History, requiresAuth: true },
-  { href: '/create', label: 'Create', icon: Plus, requiresAuth: true },
+  { href: '/create', label: 'Create Campaign', icon: Plus, requiresAuth: true },
+  { href: '/auctions/create', label: 'Create Auction', icon: PlusCircle, requiresAuth: true },
 ];
 
 export function Header() {

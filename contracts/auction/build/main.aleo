@@ -79,6 +79,14 @@ mapping redemptions:
     key as field.public;
     value as boolean.public;
 
+mapping auction_counter:
+    key as u8.public;
+    value as u64.public;
+
+mapping public_auction_index:
+    key as u64.public;
+    value as field.public;
+
 mapping public_bids:
     key as field.public;
     value as bid.public;
@@ -160,6 +168,10 @@ finalize create_public_auction:
     set r0 into public_auctions[r1];
     set r4 into auction_privacy_settings[r1];
     set r2 into auction_public_keys[r1];
+    get.or_use auction_counter[0u8] 0u64 into r8;
+    add r8 1u64 into r9;
+    set r9 into auction_counter[0u8];
+    set r1 into public_auction_index[r9];
 
 function publish_address:
     input r0 as AuctionTicket.record;

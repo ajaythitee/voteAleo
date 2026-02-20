@@ -93,6 +93,21 @@ export interface AleoConfig {
   votingProgramId: string;
 }
 
+// Auction (Privote Auction contract)
+export interface AuctionItem {
+  id: string;
+  offchainData?: string[];
+}
+
+export interface PublicAuction {
+  id: string;           // display id (index or hash)
+  auctionId: string;    // field key for chain
+  startingBid: number;
+  name?: string;
+  item?: AuctionItem;
+  raw?: unknown;         // raw mapping value if needed
+}
+
 // Pinata/IPFS types
 export interface IPFSUploadResult {
   cid: string;

@@ -15,8 +15,10 @@ import {
 } from '@demox-labs/aleo-wallet-adapter-base';
 import '@demox-labs/aleo-wallet-adapter-reactui/styles.css';
 
-// Program ID for Privote
-const PROGRAM_ID = process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID || 'vote_privacy_6723.aleo';
+// Program IDs for Privote (Voting + Auctions)
+const VOTING_PROGRAM_ID = process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID || 'vote_privacy_6723.aleo';
+const AUCTION_PROGRAM_ID = process.env.NEXT_PUBLIC_AUCTION_PROGRAM_ID || 'privote_auction_4000.aleo';
+const PROGRAM_IDS = [VOTING_PROGRAM_ID, AUCTION_PROGRAM_ID, 'credits.aleo'];
 
 interface WalletWrapperProps {
   children: ReactNode;
@@ -43,11 +45,11 @@ export function WalletWrapper({ children }: WalletWrapperProps) {
         adapters.push(
           new PuzzleWalletAdapter({
             programIdPermissions: {
-              [WalletAdapterNetwork.MainnetBeta]: [PROGRAM_ID],
-              [WalletAdapterNetwork.TestnetBeta]: [PROGRAM_ID],
+              [WalletAdapterNetwork.MainnetBeta]: PROGRAM_IDS,
+              [WalletAdapterNetwork.TestnetBeta]: PROGRAM_IDS,
             },
             appName: 'Privote',
-            appDescription: 'Privacy-preserving voting on Aleo blockchain',
+            appDescription: 'Voting & private auctions on Aleo blockchain',
           })
         );
       } catch (e) {
@@ -99,7 +101,7 @@ export function WalletWrapper({ children }: WalletWrapperProps) {
     <WalletProvider
       wallets={wallets}
       decryptPermission={DecryptPermission.OnChainHistory}
-      programs={[PROGRAM_ID, 'credits.aleo']}
+      programs={PROGRAM_IDS}
       autoConnect={false}
       network={WalletAdapterNetwork.TestnetBeta}
       onError={onError}

@@ -112,6 +112,15 @@ class AleoService {
   }
 
   /**
+   * Encode a string into a single field element (for auction name, etc.)
+   * Long strings may be truncated to fit in one field.
+   */
+  encodeStringToSingleField(input: string): string {
+    const fields = this.stringToFields(input, 1);
+    return `${fields[0]}field`;
+  }
+
+  /**
    * Encode an IPFS CID into two field elements
    * Uses the field modulus approach for reliable encoding/decoding
    */

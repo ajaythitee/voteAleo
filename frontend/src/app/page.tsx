@@ -14,7 +14,9 @@ import {
   Circle,
   Clock,
   Calendar,
+  Gavel,
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { Badge } from '@/components/ui/Badge';
@@ -22,6 +24,7 @@ import { SkeletonCard } from '@/components/ui/LoadingSpinner';
 import { useWalletStore } from '@/stores/walletStore';
 import { Campaign } from '@/types';
 import { aleoService } from '@/services/aleo';
+import { auctionService } from '@/services/auction';
 import { parseOnChainCampaign } from '@/services/campaignParser';
 import { formatDistanceToNow, isPast, isFuture } from 'date-fns';
 
@@ -49,14 +52,20 @@ const heroFeatures = [
   },
 ];
 
+type AuctionListItem = { auctionId: string; index: number; data: unknown };
+
 export default function Home() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [auctions, setAuctions] = useState<AuctionListItem[]>([]);
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(true);
+  const [isLoadingAuctions, setIsLoadingAuctions] = useState(true);
   const { isConnected } = useWalletStore();
 
-  // Load campaigns from blockchain
   useEffect(() => {
     loadCampaigns();
+  }, []);
+  useEffect(() => {
+    loadAuctions();
   }, []);
 
   const loadCampaigns = async () => {
@@ -88,6 +97,18 @@ export default function Home() {
     }
   };
 
+  const loadAuctions = async () => {
+    setIsLoadingAuctions(true);
+    try {
+      const list = await auctionService.listPublicAuctions();
+      setAuctions(list.slice(0, 6));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoadingAuctions(false);
+    }
+  };
+
   const getCampaignStatus = (campaign: Campaign) => {
     if (isPast(campaign.endTime)) return 'ended';
     if (isFuture(campaign.startTime)) return 'upcoming';
@@ -105,23 +126,35 @@ export default function Home() {
         </div>
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 id="hero-heading" className="text-4xl sm:text-5xl font-bold text-white mb-5">
-            Private voting for the decentralized era
+            Voting &amp; Auctions on Aleo
           </h1>
           <p className="text-lg text-white/60 mb-10">
-            Create campaigns, cast anonymous votes, and participate in governance with complete privacy on Aleo.
+            Private voting and first-price sealed-bid auctions. Create campaigns, cast anonymous votes, or run auctions with privacy on Aleo.
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 flex-wrap">
             <Link href="/campaigns">
               <GlassButton size="lg" icon={<Vote className="w-5 h-5" />}>
-                {isConnected ? 'Browse Campaigns' : 'Explore Campaigns'}
+                Campaigns
+              </GlassButton>
+            </Link>
+            <Link href="/auctions">
+              <GlassButton size="lg" variant="secondary" icon={<Gavel className="w-5 h-5" />}>
+                Auctions
               </GlassButton>
             </Link>
             {isConnected && (
-              <Link href="/create">
-                <GlassButton size="lg" variant="secondary" icon={<ArrowRight className="w-5 h-5" />}>
-                  Create Campaign
-                </GlassButton>
-              </Link>
+              <>
+                <Link href="/create">
+                  <GlassButton size="lg" variant="secondary" icon={<ArrowRight className="w-5 h-5" />}>
+                    Create Campaign
+                  </GlassButton>
+                </Link>
+                <Link href="/auctions/create">
+                  <GlassButton size="lg" variant="secondary" icon={<Gavel className="w-5 h-5" />}>
+                    Create Auction
+                  </GlassButton>
+                </Link>
+              </>
             )}
           </div>
           <div className="flex flex-wrap items-center justify-center gap-8 mt-16 text-white/50 text-sm">
@@ -300,18 +333,101 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Auctions section */}
+      <section className="py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-2">Public Auctions</h2>
+              <p className="text-white/60">
+                First-price sealed-bid auctions on Aleo. Place public or private bids.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <Link href="/auctions">
+                <GlassButton variant="secondary" icon={<ArrowRight className="w-4 h-4" />}>
+                  View All
+                </GlassButton>
+              </Link>
+              {isConnected && (
+                <Link href="/auctions/create">
+                  <GlassButton icon={<Gavel className="w-4 h-4" />}>Create Auction</GlassButton>
+                </Link>
+              )}
+            </div>
+          </div>
+          {isLoadingAuctions ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(3)].map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
+          ) : auctions.length === 0 ? (
+            <GlassCard className="p-12 text-center">
+              <Gavel className="w-16 h-16 text-white/20 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">No auctions yet</h3>
+              <p className="text-white/60 mb-6">Be the first to create a public auction.</p>
+              {isConnected && (
+                <Link href="/auctions/create">
+                  <GlassButton icon={<Gavel className="w-5 h-5" />}>Create Auction</GlassButton>
+                </Link>
+              )}
+            </GlassCard>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {auctions.map((a, i) => (
+                <Link key={a.auctionId} href={`/auctions/${encodeURIComponent(a.auctionId)}`}>
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                  >
+                    <GlassCard hover className="h-full p-6">
+                      <div className="flex items-start justify-between mb-3">
+                        <span className="text-xs text-white/50">Auction #{a.index}</span>
+                        <Badge variant="active">Open</Badge>
+                      </div>
+                      <h3 className="text-lg font-semibold text-white mb-2 line-clamp-2">
+                        {typeof a.data === 'object' && a.data && 'name' in (a.data as object)
+                          ? String((a.data as { name?: string }).name ?? 'Untitled')
+                          : 'Untitled Auction'}
+                      </h3>
+                      <p className="text-sm text-white/60">
+                        Starting bid:{' '}
+                        {typeof a.data === 'object' && a.data && 'starting_bid' in (a.data as object)
+                          ? `${Number((a.data as { starting_bid?: number }).starting_bid ?? 0)} credits`
+                          : '—'}
+                      </p>
+                      <div className="mt-4 flex items-center text-emerald-400 text-sm">
+                        <span>View & bid</span>
+                        <ArrowRight className="w-4 h-4 ml-1" />
+                      </div>
+                    </GlassCard>
+                  </motion.div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="py-16">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <GlassCard className="p-10">
             <h2 className="text-2xl font-bold text-white mb-3">Ready to get started?</h2>
             <p className="text-white/60 mb-6">
-              Connect your wallet and start participating in private, decentralized voting.
+              Connect your wallet to vote in campaigns or create and bid in private auctions on Aleo.
             </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 flex-wrap">
               <Link href="/campaigns">
                 <GlassButton size="lg" icon={<Vote className="w-5 h-5" />}>
                   Browse Campaigns
+                </GlassButton>
+              </Link>
+              <Link href="/auctions">
+                <GlassButton size="lg" variant="secondary" icon={<Gavel className="w-5 h-5" />}>
+                  Browse Auctions
                 </GlassButton>
               </Link>
               <a href="https://aleo.org" target="_blank" rel="noopener noreferrer">

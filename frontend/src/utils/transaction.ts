@@ -5,6 +5,7 @@ import { Transaction, WalletAdapterNetwork } from '@demox-labs/aleo-wallet-adapt
 import { EventType, requestCreateEvent } from '@puzzlehq/sdk-core';
 
 const PROGRAM_ID = process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID || 'vote_privacy_6723.aleo';
+const AUCTION_PROGRAM_ID = process.env.NEXT_PUBLIC_AUCTION_PROGRAM_ID || 'privote_auction_4000.aleo';
 const NETWORK = WalletAdapterNetwork.TestnetBeta;
 
 // Params for Puzzle Wallet
@@ -39,8 +40,10 @@ export interface TransactionResult {
 export async function createTransaction(
   params: PuzzleParams | LeoParams,
   execute: any,
-  walletName: string | undefined
+  walletName: string | undefined,
+  programIdOverride?: string
 ): Promise<TransactionResult> {
+  const programId = programIdOverride || PROGRAM_ID;
   console.log('Creating transaction with wallet:', walletName);
   console.log('Transaction params:', JSON.stringify(params, null, 2));
 
@@ -91,7 +94,7 @@ export async function createTransaction(
       const transaction = Transaction.createTransaction(
         leoParams.publicKey,
         NETWORK,
-        PROGRAM_ID,
+        programId,
         leoParams.functionName,
         leoParams.inputs,
         leoParams.fee,
@@ -182,10 +185,71 @@ export function buildVoteParams(
 }
 
 /**
- * Get the program ID
+ * Get the voting program ID
  */
 export function getProgramId(): string {
   return PROGRAM_ID;
+}
+
+/**
+ * Get the auction program ID
+ */
+export function getAuctionProgramId(): string {
+  return AUCTION_PROGRAM_ID;
+}
+
+/**
+ * Build params for create_public_auction (Puzzle or Leo).
+ * inputs: [auction_name, bid_types_accepted, item_id, item_offchain_data[0..3], starting_bid, nonce, reveal_address]
+ */
+export function buildCreatePublicAuctionParams(
+  inputs: string[],
+  address: string,
+  walletName: string | undefined
+): PuzzleParams | LeoParams {
+  if (walletName === 'Puzzle Wallet') {
+    return {
+      type: EventType.Execute,
+      programId: AUCTION_PROGRAM_ID,
+      functionId: 'create_public_auction',
+      fee: 0.5,
+      inputs,
+    };
+  }
+  return {
+    publicKey: address,
+    functionName: 'create_public_auction',
+    inputs,
+    fee: 500000,
+    feePrivate: false,
+  };
+}
+
+/**
+ * Build params for bid_public (Puzzle or Leo).
+ * inputs: [amount, auction_id, nonce, publish_bidder_address]
+ */
+export function buildBidPublicParams(
+  inputs: string[],
+  address: string,
+  walletName: string | undefined
+): PuzzleParams | LeoParams {
+  if (walletName === 'Puzzle Wallet') {
+    return {
+      type: EventType.Execute,
+      programId: AUCTION_PROGRAM_ID,
+      functionId: 'bid_public',
+      fee: 0.3,
+      inputs,
+    };
+  }
+  return {
+    publicKey: address,
+    functionName: 'bid_public',
+    inputs,
+    fee: 300000,
+    feePrivate: false,
+  };
 }
 
 /**
