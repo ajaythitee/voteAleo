@@ -41,10 +41,11 @@ export default function CreateAuctionPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { publicKey, requestTransaction, wallet } = useWallet() as any;
-  const { isConnected } = useWalletStore();
+  const { publicKey, requestTransaction, wallet, connected } = useWallet() as any;
+  const { isConnected, address: storeAddress } = useWalletStore();
   const { success, error: showError } = useToastStore();
-  const address = publicKey ?? '';
+  const walletConnected = !!(connected || isConnected);
+  const address = publicKey ?? storeAddress ?? '';
   const walletName = wallet?.adapter?.name;
 
   const handleInputChange = (field: keyof typeof formData, value: any) => {
@@ -123,7 +124,7 @@ export default function CreateAuctionPage() {
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
-    if (!address || !walletName) {
+    if (!walletConnected || !address || !walletName) {
       showError('Wallet required', 'Connect a wallet to create an auction.');
       return;
     }
@@ -184,7 +185,7 @@ export default function CreateAuctionPage() {
     }
   };
 
-  if (!isConnected) {
+  if (!walletConnected) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4 py-20">
         <GlassCard className="p-8 max-w-md text-center rounded-[16px]">

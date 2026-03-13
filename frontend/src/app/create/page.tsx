@@ -65,12 +65,12 @@ export default function CreateCampaignPage() {
 
   // Get wallet info including wallet adapter name
   const { publicKey, requestTransaction, wallet, connected } = useWallet() as any;
-  const { isConnected } = useWalletStore();
+  const { isConnected, address: storeAddress } = useWalletStore();
   const { success, error: showError } = useToastStore();
 
   // Use wallet adapter connection state
-  const walletConnected = connected || isConnected;
-  const address = publicKey;
+  const walletConnected = !!(connected || isConnected);
+  const address = publicKey ?? storeAddress ?? '';
 
   const handleInputChange = (field: keyof FormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -291,7 +291,7 @@ export default function CreateCampaignPage() {
       const { part1, part2 } = aleoService.encodeCidToFields(metadataResult.cid);
 
       // Require wallet connection
-      if (!address) {
+      if (!walletConnected || !address) {
         showError('Wallet Required', 'Please connect your wallet to create a campaign');
         setIsSubmitting(false);
         return;
