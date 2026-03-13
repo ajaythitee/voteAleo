@@ -1,0 +1,489 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import {
+  Clock,
+  CheckCircle,
+  Vote,
+  Calendar,
+  ArrowRight,
+  RefreshCw,
+  Wallet,
+  History,
+  Eye,
+  EyeOff,
+  Gavel,
+  Search,
+  User,
+} from 'lucide-react';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { GlassButton } from '@/components/ui/GlassButton';
+import { SkeletonCard } from '@/components/ui/LoadingSpinner';
+import { useWallet } from '@demox-labs/aleo-wallet-adapter-react';
+import { useWalletStore } from '@/stores/walletStore';
+import { Campaign } from '@/types';
+import { aleoService } from '@/services/aleo';
+import { parseOnChainCampaign } from '@/services/campaignParser';
+import { auctionService } from '@/services/auction';
+import { parseOnChainAuction, type ParsedAuction } from '@/services/auctionParser';
+import { pinataService } from '@/services/pinata';
+import { formatDistanceToNow, isPast, format } from 'date-fns';
+import { PageShell, StatCard, EmptyState } from '@/components/layout';
+
+interface VoteHistory {
+  campaign: Campaign;
+  votedAt: Date;
+  hasVoted: boolean;
+}
+
+type AuctionHistoryItem = {
+  auctionId: string;
+  index: number;
+  owner: string | null;
+  parsed: ParsedAuction | null;
+};
+
+export default function HistoryPage() {
+  const [isLoadingVotes, setIsLoadingVotes] = useState(true);
+  const [isLoadingAuctions, setIsLoadingAuctions] = useState(true);
+  const [voteHistory, setVoteHistory] = useState<VoteHistory[]>([]);
+  const [allCampaigns, setAllCampaigns] = useState<Campaign[]>([]);
+  const [auctionHistory, setAuctionHistory] = useState<AuctionHistoryItem[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [showOnlyVoted, setShowOnlyVoted] = useState(false);
+  const [showCreatedByMe, setShowCreatedByMe] = useState(false);
+  const [tab, setTab] = useState<'all' | 'voting' | 'auctions'>('all');
+  const [query, setQuery] = useState('');
+
+  const { publicKey, connected } = useWallet();
+  const { isConnected } = useWalletStore();
+  const walletConnected = connected || isConnected;
+  const address = publicKey;
+
+  // Load all ended campaigns and check voting status
+  const loadVoteHistory = async () => {
+    if (!address) {
+      setVoteHistory([]);
+      setIsLoadingVotes(false);
+      return;
+    }
+
+    setIsLoadingVotes(true);
+    setError(null);
+
+    try {
+      const campaigns = await aleoService.fetchAllCampaigns();
+      console.log('All campaigns for history:', campaigns);
+
+      const historyList: VoteHistory[] = [];
+      const campaignList: Campaign[] = [];
+
+      for (const entry of campaigns) {
+        try {
+          const idMatch = entry.id.match(/(\d+)/);
+          const id = idMatch ? parseInt(idMatch[1]) : 0;
+
+          if (id > 0 && typeof entry.data === 'string') {
+            const campaignData = await parseOnChainCampaign(entry.data as string, id);
+            if (campaignData) {
+              campaignList.push(campaignData);
+
+              // Check if user has voted (using hash of address and campaign ID)
+              const addressHash = aleoService.hashToField(address);
+              const hasVoted = await aleoService.hasVoted(id, addressHash);
+
+              historyList.push({
+                campaign: campaignData,
+                votedAt: campaignData.endTime, // We don't have exact vote time
+                hasVoted,
+              });
+            }
+          }
+        } catch (err) {
+          console.warn('Error parsing campaign entry:', entry, err);
+        }
+      }
+
+      // Sort by end time (most recent first)
+      historyList.sort((a, b) => b.campaign.endTime.getTime() - a.campaign.endTime.getTime());
+
+      setAllCampaigns(campaignList);
+      setVoteHistory(historyList);
+    } catch (err: any) {
+      console.error('Error loading vote history:', err);
+      setError('Failed to load voting history');
+    } finally {
+      setIsLoadingVotes(false);
+    }
+  };
+
+  const loadAuctionHistory = async () => {
+    if (!address) {
+      setAuctionHistory([]);
+      setIsLoadingAuctions(false);
+      return;
+    }
+    setIsLoadingAuctions(true);
+    try {
+      const items = await auctionService.listPublicAuctions();
+      const enriched: AuctionHistoryItem[] = await Promise.all(
+        items.slice(0, 80).map(async (a) => {
+          const owner = await auctionService.getAuctionOwner(a.auctionId);
+          const parsed = await parseOnChainAuction(a.data, a.auctionId);
+          return { auctionId: a.auctionId, index: a.index, owner, parsed };
+        })
+      );
+      setAuctionHistory(enriched);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoadingAuctions(false);
+    }
+  };
+
+  useEffect(() => {
+    if (walletConnected && address) {
+      loadVoteHistory();
+      loadAuctionHistory();
+    } else {
+      setIsLoadingVotes(false);
+      setIsLoadingAuctions(false);
+    }
+  }, [walletConnected, address]);
+
+  const normalizedQ = query.trim().toLowerCase();
+  const filteredVotes = (showOnlyVoted ? voteHistory.filter((h) => h.hasVoted) : voteHistory).filter((h) =>
+    normalizedQ ? h.campaign.title.toLowerCase().includes(normalizedQ) : true
+  );
+
+  const filteredAuctions = (showCreatedByMe && address
+    ? auctionHistory.filter((a) => a.owner && a.owner.toLowerCase() === address.toLowerCase())
+    : auctionHistory
+  ).filter((a) => {
+    if (!normalizedQ) return true;
+    const name = (a.parsed?.name || 'Untitled').toLowerCase();
+    return name.includes(normalizedQ);
+  });
+
+  const endedCampaigns = filteredVotes.filter((h) => isPast(h.campaign.endTime));
+  const votedCount = voteHistory.filter(h => h.hasVoted).length;
+  const isLoading = isLoadingVotes || isLoadingAuctions;
+
+  // Show connect wallet message if not connected
+  if (!walletConnected) {
+    return (
+      <div className="min-h-screen py-20">
+        <div className="max-w-2xl mx-auto px-4">
+          <GlassCard className="p-12 text-center">
+            <Wallet className="w-16 h-16 text-white/20 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-white mb-4">
+              Connect Your Wallet
+            </h2>
+            <p className="text-white/60 mb-6">
+              Connect your wallet to view your voting history.
+            </p>
+          </GlassCard>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <PageShell
+      title="History"
+      description="Your voting and auction activity, all in one place."
+      actions={
+        <GlassButton
+          onClick={() => {
+            loadVoteHistory();
+            loadAuctionHistory();
+          }}
+          icon={<RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />}
+          variant="secondary"
+        >
+          Refresh
+        </GlassButton>
+      }
+      maxWidth="7xl"
+    >
+      {/* Controls */}
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3 mb-6">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-white/5 border border-white/10">
+              <Search className="w-4 h-4 text-white/40" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by name…"
+                className="w-full bg-transparent outline-none text-sm text-white/80 placeholder:text-white/35"
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <GlassButton variant={tab === 'all' ? 'primary' : 'secondary'} onClick={() => setTab('all')}>
+              All
+            </GlassButton>
+            <GlassButton variant={tab === 'voting' ? 'primary' : 'secondary'} onClick={() => setTab('voting')} icon={<Vote className="w-4 h-4" />}>
+              Voting
+            </GlassButton>
+            <GlassButton variant={tab === 'auctions' ? 'primary' : 'secondary'} onClick={() => setTab('auctions')} icon={<Gavel className="w-4 h-4" />}>
+              Auctions
+            </GlassButton>
+            {(tab === 'all' || tab === 'voting') && (
+              <GlassButton
+                onClick={() => setShowOnlyVoted(!showOnlyVoted)}
+                icon={showOnlyVoted ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+                variant="secondary"
+              >
+                {showOnlyVoted ? 'Show all votes' : 'Voted only'}
+              </GlassButton>
+            )}
+            {(tab === 'all' || tab === 'auctions') && (
+              <GlassButton
+                onClick={() => setShowCreatedByMe(!showCreatedByMe)}
+                icon={<User className="w-4 h-4" />}
+                variant="secondary"
+              >
+                {showCreatedByMe ? 'All auctions' : 'Created by me'}
+              </GlassButton>
+            )}
+          </div>
+        </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <StatCard
+          label="Votes cast"
+          value={votedCount}
+          helperText="Total campaigns you voted in"
+          icon={<Vote className="w-4 h-4" />}
+          accent="success"
+        />
+        <StatCard
+          label="Completed campaigns"
+          value={endedCampaigns.length}
+          helperText="Finished voting campaigns"
+          icon={<CheckCircle className="w-4 h-4" />}
+        />
+        <StatCard
+          label="Public auctions"
+          value={auctionHistory.length}
+          helperText="Auctions you can browse"
+          icon={<History className="w-4 h-4" />}
+        />
+        <StatCard
+          label="Participation"
+          value={`${allCampaigns.length > 0 ? Math.round((votedCount / allCampaigns.length) * 100) : 0}%`}
+          helperText="Share of campaigns you joined"
+          icon={<Calendar className="w-4 h-4" />}
+          accent="warning"
+        />
+      </div>
+
+      {/* Error Message */}
+      {error && (
+        <GlassCard className="p-6 border border-red-500/40 bg-red-500/5">
+          <p className="text-red-400 text-sm">{error}</p>
+          <button
+            onClick={loadVoteHistory}
+            className="mt-2 text-xs text-emerald-400 hover:underline"
+          >
+            Try again
+          </button>
+        </GlassCard>
+      )}
+
+      {/* Privacy Note */}
+      <GlassCard className="p-4 border border-emerald-500/25 bg-emerald-500/5">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+            <EyeOff className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div>
+            <p className="text-sm text-white/80">
+              <strong className="text-emerald-400">Privacy preserved:</strong> your vote choices are completely anonymous.
+              We can only verify if you participated, not how you voted.
+            </p>
+          </div>
+        </div>
+      </GlassCard>
+
+      {/* History List */}
+      {isLoading ? (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(3)].map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
+      ) : (tab === 'all' ? (filteredVotes.length + filteredAuctions.length === 0) : tab === 'voting' ? filteredVotes.length === 0 : filteredAuctions.length === 0) ? (
+        <EmptyState
+          title="Nothing to show"
+          description="Try changing filters, or browse campaigns and auctions."
+          icon={<History className="w-10 h-10" />}
+          action={
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              <Link href="/campaigns">
+                <GlassButton icon={<Vote className="w-5 h-5" />}>Browse campaigns</GlassButton>
+              </Link>
+              <Link href="/auctions">
+                <GlassButton variant="secondary" icon={<Gavel className="w-5 h-5" />}>Browse auctions</GlassButton>
+              </Link>
+            </div>
+          }
+        />
+      ) : (
+        <div className="space-y-6">
+          {(tab === 'all' || tab === 'voting') && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-white/70">Voting</h2>
+                <Link href="/campaigns" className="text-xs text-emerald-400 hover:underline">Browse</Link>
+              </div>
+              {filteredVotes.map((item) => (
+                <HistoryCard key={`v-${item.campaign.id}`} item={item} />
+              ))}
+            </div>
+          )}
+          {(tab === 'all' || tab === 'auctions') && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-white/70">Auctions</h2>
+                <Link href="/auctions" className="text-xs text-emerald-400 hover:underline">Browse</Link>
+              </div>
+              {filteredAuctions.map((a) => (
+                <AuctionHistoryCard key={`a-${a.auctionId}`} item={a} address={address || ''} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </PageShell>
+  );
+}
+
+function HistoryCard({ item }: { item: VoteHistory }) {
+  const { campaign, hasVoted } = item;
+  const isEnded = isPast(campaign.endTime);
+
+  return (
+    <Link href={`/campaign/${campaign.id}`}>
+      <GlassCard hover className="p-4">
+        <div className="flex items-center gap-4">
+          {/* Image */}
+          <div className="w-16 h-16 rounded-lg overflow-hidden bg-white/[0.06] flex-shrink-0">
+            {campaign.imageUrl ? (
+              <img
+                src={pinataService.getProxiedUrl(campaign.imageUrl)}
+                alt={campaign.title}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Vote className="w-6 h-6 text-white/25" />
+              </div>
+            )}
+          </div>
+
+            {/* Content */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-lg font-semibold text-white truncate">
+                  {campaign.title}
+                </h3>
+                {hasVoted && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-500/20 text-green-400 border border-green-500/30">
+                    <CheckCircle className="w-3 h-3" />
+                    Voted
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-white/60 truncate mb-2">
+                {campaign.description}
+              </p>
+              <div className="flex items-center gap-4 text-xs text-white/50">
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-3 h-3" />
+                  {isEnded
+                    ? `Ended ${format(campaign.endTime, 'MMM d, yyyy')}`
+                    : `Ends ${format(campaign.endTime, 'MMM d, yyyy')}`
+                  }
+                </span>
+                <span className="flex items-center gap-1">
+                  <Vote className="w-3 h-3" />
+                  {campaign.totalVotes} votes
+                </span>
+              </div>
+            </div>
+
+            {/* Status */}
+            <div className="flex items-center gap-2">
+              {isEnded ? (
+                <span className="px-3 py-1.5 rounded-full text-xs bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                  Results Available
+                </span>
+              ) : (
+                <span className="px-3 py-1.5 rounded-full text-xs bg-green-500/20 text-green-400 border border-green-500/30">
+                  Active
+                </span>
+              )}
+              <ArrowRight className="w-4 h-4 text-white/30" />
+            </div>
+          </div>
+        </GlassCard>
+    </Link>
+  );
+}
+
+function AuctionHistoryCard({ item, address }: { item: AuctionHistoryItem; address: string }) {
+  const parsed = item.parsed;
+  const name = parsed?.name ?? 'Untitled';
+  const startingBid = parsed?.startingBid ?? 0;
+  const mine = !!(item.owner && address && item.owner.toLowerCase() === address.toLowerCase());
+
+  return (
+    <Link href={`/auctions/${encodeURIComponent(item.auctionId)}`}>
+      <GlassCard hover className="p-4">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-lg overflow-hidden bg-white/[0.06] flex-shrink-0">
+            {parsed?.imageUrl ? (
+              <img src={pinataService.getProxiedUrl(parsed.imageUrl)} alt={name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Gavel className="w-6 h-6 text-white/25" />
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-lg font-semibold text-white truncate">{name}</h3>
+              {mine && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <CheckCircle className="w-3 h-3" />
+                  Created by you
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-white/60 truncate mb-2">
+              {parsed?.description ?? ''}
+            </p>
+            <div className="flex items-center gap-4 text-xs text-white/50">
+              <span className="flex items-center gap-1">
+                <Gavel className="w-3 h-3" />
+                Starting: {startingBid} credits
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1.5 rounded-full text-xs bg-green-500/20 text-green-400 border border-green-500/30">
+              Open
+            </span>
+            <ArrowRight className="w-4 h-4 text-white/30" />
+          </div>
+        </div>
+      </GlassCard>
+    </Link>
+  );
+}
