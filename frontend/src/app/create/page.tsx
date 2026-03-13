@@ -253,9 +253,18 @@ export default function CreateCampaignPage() {
       return;
     }
 
+    if (!walletConnected) {
+      showError('Wallet Required', 'Please connect your wallet to create a campaign');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
+      if (!process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID) {
+        throw new Error('Voting program ID is not configured. Set NEXT_PUBLIC_VOTING_PROGRAM_ID in your environment.');
+      }
+
       // Upload image to IPFS if provided
       let imageCid = '';
       if (formData.image) {
@@ -290,17 +299,11 @@ export default function CreateCampaignPage() {
       // Encode CID to fields
       const { part1, part2 } = aleoService.encodeCidToFields(metadataResult.cid);
 
-      // Require wallet connection
-      if (!walletConnected || !address) {
-        showError('Wallet Required', 'Please connect your wallet to create a campaign');
-        setIsSubmitting(false);
-        return;
-      }
-
       const inputs = [part1, part2, `${startTime}u64`, `${endTime}u64`, `${validOptions.length}u8`];
       const walletName = wallet?.adapter?.name;
       const params = buildCreateCampaignParams(inputs);
-      const result = await createTransaction(params, requestTransaction, address, walletName);
+      const txAddress = address || storeAddress || publicKey || '';
+      const result = await createTransaction(params, requestTransaction, txAddress, walletName);
 
       if (!result.success) {
         throw new Error(result.error || 'Transaction failed');

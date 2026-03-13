@@ -30,15 +30,11 @@ export async function createTransaction(
   console.log('Transaction params:', JSON.stringify(params, null, 2));
 
   try {
-    if (!address) {
-      return { success: false, error: 'No public key provided' };
-    }
     if (!params.inputs || params.inputs.length === 0) {
       return { success: false, error: 'No inputs provided for transaction' };
     }
 
-    const response = await requestTransaction({
-      address,
+    const txRequest: any = {
       chainId,
       transitions: [
         {
@@ -47,7 +43,15 @@ export async function createTransaction(
           inputs: params.inputs,
         },
       ],
-    });
+    };
+
+    // Some wallets (like Leo) expect an explicit address, others (like Shield)
+    // can infer it from the connected account. Only include it when present.
+    if (address) {
+      txRequest.address = address;
+    }
+
+    const response = await requestTransaction(txRequest);
 
     console.log('Wallet response:', response);
 

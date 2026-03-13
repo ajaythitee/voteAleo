@@ -124,7 +124,7 @@ export default function CreateAuctionPage() {
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
-    if (!walletConnected || !address || !walletName) {
+    if (!walletConnected || !walletName) {
       showError('Wallet required', 'Connect a wallet to create an auction.');
       return;
     }
@@ -137,6 +137,10 @@ export default function CreateAuctionPage() {
         const imageResult = await pinataService.uploadFile(formData.image);
         imageCid = imageResult.cid;
       }
+      if (!process.env.NEXT_PUBLIC_AUCTION_PROGRAM_ID) {
+        throw new Error('Auction program ID is not configured. Set NEXT_PUBLIC_AUCTION_PROGRAM_ID in your environment.');
+      }
+
       const metadata = {
         name: formData.name.trim(),
         description: formData.description.trim(),
@@ -171,7 +175,8 @@ export default function CreateAuctionPage() {
         formData.revealCreator ? 'true' : 'false',
       ];
       const params = buildCreatePublicAuctionParams(inputs);
-      const result = await createTransaction(params, requestTransaction, address, walletName, getAuctionProgramId());
+      const txAddress = address || storeAddress || publicKey || '';
+      const result = await createTransaction(params, requestTransaction, txAddress, walletName, getAuctionProgramId());
       if (result.success) {
         success('Auction created', result.transactionId ? `Tx: ${result.transactionId.slice(0, 8)}...` : 'Check your wallet.');
         router.push('/auctions');
