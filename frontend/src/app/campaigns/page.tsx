@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/Badge';
 import { SkeletonCard } from '@/components/ui/LoadingSpinner';
 import { PageShell, Section, EmptyState } from '@/components/layout';
 import { useWalletStore } from '@/stores/walletStore';
+import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { Campaign } from '@/types';
 import { aleoService } from '@/services/aleo';
 import { parseOnChainCampaign } from '@/services/campaignParser';
@@ -38,6 +39,9 @@ export default function CampaignsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const { isConnected } = useWalletStore();
+  const walletState = useWallet() as any;
+  const walletConnected = !!walletState?.connected;
+  const isAnyConnected = isConnected || walletConnected;
 
   // Fetch campaigns from blockchain using on-chain mappings (no Aleoscan dependency)
   const loadCampaigns = async () => {
@@ -127,7 +131,7 @@ export default function CampaignsPage() {
           >
             Refresh
           </GlassButton>
-          {isConnected && (
+          {isAnyConnected && (
             <Link href="/create">
               <GlassButton icon={<Plus className="w-5 h-5" />}>
                 Create campaign
@@ -217,7 +221,7 @@ export default function CampaignsPage() {
           }
           icon={<Vote className="w-10 h-10" />}
           action={
-            isConnected ? (
+            isAnyConnected ? (
               <Link href="/create">
                 <GlassButton icon={<Plus className="w-5 h-5" />}>
                   Create campaign

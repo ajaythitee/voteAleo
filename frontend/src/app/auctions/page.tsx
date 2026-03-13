@@ -9,6 +9,7 @@ import { GlassButton } from '@/components/ui/GlassButton';
 import { Badge } from '@/components/ui/Badge';
 import { SkeletonCard } from '@/components/ui/LoadingSpinner';
 import { useWalletStore } from '@/stores/walletStore';
+import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { auctionService } from '@/services/auction';
 import { parseOnChainAuction, type ParsedAuction } from '@/services/auctionParser';
 import { pinataService } from '@/services/pinata';
@@ -21,6 +22,9 @@ export default function AuctionsPage() {
   const [parsedById, setParsedById] = useState<Record<string, ParsedAuction>>({});
   const [isLoading, setIsLoading] = useState(true);
   const { isConnected } = useWalletStore();
+  const walletState = useWallet() as any;
+  const walletConnected = !!walletState?.connected;
+  const isAnyConnected = isConnected || walletConnected;
 
   const load = async () => {
     setIsLoading(true);
@@ -61,7 +65,7 @@ export default function AuctionsPage() {
           >
             Refresh
           </GlassButton>
-          {isConnected && (
+          {isAnyConnected && (
             <Link href="/auctions/create">
               <GlassButton icon={<PlusCircle className="w-4 h-4" />}>Create auction</GlassButton>
             </Link>

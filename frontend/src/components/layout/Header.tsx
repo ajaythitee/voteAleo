@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, Plus, LayoutGrid, Home, Gavel, ChevronDown, Vote, History } from 'lucide-react';
 import { WalletConnect } from '@/components/wallet/WalletConnect';
 import { useWalletStore } from '@/stores/walletStore';
+import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 
 const navLinks = [
   { href: '/', label: 'Home', icon: Home },
@@ -21,6 +22,9 @@ export function Header() {
   const createRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const { isConnected } = useWalletStore();
+  const walletState = useWallet() as any;
+  const walletConnected = !!walletState?.connected;
+  const isAnyConnected = isConnected || walletConnected;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -36,7 +40,7 @@ export function Header() {
     return () => document.removeEventListener('click', close);
   }, []);
 
-  const visibleLinks = isConnected
+  const visibleLinks = isAnyConnected
     ? [...navLinks, { href: '/history', label: 'History', icon: History }]
     : navLinks;
 
@@ -80,7 +84,7 @@ export function Header() {
             </nav>
 
             <div className="hidden md:flex items-center gap-4">
-              {isConnected && (
+              {isAnyConnected && (
                 <div ref={createRef} className="relative">
                   <motion.button
                     onClick={() => setCreateOpen(!createOpen)}
@@ -161,7 +165,7 @@ export function Header() {
                   </Link>
                 );
               })}
-              {isConnected && (
+              {isAnyConnected && (
                 <>
                   <Link href="/create" onClick={() => setMobileMenuOpen(false)}>
                     <motion.div
