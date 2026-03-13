@@ -3,13 +3,8 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LogOut, ChevronDown, Copy, ExternalLink, Check, Wallet } from 'lucide-react';
-<<<<<<< HEAD
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { WalletMultiButton } from '@provablehq/aleo-wallet-adaptor-react-ui';
-=======
-import { useWallet } from '@demox-labs/aleo-wallet-adapter-react';
-import { WalletMultiButton } from '@demox-labs/aleo-wallet-adapter-reactui';
->>>>>>> 3f3da63b9a41d76fdc24cf22f7b5c9b54646e6ea
 import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 
