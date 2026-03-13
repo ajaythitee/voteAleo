@@ -44,8 +44,8 @@ export default function CreateAuctionPage() {
   const { publicKey, requestTransaction, wallet, connected } = useWallet() as any;
   const { isConnected, address: storeAddress } = useWalletStore();
   const { success, error: showError } = useToastStore();
-  const walletConnected = !!(connected || isConnected);
-  const address = publicKey ?? storeAddress ?? '';
+  const walletConnected = !!(connected || isConnected || publicKey || storeAddress);
+  const address = (publicKey ?? storeAddress ?? '').toString();
   const walletName = wallet?.adapter?.name;
 
   const handleInputChange = (field: keyof typeof formData, value: any) => {

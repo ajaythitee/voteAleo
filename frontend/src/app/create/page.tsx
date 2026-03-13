@@ -68,9 +68,9 @@ export default function CreateCampaignPage() {
   const { isConnected, address: storeAddress } = useWalletStore();
   const { success, error: showError } = useToastStore();
 
-  // Use wallet adapter connection state
-  const walletConnected = !!(connected || isConnected);
-  const address = publicKey ?? storeAddress ?? '';
+  // Use wallet adapter + store connection state
+  const walletConnected = !!(connected || isConnected || publicKey || storeAddress);
+  const address = (publicKey ?? storeAddress ?? '').toString();
 
   const handleInputChange = (field: keyof FormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
