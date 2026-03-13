@@ -36,7 +36,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
   const [winningBidIdInput, setWinningBidIdInput] = useState('');
   const [isEnding, setIsEnding] = useState(false);
 
-  const { publicKey, requestTransaction, wallet } = useWallet();
+  const { publicKey, requestTransaction, wallet } = useWallet() as any;
   const { isConnected } = useWalletStore();
   const { success, error: showError } = useToastStore();
   const address = publicKey ?? '';

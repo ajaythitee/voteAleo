@@ -50,7 +50,7 @@ export default function CampaignDetailPage() {
   const [lastVoteProof, setLastVoteProof] = useState<{ transactionId?: string; eventId?: string; address?: string } | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
-  const { publicKey, requestTransaction, wallet, connected } = useWallet();
+  const { publicKey, requestTransaction, wallet, connected } = useWallet() as any;
   const { isConnected } = useWalletStore();
   const { success, error: showError } = useToastStore();
 

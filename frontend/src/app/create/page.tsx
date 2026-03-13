@@ -64,7 +64,7 @@ export default function CreateCampaignPage() {
   const [step, setStep] = useState(1);
 
   // Get wallet info including wallet adapter name
-  const { publicKey, requestTransaction, wallet, connected } = useWallet();
+  const { publicKey, requestTransaction, wallet, connected } = useWallet() as any;
   const { isConnected } = useWalletStore();
   const { success, error: showError } = useToastStore();
 

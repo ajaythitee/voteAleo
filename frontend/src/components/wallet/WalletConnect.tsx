@@ -12,7 +12,7 @@ export function WalletConnect() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const { wallet, publicKey, connected, connecting, disconnect } = useWallet();
+  const { wallet, publicKey, connected, connecting, disconnect } = useWallet() as any;
   const { setConnected, setDisconnected, setConnecting } = useWalletStore();
   const { success, error: showError } = useToastStore();
 

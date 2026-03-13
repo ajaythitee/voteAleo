@@ -41,7 +41,7 @@ export default function CreateAuctionPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { publicKey, requestTransaction, wallet } = useWallet();
+  const { publicKey, requestTransaction, wallet } = useWallet() as any;
   const { isConnected } = useWalletStore();
   const { success, error: showError } = useToastStore();
   const address = publicKey ?? '';

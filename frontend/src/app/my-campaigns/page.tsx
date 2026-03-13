@@ -28,7 +28,7 @@ export default function MyCampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const { publicKey, connected } = useWallet();
+  const { publicKey, connected } = useWallet() as any;
   const { isConnected } = useWalletStore();
   const walletConnected = connected || isConnected;
   const address = publicKey;

@@ -56,7 +56,7 @@ export default function HistoryPage() {
   const [tab, setTab] = useState<'all' | 'voting' | 'auctions'>('all');
   const [query, setQuery] = useState('');
 
-  const { publicKey, connected } = useWallet();
+  const { publicKey, connected } = useWallet() as any;
   const { isConnected } = useWalletStore();
   const walletConnected = connected || isConnected;
   const address = publicKey;
