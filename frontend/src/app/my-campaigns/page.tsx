@@ -16,11 +16,7 @@ import {
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { SkeletonCard } from '@/components/ui/LoadingSpinner';
-<<<<<<< HEAD
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
-=======
-import { useWallet } from '@demox-labs/aleo-wallet-adapter-react';
->>>>>>> 3f3da63b9a41d76fdc24cf22f7b5c9b54646e6ea
 import { useWalletStore } from '@/stores/walletStore';
 import { Campaign } from '@/types';
 import { aleoService } from '@/services/aleo';

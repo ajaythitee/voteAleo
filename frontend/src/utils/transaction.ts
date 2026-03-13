@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 const PROGRAM_ID = process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID as string;
 const AUCTION_PROGRAM_ID = process.env.NEXT_PUBLIC_AUCTION_PROGRAM_ID as string;
 const CHAIN_ID = 'testnetbeta';
@@ -8,34 +7,6 @@ export interface TransactionParams {
   functionId: string;
   inputs: string[];
   fee: number;
-=======
-// Transaction utility that handles both Leo and Puzzle wallets
-// Based on ProvableHQ/zk-auction-example pattern
-
-import { Transaction, WalletAdapterNetwork } from '@demox-labs/aleo-wallet-adapter-base';
-import { EventType, requestCreateEvent } from '@puzzlehq/sdk-core';
-
-const PROGRAM_ID = process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID as string;
-const AUCTION_PROGRAM_ID = process.env.NEXT_PUBLIC_AUCTION_PROGRAM_ID as string;
-const NETWORK = WalletAdapterNetwork.TestnetBeta;
-
-// Params for Puzzle Wallet
-export interface PuzzleParams {
-  type: EventType;
-  programId: string;
-  functionId: string;
-  fee: number; // In credits (e.g., 0.5)
-  inputs: string[];
-}
-
-// Params for Leo Wallet
-export interface LeoParams {
-  publicKey: string;
-  functionName: string;
-  inputs: string[];
-  fee: number; // In microcredits (e.g., 500000)
-  feePrivate: boolean;
->>>>>>> 3f3da63b9a41d76fdc24cf22f7b5c9b54646e6ea
 }
 
 export interface TransactionResult {
@@ -45,7 +16,6 @@ export interface TransactionResult {
   error?: string;
 }
 
-<<<<<<< HEAD
 export async function createTransaction(
   params: TransactionParams,
   requestTransaction: (args: any) => Promise<any>,
@@ -56,24 +26,10 @@ export async function createTransaction(
   const programId = params.programId;
   const chainId = chainIdOverride || CHAIN_ID;
 
-=======
-/**
- * Create and execute a transaction using the appropriate wallet method
- * Based on zk-auction-example pattern from ProvableHQ
- */
-export async function createTransaction(
-  params: PuzzleParams | LeoParams,
-  execute: any,
-  walletName: string | undefined,
-  programIdOverride?: string
-): Promise<TransactionResult> {
-  const programId = programIdOverride || PROGRAM_ID;
->>>>>>> 3f3da63b9a41d76fdc24cf22f7b5c9b54646e6ea
   console.log('Creating transaction with wallet:', walletName);
   console.log('Transaction params:', JSON.stringify(params, null, 2));
 
   try {
-<<<<<<< HEAD
     if (!address) {
       return { success: false, error: 'No public key provided' };
     }
@@ -111,99 +67,28 @@ export async function createTransaction(
 
     console.log('Transaction created successfully:', txId);
     return { success: true, transactionId: txId };
-=======
-    if (walletName === 'Puzzle Wallet') {
-      // Create a transaction using the Puzzle Wallet SDK
-      console.log('Using Puzzle Wallet SDK...');
-      const puzzleParams = params as PuzzleParams;
-
-      // Validate params
-      if (!puzzleParams.inputs || puzzleParams.inputs.length === 0) {
-        return { success: false, error: 'No inputs provided for transaction' };
-      }
-
-      const createEventResponse = await execute(puzzleParams);
-      console.log('Puzzle Wallet response:', createEventResponse);
-
-      // Handle the response from the Puzzle Wallet SDK
-      if (createEventResponse?.error) {
-        console.error('Puzzle Wallet error:', createEventResponse.error);
-        return { success: false, error: createEventResponse.error };
-      }
-
-      if (createEventResponse?.eventId) {
-        console.log('Transaction created successfully:', createEventResponse.eventId);
-        return { success: true, eventId: createEventResponse.eventId };
-      }
-
-      // Some versions return different response format
-      if (createEventResponse?.transactionId) {
-        return { success: true, transactionId: createEventResponse.transactionId };
-      }
-
-      return { success: true, eventId: 'pending' };
-    } else {
-      // Create a transaction using the Leo wallet
-      console.log('Using Leo Wallet adapter...');
-      const leoParams = params as LeoParams;
-
-      // Validate params
-      if (!leoParams.publicKey) {
-        return { success: false, error: 'No public key provided' };
-      }
-      if (!leoParams.inputs || leoParams.inputs.length === 0) {
-        return { success: false, error: 'No inputs provided for transaction' };
-      }
-
-      const transaction = Transaction.createTransaction(
-        leoParams.publicKey,
-        NETWORK,
-        programId,
-        leoParams.functionName,
-        leoParams.inputs,
-        leoParams.fee,
-        leoParams.feePrivate
-      );
-
-      console.log('Leo transaction object:', transaction);
-
-      // Call the requestTransaction function on the Leo Wallet
-      const txId = await execute(transaction);
-      console.log('Leo Wallet response:', txId);
-
-      if (!txId) {
-        return { success: false, error: 'Transaction was cancelled or failed' };
-      }
-
-      // Check if txId indicates rejection (some wallets return error strings)
-      if (typeof txId === 'string' && (txId.includes('rejected') || txId.includes('error') || txId.includes('failed'))) {
-        return { success: false, error: `Transaction was rejected: ${txId}` };
-      }
-
-      console.log('Transaction created successfully:', txId);
-      return { success: true, transactionId: txId };
-    }
->>>>>>> 3f3da63b9a41d76fdc24cf22f7b5c9b54646e6ea
   } catch (error: any) {
     console.error('Transaction error:', error);
     console.error('Error details:', {
       message: error.message,
       stack: error.stack,
       name: error.name,
-      fullError: error
+      fullError: error,
     });
 
     // Handle specific error cases
     let errorMessage = error.message || 'Transaction failed';
 
     if (errorMessage.includes('User rejected') || errorMessage.includes('rejected')) {
-      errorMessage = 'Transaction was rejected. This could be due to insufficient balance, network issues, or contract validation failure.';
+      errorMessage =
+        'Transaction was rejected. This could be due to insufficient balance, network issues, or contract validation failure.';
     } else if (errorMessage.includes('insufficient') || errorMessage.includes('balance')) {
       errorMessage = 'Insufficient balance for transaction fee. Please ensure you have enough credits.';
     } else if (errorMessage.includes('not connected') || errorMessage.includes('disconnected')) {
       errorMessage = 'Wallet is not connected. Please reconnect your wallet.';
     } else if (errorMessage.includes('assert') || errorMessage.includes('assertion')) {
-      errorMessage = 'Transaction validation failed. This could mean the campaign is inactive, you already voted, or the option index is invalid.';
+      errorMessage =
+        'Transaction validation failed. This could mean the campaign is inactive, you already voted, or the option index is invalid.';
     } else if (errorMessage.includes('timeout') || errorMessage.includes('network')) {
       errorMessage = 'Network timeout. Please check your connection and try again.';
     }
@@ -212,7 +97,6 @@ export async function createTransaction(
   }
 }
 
-<<<<<<< HEAD
 export function buildCreateCampaignParams(inputs: string[]): TransactionParams {
   return {
     programId: PROGRAM_ID,
@@ -220,6 +104,7 @@ export function buildCreateCampaignParams(inputs: string[]): TransactionParams {
     inputs,
     fee: 500000,
   };
+}
 
 export function buildVoteParams(inputs: string[]): TransactionParams {
   return {
@@ -228,59 +113,7 @@ export function buildVoteParams(inputs: string[]): TransactionParams {
     inputs,
     fee: 300000,
   };
-=======
-/**
- * Build params for create_campaign transition (Puzzle or Leo based on walletName).
- */
-export function buildCreateCampaignParams(
-  inputs: string[],
-  address: string,
-  walletName: string | undefined
-): PuzzleParams | LeoParams {
-  if (walletName === 'Puzzle Wallet') {
-    return {
-      type: EventType.Execute,
-      programId: PROGRAM_ID,
-      functionId: 'create_campaign',
-      fee: 0.5,
-      inputs,
-    };
-  }
-  return {
-    publicKey: address,
-    functionName: 'create_campaign',
-    inputs,
-    fee: 500000,
-    feePrivate: false,
-  };
 }
-
-/**
- * Build params for cast_vote transition (Puzzle or Leo based on walletName).
- */
-export function buildVoteParams(
-  inputs: string[],
-  address: string,
-  walletName: string | undefined
-): PuzzleParams | LeoParams {
-  if (walletName === 'Puzzle Wallet') {
-    return {
-      type: EventType.Execute,
-      programId: PROGRAM_ID,
-      functionId: 'cast_vote',
-      fee: 0.3,
-      inputs,
-    };
-  }
-  return {
-    publicKey: address,
-    functionName: 'cast_vote',
-    inputs,
-    fee: 300000,
-    feePrivate: false,
-  };
-}
->>>>>>> 3f3da63b9a41d76fdc24cf22f7b5c9b54646e6ea
 
 /**
  * Get the voting program ID
@@ -297,10 +130,9 @@ export function getAuctionProgramId(): string {
 }
 
 /**
- * Build params for create_public_auction (Puzzle or Leo).
+ * Build params for create_public_auction.
  * inputs: [auction_name, bid_types_accepted, item_id, item_offchain_data[0..3], starting_bid, nonce, reveal_address]
  */
-<<<<<<< HEAD
 export function buildCreatePublicAuctionParams(inputs: string[]): TransactionParams {
   return {
     programId: AUCTION_PROGRAM_ID,
@@ -308,36 +140,12 @@ export function buildCreatePublicAuctionParams(inputs: string[]): TransactionPar
     inputs,
     fee: 500000,
   };
-=======
-export function buildCreatePublicAuctionParams(
-  inputs: string[],
-  address: string,
-  walletName: string | undefined
-): PuzzleParams | LeoParams {
-  if (walletName === 'Puzzle Wallet') {
-    return {
-      type: EventType.Execute,
-      programId: AUCTION_PROGRAM_ID,
-      functionId: 'create_public_auction',
-      fee: 0.5,
-      inputs,
-    };
-  }
-  return {
-    publicKey: address,
-    functionName: 'create_public_auction',
-    inputs,
-    fee: 500000,
-    feePrivate: false,
-  };
 }
->>>>>>> 3f3da63b9a41d76fdc24cf22f7b5c9b54646e6ea
 
 /**
- * Build params for bid_public (Puzzle or Leo).
+ * Build params for bid_public.
  * inputs: [amount, auction_id, nonce, publish_bidder_address]
  */
-<<<<<<< HEAD
 export function buildBidPublicParams(inputs: string[]): TransactionParams {
   return {
     programId: AUCTION_PROGRAM_ID,
@@ -345,37 +153,13 @@ export function buildBidPublicParams(inputs: string[]): TransactionParams {
     inputs,
     fee: 300000,
   };
-=======
-export function buildBidPublicParams(
-  inputs: string[],
-  address: string,
-  walletName: string | undefined
-): PuzzleParams | LeoParams {
-  if (walletName === 'Puzzle Wallet') {
-    return {
-      type: EventType.Execute,
-      programId: AUCTION_PROGRAM_ID,
-      functionId: 'bid_public',
-      fee: 0.3,
-      inputs,
-    };
-  }
-  return {
-    publicKey: address,
-    functionName: 'bid_public',
-    inputs,
-    fee: 300000,
-    feePrivate: false,
-  };
 }
->>>>>>> 3f3da63b9a41d76fdc24cf22f7b5c9b54646e6ea
 
 /**
- * Build params for select_winner_public (Puzzle or Leo).
+ * Build params for select_winner_public.
  * inputs: [winning_bid_amount, auction_id, bid_public_key, winning_bid_id]
  * Note: auction_ticket is a record - wallet must have it and will prompt to select.
  */
-<<<<<<< HEAD
 export function buildSelectWinnerParams(inputs: string[]): TransactionParams {
   return {
     programId: AUCTION_PROGRAM_ID,
@@ -383,45 +167,12 @@ export function buildSelectWinnerParams(inputs: string[]): TransactionParams {
     inputs,
     fee: 500000,
   };
-=======
-export function buildSelectWinnerParams(
-  inputs: string[],
-  address: string,
-  walletName: string | undefined
-): PuzzleParams | LeoParams {
-  if (walletName === 'Puzzle Wallet') {
-    return {
-      type: EventType.Execute,
-      programId: AUCTION_PROGRAM_ID,
-      functionId: 'select_winner_public',
-      fee: 0.5,
-      inputs,
-    };
-  }
-  return {
-    publicKey: address,
-    functionName: 'select_winner_public',
-    inputs,
-    fee: 500000,
-    feePrivate: false,
-  };
 }
->>>>>>> 3f3da63b9a41d76fdc24cf22f7b5c9b54646e6ea
 
 /**
- * Get the network
+ * Get the network (chain ID)
  */
-<<<<<<< HEAD
 export function getNetwork(): string {
   return CHAIN_ID;
 }
-=======
-export function getNetwork(): WalletAdapterNetwork {
-  return NETWORK;
-}
 
-/**
- * Export EventType for Puzzle wallet
- */
-export { EventType, requestCreateEvent };
->>>>>>> 3f3da63b9a41d76fdc24cf22f7b5c9b54646e6ea
