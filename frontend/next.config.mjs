@@ -71,6 +71,7 @@ const nextConfig = {
   },
   // Transpile specific packages that need it
   transpilePackages: [
+<<<<<<< HEAD
     '@provablehq/aleo-wallet-adaptor-react',
     '@provablehq/aleo-wallet-adaptor-react-ui',
     '@provablehq/aleo-wallet-adaptor-core',
@@ -80,6 +81,14 @@ const nextConfig = {
     '@provablehq/aleo-wallet-adaptor-shield',
     '@provablehq/aleo-wallet-adaptor-soter',
     '@provablehq/aleo-types',
+=======
+    '@demox-labs/aleo-wallet-adapter-base',
+    '@demox-labs/aleo-wallet-adapter-react',
+    '@demox-labs/aleo-wallet-adapter-reactui',
+    '@demox-labs/aleo-wallet-adapter-leo',
+    'aleo-adapters',
+    'aleo-hooks',
+>>>>>>> 3f3da63b9a41d76fdc24cf22f7b5c9b54646e6ea
     '@puzzlehq/sdk-core',
   ],
   // Environment variables that should be available on the client

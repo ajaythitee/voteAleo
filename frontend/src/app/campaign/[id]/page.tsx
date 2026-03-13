@@ -23,13 +23,21 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { Modal } from '@/components/ui/Modal';
 import { PageLoader } from '@/components/ui/LoadingSpinner';
+<<<<<<< HEAD
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
+=======
+import { useWallet } from '@demox-labs/aleo-wallet-adapter-react';
+>>>>>>> 3f3da63b9a41d76fdc24cf22f7b5c9b54646e6ea
 import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { aleoService } from '@/services/aleo';
 import { pinataService } from '@/services/pinata';
 import { parseOnChainCampaign } from '@/services/campaignParser';
+<<<<<<< HEAD
 import { createTransaction, getProgramId, buildVoteParams } from '@/utils/transaction';
+=======
+import { createTransaction, requestCreateEvent, getProgramId, buildVoteParams } from '@/utils/transaction';
+>>>>>>> 3f3da63b9a41d76fdc24cf22f7b5c9b54646e6ea
 import { Campaign, VotingOption } from '@/types';
 import { format, formatDistanceToNow, isPast, isFuture } from 'date-fns';
 
@@ -439,12 +447,22 @@ export default function CampaignDetailPage() {
 
       const inputs = aleoService.formatCastVoteInputs(campaignIdNum, selectedOption, timestamp);
       const walletName = wallet.adapter.name;
+<<<<<<< HEAD
       const params = buildVoteParams(inputs);
 
       // Store previous vote count for verification
       const previousTotalVotes = campaign.totalVotes;
       
       const result = await createTransaction(params, requestTransaction, address, walletName);
+=======
+      const params = buildVoteParams(inputs, address, walletName);
+      const execute = walletName === 'Puzzle Wallet' ? requestCreateEvent : requestTransaction;
+      
+      // Store previous vote count for verification
+      const previousTotalVotes = campaign.totalVotes;
+      
+      const result = await createTransaction(params, execute, walletName);
+>>>>>>> 3f3da63b9a41d76fdc24cf22f7b5c9b54646e6ea
 
       if (!result.success) {
         throw new Error(result.error || 'Transaction failed');

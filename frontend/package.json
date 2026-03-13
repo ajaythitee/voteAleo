@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+<<<<<<< HEAD
     "@google/generative-ai": "^0.24.1",
     "@provablehq/aleo-types": "^0.3.0-alpha.3",
     "@provablehq/aleo-wallet-adaptor-core": "^0.3.0-alpha.3",
@@ -19,6 +20,13 @@
     "@provablehq/aleo-wallet-adaptor-react-ui": "^0.3.0-alpha.3",
     "@provablehq/aleo-wallet-adaptor-shield": "^0.3.0-alpha.3",
     "@provablehq/aleo-wallet-adaptor-soter": "^0.3.0-alpha.3",
+=======
+    "@demox-labs/aleo-wallet-adapter-base": "^0.0.23",
+    "@demox-labs/aleo-wallet-adapter-leo": "^0.0.25",
+    "@demox-labs/aleo-wallet-adapter-react": "^0.0.22",
+    "@demox-labs/aleo-wallet-adapter-reactui": "^0.0.36",
+    "@google/generative-ai": "^0.24.1",
+>>>>>>> 3f3da63b9a41d76fdc24cf22f7b5c9b54646e6ea
     "@provablehq/sdk": "^0.8.8",
     "@puzzlehq/sdk-core": "^1.0.4",
     "@react-three/drei": "^10.7.7",
