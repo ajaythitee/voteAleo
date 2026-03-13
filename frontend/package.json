@@ -12,6 +12,7 @@
     "@google/generative-ai": "^0.24.1",
     "@provablehq/aleo-types": "^0.3.0-alpha.3",
     "@provablehq/aleo-wallet-adaptor-core": "^0.3.0-alpha.3",
+    "@provablehq/aleo-wallet-adaptor-fox": "^0.3.0-alpha.3",
     "@provablehq/aleo-wallet-adaptor-leo": "^0.3.0-alpha.3",
     "@provablehq/aleo-wallet-adaptor-puzzle": "^0.3.0-alpha.3",
     "@provablehq/aleo-wallet-adaptor-react": "^0.3.0-alpha.3",
