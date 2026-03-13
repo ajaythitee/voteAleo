@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassInput } from '@/components/ui/GlassInput';
-import { useWallet } from '@demox-labs/aleo-wallet-adapter-react';
+import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { auctionService } from '@/services/auction';
@@ -15,7 +15,6 @@ import { parseOnChainAuction, type ParsedAuction } from '@/services/auctionParse
 import { pinataService } from '@/services/pinata';
 import {
   createTransaction,
-  requestCreateEvent,
   buildBidPublicParams,
   buildSelectWinnerParams,
   getAuctionProgramId,
@@ -137,9 +136,8 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     try {
       const nonce = Math.floor(Math.random() * 1e12) + 1;
       const inputs = [`${amount}u64`, auctionId, `${nonce}scalar`, 'true'];
-      const params = buildBidPublicParams(inputs, address, walletName);
-      const execute = walletName === 'Puzzle Wallet' ? requestCreateEvent : requestTransaction;
-      const result = await createTransaction(params, execute, walletName, getAuctionProgramId());
+      const params = buildBidPublicParams(inputs);
+      const result = await createTransaction(params, requestTransaction, address, walletName, getAuctionProgramId());
       if (result.success) {
         success('Bid placed', result.transactionId ? `Tx: ${result.transactionId.slice(0, 8)}...` : 'Check your wallet.');
         setBidAmount('');
@@ -186,9 +184,8 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
         bid.bid_public_key,
         bidId.endsWith('field') ? bidId : `${bidId}field`,
       ];
-      const params = buildSelectWinnerParams(inputs, address, walletName);
-      const execute = walletName === 'Puzzle Wallet' ? requestCreateEvent : requestTransaction;
-      const result = await createTransaction(params, execute, walletName, getAuctionProgramId());
+      const params = buildSelectWinnerParams(inputs);
+      const result = await createTransaction(params, requestTransaction, address, walletName, getAuctionProgramId());
       if (result.success) {
         success('Auction ended', 'Winner selected. Winner must redeem to claim.');
         setWinningBidId(bidId);

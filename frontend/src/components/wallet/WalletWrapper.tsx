@@ -22,16 +22,41 @@ interface WalletWrapperProps {
 }
 
 export function WalletWrapper({ children }: WalletWrapperProps) {
-  const wallets = useMemo(
-    () => [
-      new ShieldWalletAdapter(),
-      new PuzzleWalletAdapter(),
-      new LeoWalletAdapter(),
-      new FoxWalletAdapter(),
-      new SoterWalletAdapter(),
-    ],
-    []
-  );
+  const wallets = useMemo(() => {
+    const instances = [];
+
+    try {
+      instances.push(new ShieldWalletAdapter());
+    } catch (e) {
+      console.warn('ShieldWalletAdapter constructor failed:', e);
+    }
+
+    try {
+      instances.push(new LeoWalletAdapter());
+    } catch (e) {
+      console.warn('LeoWalletAdapter constructor failed:', e);
+    }
+
+    try {
+      instances.push(new PuzzleWalletAdapter());
+    } catch (e) {
+      console.warn('PuzzleWalletAdapter constructor failed:', e);
+    }
+
+    try {
+      instances.push(new FoxWalletAdapter());
+    } catch (e) {
+      console.warn('FoxWalletAdapter constructor failed:', e);
+    }
+
+    try {
+      instances.push(new SoterWalletAdapter());
+    } catch (e) {
+      console.warn('SoterWalletAdapter constructor failed:', e);
+    }
+
+    return instances;
+  }, []);
 
   const onError = useCallback((error: Error) => {
     console.error('Wallet error:', error);

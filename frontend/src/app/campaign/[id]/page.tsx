@@ -23,13 +23,13 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { Modal } from '@/components/ui/Modal';
 import { PageLoader } from '@/components/ui/LoadingSpinner';
-import { useWallet } from '@demox-labs/aleo-wallet-adapter-react';
+import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { aleoService } from '@/services/aleo';
 import { pinataService } from '@/services/pinata';
 import { parseOnChainCampaign } from '@/services/campaignParser';
-import { createTransaction, requestCreateEvent, getProgramId, buildVoteParams } from '@/utils/transaction';
+import { createTransaction, getProgramId, buildVoteParams } from '@/utils/transaction';
 import { Campaign, VotingOption } from '@/types';
 import { format, formatDistanceToNow, isPast, isFuture } from 'date-fns';
 
@@ -439,13 +439,12 @@ export default function CampaignDetailPage() {
 
       const inputs = aleoService.formatCastVoteInputs(campaignIdNum, selectedOption, timestamp);
       const walletName = wallet.adapter.name;
-      const params = buildVoteParams(inputs, address, walletName);
-      const execute = walletName === 'Puzzle Wallet' ? requestCreateEvent : requestTransaction;
-      
+      const params = buildVoteParams(inputs);
+
       // Store previous vote count for verification
       const previousTotalVotes = campaign.totalVotes;
       
-      const result = await createTransaction(params, execute, walletName);
+      const result = await createTransaction(params, requestTransaction, address, walletName);
 
       if (!result.success) {
         throw new Error(result.error || 'Transaction failed');

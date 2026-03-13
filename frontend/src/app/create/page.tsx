@@ -16,12 +16,12 @@ import {
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassInput, GlassTextarea } from '@/components/ui/GlassInput';
-import { useWallet } from '@demox-labs/aleo-wallet-adapter-react';
+import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { pinataService } from '@/services/pinata';
 import { aleoService } from '@/services/aleo';
-import { createTransaction, requestCreateEvent, buildCreateCampaignParams } from '@/utils/transaction';
+import { createTransaction, buildCreateCampaignParams } from '@/utils/transaction';
 import { Stepper } from '@/components/layout';
 
 const CAMPAIGN_CATEGORIES = ['governance', 'community', 'poll', 'dao', 'other'] as const;
@@ -299,9 +299,8 @@ export default function CreateCampaignPage() {
 
       const inputs = [part1, part2, `${startTime}u64`, `${endTime}u64`, `${validOptions.length}u8`];
       const walletName = wallet?.adapter?.name;
-      const params = buildCreateCampaignParams(inputs, address, walletName);
-      const execute = walletName === 'Puzzle Wallet' ? requestCreateEvent : requestTransaction;
-      const result = await createTransaction(params, execute, walletName);
+      const params = buildCreateCampaignParams(inputs);
+      const result = await createTransaction(params, requestTransaction, address, walletName);
 
       if (!result.success) {
         throw new Error(result.error || 'Transaction failed');

@@ -7,12 +7,12 @@ import { Gavel, ArrowLeft, Loader2, AlertCircle, Upload, X, CheckCircle } from '
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassInput, GlassTextarea } from '@/components/ui/GlassInput';
-import { useWallet } from '@demox-labs/aleo-wallet-adapter-react';
+import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { aleoService } from '@/services/aleo';
 import { pinataService } from '@/services/pinata';
-import { createTransaction, requestCreateEvent, buildCreatePublicAuctionParams, getAuctionProgramId } from '@/utils/transaction';
+import { createTransaction, buildCreatePublicAuctionParams, getAuctionProgramId } from '@/utils/transaction';
 import { Stepper } from '@/components/layout';
 
 export default function CreateAuctionPage() {
@@ -169,9 +169,8 @@ export default function CreateAuctionPage() {
         `${nonce}scalar`,
         formData.revealCreator ? 'true' : 'false',
       ];
-      const params = buildCreatePublicAuctionParams(inputs, address, walletName);
-      const execute = walletName === 'Puzzle Wallet' ? requestCreateEvent : requestTransaction;
-      const result = await createTransaction(params, execute, walletName, getAuctionProgramId());
+      const params = buildCreatePublicAuctionParams(inputs);
+      const result = await createTransaction(params, requestTransaction, address, walletName, getAuctionProgramId());
       if (result.success) {
         success('Auction created', result.transactionId ? `Tx: ${result.transactionId.slice(0, 8)}...` : 'Check your wallet.');
         router.push('/auctions');
