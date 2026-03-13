@@ -13,7 +13,7 @@ Privacy‑preserving governance & marketplace on the Aleo blockchain:
 
 ---
 
-## Project layout
+## Project layoutg
 
 - **`contracts/vote`** – Leo program `vote_privacy_8000.aleo`
   - **Features**
