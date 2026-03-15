@@ -7,6 +7,7 @@ import {
   Plus,
   X,
   Calendar,
+  Clock3,
   Image as ImageIcon,
   Vote,
   AlertCircle,
@@ -85,6 +86,16 @@ export default function CreateCampaignPage() {
 
   // Use wallet adapter + store connection state
   const walletConnected = !!(connected || isConnected || address || storeAddress);
+
+  const openNativePicker = (event: React.MouseEvent<HTMLButtonElement>, inputId: string) => {
+    event.preventDefault();
+    const input = document.getElementById(inputId) as HTMLInputElement | null;
+    if (!input) return;
+    input.focus();
+    if (typeof input.showPicker === 'function') {
+      input.showPicker();
+    }
+  };
 
   const handleInputChange = (field: keyof FormData, value: FormData[keyof FormData]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -737,25 +748,47 @@ export default function CreateCampaignPage() {
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs text-white/50 mb-1">Date</label>
-                    <input
-                      type="date"
-                      value={formData.startDate}
-                      onChange={(e) => handleInputChange('startDate', e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
-                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                    />
+                    <div className="relative">
+                      <input
+                        id="campaign-start-date"
+                        type="date"
+                        value={formData.startDate}
+                        onChange={(e) => handleInputChange('startDate', e.target.value)}
+                        min={new Date().toISOString().split('T')[0]}
+                        className="schedule-input w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-12 pr-14 text-white transition-all focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20"
+                      />
+                      <Calendar className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-300" />
+                      <button
+                        type="button"
+                        onClick={(event) => openNativePicker(event, 'campaign-start-date')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-white/70 transition hover:bg-white/12"
+                      >
+                        Pick
+                      </button>
+                    </div>
                     {errors.startDate && (
                       <p className="text-xs text-red-400 mt-1">{errors.startDate}</p>
                     )}
                   </div>
                   <div>
                     <label className="block text-xs text-white/50 mb-1">Time</label>
-                    <input
-                      type="time"
-                      value={formData.startTime}
-                      onChange={(e) => handleInputChange('startTime', e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                    />
+                    <div className="relative">
+                      <input
+                        id="campaign-start-time"
+                        type="time"
+                        value={formData.startTime}
+                        onChange={(e) => handleInputChange('startTime', e.target.value)}
+                        className="schedule-input w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-12 pr-14 text-white transition-all focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20"
+                      />
+                      <Clock3 className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-sky-300" />
+                      <button
+                        type="button"
+                        onClick={(event) => openNativePicker(event, 'campaign-start-time')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-white/70 transition hover:bg-white/12"
+                      >
+                        Pick
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -787,25 +820,47 @@ export default function CreateCampaignPage() {
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs text-white/50 mb-1">Date</label>
-                    <input
-                      type="date"
-                      value={formData.endDate}
-                      onChange={(e) => handleInputChange('endDate', e.target.value)}
-                      min={formData.startDate || new Date().toISOString().split('T')[0]}
-                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                    />
+                    <div className="relative">
+                      <input
+                        id="campaign-end-date"
+                        type="date"
+                        value={formData.endDate}
+                        onChange={(e) => handleInputChange('endDate', e.target.value)}
+                        min={formData.startDate || new Date().toISOString().split('T')[0]}
+                        className="schedule-input w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-12 pr-14 text-white transition-all focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20"
+                      />
+                      <Calendar className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-amber-300" />
+                      <button
+                        type="button"
+                        onClick={(event) => openNativePicker(event, 'campaign-end-date')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-white/70 transition hover:bg-white/12"
+                      >
+                        Pick
+                      </button>
+                    </div>
                     {errors.endDate && (
                       <p className="text-xs text-red-400 mt-1">{errors.endDate}</p>
                     )}
                   </div>
                   <div>
                     <label className="block text-xs text-white/50 mb-1">Time</label>
-                    <input
-                      type="time"
-                      value={formData.endTime}
-                      onChange={(e) => handleInputChange('endTime', e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all"
-                    />
+                    <div className="relative">
+                      <input
+                        id="campaign-end-time"
+                        type="time"
+                        value={formData.endTime}
+                        onChange={(e) => handleInputChange('endTime', e.target.value)}
+                        className="schedule-input w-full rounded-2xl border border-white/10 bg-white/5 py-3 pl-12 pr-14 text-white transition-all focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20"
+                      />
+                      <Clock3 className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-fuchsia-300" />
+                      <button
+                        type="button"
+                        onClick={(event) => openNativePicker(event, 'campaign-end-time')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-white/70 transition hover:bg-white/12"
+                      >
+                        Pick
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

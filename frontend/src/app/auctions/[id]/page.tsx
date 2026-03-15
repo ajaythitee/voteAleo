@@ -704,7 +704,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
                 <Users className="h-5 w-5" /> Creator controls
               </h2>
               <p className="mb-4 text-sm text-white/60">
-                Use the creator wallet that holds the AuctionTicket record. Shield Wallet is best for the private-record flows.
+                Use the creator wallet that holds the AuctionTicket record. Public winner selection needs a public bid ID. Private winner selection does not.
               </p>
               {!featureAvailability.auctionTransactionsReady && (
                 <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-200">
@@ -713,13 +713,14 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
               )}
 
               {!isEnded && bidCount > 0 && allowsPublicBids && (
-                <div className="mb-6">
+                <div className="mb-6 rounded-xl border border-sky-500/20 bg-sky-500/10 p-4">
+                  <p className="mb-2 text-sm font-medium text-white">Public winner flow</p>
                   <p className="mb-3 text-xs text-white/40">
                     Paste the winning public bid ID from the bidder’s BidReceipt to select the winner.
                   </p>
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <GlassInput
-                      placeholder="Winning public bid ID"
+                      placeholder="Paste public bid ID from BidReceipt"
                       value={winningBidIdInput}
                       onChange={(event) => setWinningBidIdInput(event.target.value)}
                       className="flex-1"
@@ -733,6 +734,9 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
                       {isEndingPublic ? 'Selecting…' : 'Select Public Winner'}
                     </GlassButton>
                   </div>
+                  <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-sky-200/70">
+                    Needed from bidder: public bid ID only
+                  </p>
                 </div>
               )}
 
@@ -742,9 +746,9 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
                     <div className="flex items-start gap-3">
                       <Shield className="mt-0.5 h-5 w-5 text-emerald-400" />
                       <div>
-                        <p className="text-sm font-medium text-white">Select private winner</p>
+                        <p className="text-sm font-medium text-white">Private winner flow</p>
                         <p className="mt-1 text-xs text-white/55">
-                          This flow expects the creator wallet to hold both the AuctionTicket and a PrivateBid record.
+                          No public bid ID is needed here. The creator wallet must hold the AuctionTicket and the relevant PrivateBid record.
                         </p>
                       </div>
                     </div>
@@ -756,6 +760,9 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
                     >
                       {isEndingPrivate ? 'Selecting…' : 'Select Private Winner'}
                     </GlassButton>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-200/70">
+                      No pasted bid ID needed
+                    </p>
                   </div>
                 </div>
               )}
