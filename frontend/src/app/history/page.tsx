@@ -83,8 +83,8 @@ export default function HistoryPage() {
           const idMatch = entry.id.match(/(\d+)/);
           const id = idMatch ? parseInt(idMatch[1]) : 0;
 
-          if (id > 0 && typeof entry.data === 'string') {
-            const campaignData = await parseOnChainCampaign(entry.data as string, id);
+          if (id > 0) {
+            const campaignData = await parseOnChainCampaign(entry.data, id);
             if (campaignData) {
               campaignList.push(campaignData);
 

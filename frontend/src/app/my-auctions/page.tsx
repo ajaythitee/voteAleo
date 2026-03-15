@@ -10,24 +10,17 @@ import { Badge } from '@/components/ui/Badge';
 import { SkeletonCard } from '@/components/ui/LoadingSpinner';
 import { useWalletStore } from '@/stores/walletStore';
 import { auctionService } from '@/services/auction';
+import { parseOnChainAuction, type ParsedAuction } from '@/services/auctionParser';
+import { useWalletSession } from '@/hooks/useWalletSession';
 
-type AuctionRow = { auctionId: string; index: number; data: unknown; owner: string | null };
-
-function parseAuctionData(data: unknown): { name: string; startingBid: number } {
-  if (data && typeof data === 'object' && 'starting_bid' in (data as object)) {
-    const d = data as { starting_bid?: number; name?: string };
-    return {
-      name: d.name != null ? String(d.name) : 'Untitled',
-      startingBid: Number(d.starting_bid) || 0,
-    };
-  }
-  return { name: 'Untitled', startingBid: 0 };
-}
+type AuctionRow = { auctionId: string; index: number; data: unknown; owner: string | null; parsed: ParsedAuction | null };
 
 export default function MyAuctionsPage() {
   const [list, setList] = useState<AuctionRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { isConnected, address } = useWalletStore();
+  const { isConnected } = useWalletStore();
+  const { address, connected } = useWalletSession();
+  const walletConnected = connected || isConnected;
 
   const load = async () => {
     if (!address) {
@@ -42,6 +35,7 @@ export default function MyAuctionsPage() {
         items.map(async (a) => ({
           ...a,
           owner: await auctionService.getAuctionOwner(a.auctionId),
+          parsed: await parseOnChainAuction(a.data, a.auctionId),
         }))
       );
       const mine = withOwners.filter((a) => a.owner && a.owner.toLowerCase() === address.toLowerCase());
@@ -58,7 +52,7 @@ export default function MyAuctionsPage() {
     load();
   }, [address]);
 
-  if (!isConnected) {
+  if (!walletConnected) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4">
         <GlassCard className="p-8 max-w-md text-center">
@@ -112,7 +106,8 @@ export default function MyAuctionsPage() {
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {list.map((a, i) => {
-                const { name, startingBid } = parseAuctionData(a.data);
+                const name = a.parsed?.name ?? 'Untitled';
+                const startingBid = a.parsed?.startingBid ?? 0;
                 return (
                   <Link key={a.auctionId} href={`/auctions/${encodeURIComponent(a.auctionId)}`}>
                     <motion.div

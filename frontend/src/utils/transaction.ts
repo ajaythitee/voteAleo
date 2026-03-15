@@ -19,10 +19,18 @@ export interface TransactionResult {
   error?: string;
 }
 
+export interface TransactionStatusCheckResult {
+  status: string;
+  error?: string;
+}
+
 export async function createTransaction(
   params: TransactionParams,
   executeTransaction: (options: TransactionOptions) => Promise<{ transactionId: string } | undefined>,
-  walletName?: string
+  walletName?: string,
+  options?: {
+    recoverConnection?: () => Promise<unknown>;
+  }
 ): Promise<TransactionResult> {
   const programId = params.programId;
 
@@ -66,6 +74,39 @@ export async function createTransaction(
     // Handle specific error cases
     let errorMessage = error.message || 'Transaction failed';
 
+    if (
+      options?.recoverConnection &&
+      (errorMessage.includes('Receiving end does not exist') ||
+        errorMessage.includes('Could not establish connection') ||
+        errorMessage.includes('Wallet not connected'))
+    ) {
+      try {
+        await options.recoverConnection();
+        await new Promise((resolve) => setTimeout(resolve, 400));
+
+        const retryResponse = await executeTransaction({
+          program: params.programId,
+          function: params.functionId,
+          inputs: params.inputs ?? [],
+          fee: params.fee,
+          recordIndices: params.recordIndices,
+          privateFee: params.privateFee,
+        });
+
+        const retryTxId =
+          retryResponse?.transactionId ||
+          (typeof retryResponse === 'string' ? retryResponse : undefined);
+
+        if (retryTxId) {
+          return { success: true, transactionId: retryTxId };
+        }
+
+        return { success: true };
+      } catch (recoveryError: any) {
+        errorMessage = recoveryError?.message || errorMessage;
+      }
+    }
+
     if (errorMessage.includes('User rejected') || errorMessage.includes('rejected')) {
       errorMessage =
         'Transaction was rejected. This could be due to insufficient balance, network issues, or contract validation failure.';
@@ -82,10 +123,48 @@ export async function createTransaction(
       errorMessage = 'Network timeout. Please check your connection and try again.';
     } else if (errorMessage.includes('is not a function')) {
       errorMessage = 'This wallet action is not available in the current session. Reconnect your wallet and try again.';
+    } else if (
+      errorMessage.includes('Receiving end does not exist') ||
+      errorMessage.includes('Could not establish connection')
+    ) {
+      errorMessage =
+        'The wallet extension connection went stale. Re-open Shield, approve the reconnect request, and try again.';
     }
 
     return { success: false, error: errorMessage };
   }
+}
+
+export async function awaitTransactionConfirmation(
+  transactionId: string | undefined,
+  checkStatus: (transactionId: string) => Promise<TransactionStatusCheckResult | null>,
+  opts?: { attempts?: number; delayMs?: number }
+): Promise<{ confirmed: boolean; status: string; error?: string }> {
+  if (!transactionId) {
+    return { confirmed: false, status: 'submitted' };
+  }
+
+  const attempts = opts?.attempts ?? 6;
+  const delayMs = opts?.delayMs ?? 2500;
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const result = await checkStatus(transactionId);
+    const status = result?.status?.toLowerCase() ?? 'pending';
+
+    if (status === 'accepted' || status === 'confirmed' || status === 'completed' || status === 'success') {
+      return { confirmed: true, status };
+    }
+
+    if (status === 'rejected' || status === 'failed' || status === 'aborted') {
+      return { confirmed: false, status, error: result?.error };
+    }
+
+    if (attempt < attempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  return { confirmed: false, status: 'pending' };
 }
 
 export function buildCreateCampaignParams(inputs: string[]): TransactionParams {

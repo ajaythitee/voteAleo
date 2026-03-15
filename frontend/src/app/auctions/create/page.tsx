@@ -7,13 +7,17 @@ import { Gavel, ArrowLeft, Loader2, AlertCircle, Upload, X, CheckCircle } from '
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassInput, GlassTextarea } from '@/components/ui/GlassInput';
+import { TransactionStatusCard } from '@/components/transactions/TransactionStatusCard';
 import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { aleoService } from '@/services/aleo';
 import { pinataService } from '@/services/pinata';
-import { createTransaction, buildCreatePublicAuctionParams } from '@/utils/transaction';
+import { createTransaction, buildCreatePublicAuctionParams, awaitTransactionConfirmation } from '@/utils/transaction';
 import { Stepper } from '@/components/layout';
 import { useWalletSession } from '@/hooks/useWalletSession';
+import { useTransactionLifecycle } from '@/hooks/useTransactionLifecycle';
+import { getFeatureAvailability, requireFeatureEnv } from '@/lib/env';
+import { getPrivateAuctionWalletWarning, getWalletCapabilities } from '@/lib/walletCapabilities';
 
 export default function CreateAuctionPage() {
   const router = useRouter();
@@ -40,13 +44,17 @@ export default function CreateAuctionPage() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const transaction = useTransactionLifecycle();
 
-  const { address, executeTransaction, wallet, connected, walletName } = useWalletSession();
+  const { address, executeTransaction, wallet, connected, walletName, walletType, connect } = useWalletSession();
   const { isConnected, address: storeAddress } = useWalletStore();
   const { success, error: showError } = useToastStore();
   const walletConnected = !!(connected || isConnected || address || storeAddress);
+  const featureAvailability = getFeatureAvailability();
+  const walletCapabilities = getWalletCapabilities(walletType);
+  const privateWalletWarning = getPrivateAuctionWalletWarning(walletType);
 
-  const handleInputChange = (field: keyof typeof formData, value: any) => {
+  const handleInputChange = (field: keyof typeof formData, value: (typeof formData)[keyof typeof formData]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field as string]) setErrors((p) => ({ ...p, [field as string]: '' }));
   };
@@ -126,17 +134,22 @@ export default function CreateAuctionPage() {
       showError('Wallet required', 'Connect a wallet to create an auction.');
       return;
     }
+    if (formData.bidType !== '1' && privateWalletWarning) {
+      showError('Shield recommended', privateWalletWarning);
+      return;
+    }
 
     setIsSubmitting(true);
+    transaction.setPreparing('Preparing auction transaction', 'Uploading metadata and validating the auction privacy configuration.');
     try {
+      requireFeatureEnv('auctions', 'Auction creation is not configured. Add NEXT_PUBLIC_AUCTION_PROGRAM_ID before deploying.');
+      requireFeatureEnv('pinata', 'Auction metadata uploads are disabled because NEXT_PUBLIC_PINATA_JWT is missing.');
+
       // Upload image + metadata to IPFS
       let imageCid = '';
       if (formData.image) {
         const imageResult = await pinataService.uploadFile(formData.image);
         imageCid = imageResult.cid;
-      }
-      if (!process.env.NEXT_PUBLIC_AUCTION_PROGRAM_ID) {
-        throw new Error('Auction program ID is not configured. Set NEXT_PUBLIC_AUCTION_PROGRAM_ID in your environment.');
       }
 
       const metadata = {
@@ -173,8 +186,29 @@ export default function CreateAuctionPage() {
         formData.revealCreator ? 'true' : 'false',
       ];
       const params = buildCreatePublicAuctionParams(inputs);
-      const result = await createTransaction(params, executeTransaction, walletName);
+      const result = await createTransaction(params, executeTransaction, walletName, {
+        recoverConnection: connect,
+      });
       if (result.success) {
+        transaction.setSubmitted(
+          'Auction submitted',
+          'Your wallet accepted the auction transaction. Waiting for the auction mapping to become visible on-chain.',
+          result.transactionId
+        );
+        const confirmation = await awaitTransactionConfirmation(result.transactionId, aleoService.checkTransactionStatus.bind(aleoService));
+        if (confirmation.confirmed) {
+          transaction.setConfirmed(
+            'Auction confirmed',
+            'The auction transaction has been confirmed on-chain and should appear shortly.',
+            result.transactionId
+          );
+        } else {
+          transaction.setAwaiting(
+            'Auction awaiting confirmation',
+            'The transaction was submitted successfully. Indexers can take a moment to surface the new auction.',
+            result.transactionId
+          );
+        }
         success(
           'Auction submitted',
           result.transactionId
@@ -183,10 +217,13 @@ export default function CreateAuctionPage() {
         );
         router.push('/auctions');
       } else {
+        transaction.setFailed('Auction creation failed', result.error ?? 'Unknown error', result.transactionId);
         showError('Create failed', result.error ?? 'Unknown error');
       }
     } catch (e: unknown) {
-      showError('Create failed', e instanceof Error ? e.message : 'Unknown error');
+      const message = e instanceof Error ? e.message : 'Unknown error';
+      transaction.setFailed('Auction creation failed', message);
+      showError('Create failed', message);
     } finally {
       setIsSubmitting(false);
     }
@@ -230,6 +267,34 @@ export default function CreateAuctionPage() {
             Configure the item, starting bid, and privacy mode for your first-price sealed-bid auction on Aleo, with private-record flows covered for Shield users.
           </p>
         </div>
+
+        <div className="mb-6 grid gap-4 lg:grid-cols-[1.2fr,0.8fr]">
+          <GlassCard className="border-white/10 bg-white/5 p-4">
+            <div className="mb-1 flex items-center gap-2 text-sm font-medium text-white">
+              <CheckCircle className="h-4 w-4 text-emerald-300" />
+              Wallet capability
+            </div>
+            <p className="text-sm text-white/65">
+              {walletName ? `${walletName}: ${walletCapabilities.summary}` : 'All supported wallets can connect, but Shield is the safe choice for private or mixed auctions.'}
+            </p>
+          </GlassCard>
+          <GlassCard className="border-white/10 bg-white/5 p-4">
+            <div className="mb-1 flex items-center gap-2 text-sm font-medium text-white">
+              <AlertCircle className="h-4 w-4 text-amber-300" />
+              Deployment readiness
+            </div>
+            <p className="text-sm text-white/65">
+              {featureAvailability.auctionTransactionsReady && featureAvailability.pinataReady
+                ? `Auction program, metadata uploads, and ${featureAvailability.network} network settings are configured.`
+                : 'Auction creation needs environment setup before it is safe to deploy.'}
+            </p>
+          </GlassCard>
+        </div>
+
+        <TransactionStatusCard
+          state={transaction.state}
+          explorerUrl={transaction.state.transactionId ? aleoService.getExplorerUrl(transaction.state.transactionId) : undefined}
+        />
 
         <Stepper
           steps={[

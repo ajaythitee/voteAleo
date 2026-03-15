@@ -23,6 +23,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { Modal } from '@/components/ui/Modal';
 import { PageLoader } from '@/components/ui/LoadingSpinner';
+import { TransactionStatusCard } from '@/components/transactions/TransactionStatusCard';
 import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { aleoService } from '@/services/aleo';
@@ -32,6 +33,9 @@ import { createTransaction, getProgramId, buildVoteParams } from '@/utils/transa
 import { Campaign, VotingOption } from '@/types';
 import { format, formatDistanceToNow, isPast, isFuture } from 'date-fns';
 import { useWalletSession } from '@/hooks/useWalletSession';
+import { useTransactionLifecycle } from '@/hooks/useTransactionLifecycle';
+import { getFeatureAvailability } from '@/lib/env';
+import { getWalletCapabilities } from '@/lib/walletCapabilities';
 
 export default function CampaignDetailPage() {
   const params = useParams();
@@ -49,10 +53,13 @@ export default function CampaignDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [lastVoteProof, setLastVoteProof] = useState<{ transactionId?: string; eventId?: string; address?: string } | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const transaction = useTransactionLifecycle();
 
-  const { address, executeTransaction, wallet, connected } = useWalletSession();
+  const { address, executeTransaction, wallet, connected, walletType, connect } = useWalletSession();
   const { isConnected } = useWalletStore();
   const { success, error: showError } = useToastStore();
+  const featureAvailability = getFeatureAvailability();
+  const walletCapabilities = getWalletCapabilities(walletType);
 
   // Use wallet adapter connection state
   const walletConnected = connected || isConnected;
@@ -359,6 +366,7 @@ export default function CampaignDetailPage() {
     setShowConfirmModal(false);
     setIsVoting(true);
     setError(null);
+    transaction.setPreparing('Preparing vote transaction', 'Checking eligibility and sending your anonymous vote request to the connected wallet.');
 
     try {
       // Get campaign ID - prefer onChainId, fallback to parsing id or URL param
@@ -443,11 +451,19 @@ export default function CampaignDetailPage() {
       // Store previous vote count for verification
       const previousTotalVotes = campaign.totalVotes;
       
-      const result = await createTransaction(params, executeTransaction, walletName);
+      const result = await createTransaction(params, executeTransaction, walletName, {
+        recoverConnection: connect,
+      });
 
       if (!result.success) {
         throw new Error(result.error || 'Transaction failed');
       }
+
+      transaction.setSubmitted(
+        'Vote submitted',
+        'Your wallet accepted the vote transaction. We are now waiting for the campaign state to reflect it on-chain.',
+        result.transactionId
+      );
 
       // Verify vote was registered by polling for vote count increase
       // Reuse addressHash from pre-flight check or calculate it
@@ -516,6 +532,11 @@ export default function CampaignDetailPage() {
       );
 
       if (!verification.verified) {
+        transaction.setAwaiting(
+          'Vote awaiting confirmation',
+          'The transaction was submitted successfully. Aleo indexers may take a little time before the vote count updates.',
+          result.transactionId
+        );
         // Transaction was submitted but not yet finalized - this is normal for async transactions
         // Show success message but note that verification is pending
         if (verification.error?.includes('timeout') || verification.error?.includes('did not increase')) {
@@ -537,6 +558,11 @@ export default function CampaignDetailPage() {
           );
         }
       } else {
+        transaction.setConfirmed(
+          'Vote confirmed',
+          `Your vote was confirmed on-chain. Total votes are now ${verification.newTotalVotes}.`,
+          result.transactionId
+        );
         success('Vote Cast!', `Your anonymous vote has been recorded and verified. Total votes: ${verification.newTotalVotes}`);
       }
 
@@ -606,8 +632,9 @@ export default function CampaignDetailPage() {
           setCampaign(updatedCampaign);
         }
       }
-    } catch (err: any) {
-      const errorMessage = err.message || 'Transaction failed';
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Transaction failed';
+      transaction.setFailed('Vote failed', errorMessage);
       
       // Provide more specific error messages
       if (errorMessage.includes('rejected')) {
@@ -832,6 +859,30 @@ export default function CampaignDetailPage() {
               <h2 className="text-lg font-semibold text-white mb-6">
                 {status === 'ended' ? 'Final Results' : 'Cast Your Vote'}
               </h2>
+
+              <div className="mb-6 grid gap-3 md:grid-cols-2">
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <p className="mb-1 text-sm font-medium text-white">Wallet compatibility</p>
+                  <p className="text-sm text-white/65">
+                    {wallet?.adapter?.name ? `${wallet.adapter.name}: ${walletCapabilities.summary}` : 'Any supported wallet can vote. Shield is optional for campaigns because no private record selection is required.'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <p className="mb-1 text-sm font-medium text-white">Network status</p>
+                  <p className="text-sm text-white/65">
+                    {featureAvailability.campaignTransactionsReady
+                      ? `Voting program is configured on ${featureAvailability.network}. Transaction finality can lag behind wallet submission for a short time.`
+                      : 'Voting transactions are not configured correctly for this deployment.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <TransactionStatusCard
+                  state={transaction.state}
+                  explorerUrl={transaction.state.transactionId ? aleoService.getExplorerUrl(transaction.state.transactionId) : undefined}
+                />
+              </div>
 
               {isCheckingVote ? (
                 <div className="text-center py-8">

@@ -19,6 +19,7 @@ import { motion } from 'framer-motion';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassInput } from '@/components/ui/GlassInput';
+import { TransactionStatusCard } from '@/components/transactions/TransactionStatusCard';
 import { useToastStore } from '@/stores/toastStore';
 import { useWalletStore } from '@/stores/walletStore';
 import { auctionService } from '@/services/auction';
@@ -33,6 +34,9 @@ import {
   createTransaction,
 } from '@/utils/transaction';
 import { useWalletSession } from '@/hooks/useWalletSession';
+import { useTransactionLifecycle } from '@/hooks/useTransactionLifecycle';
+import { getFeatureAvailability } from '@/lib/env';
+import { getPrivateAuctionWalletWarning, getWalletCapabilities } from '@/lib/walletCapabilities';
 
 type AuctionPrivacySettings = {
   auctionPrivacy: number;
@@ -61,12 +65,16 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
   const [isEndingPublic, setIsEndingPublic] = useState(false);
   const [isEndingPrivate, setIsEndingPrivate] = useState(false);
   const [isRedeeming, setIsRedeeming] = useState(false);
+  const transaction = useTransactionLifecycle();
 
-  const { address, executeTransaction, wallet, connected, walletName } = useWalletSession();
+  const { address, executeTransaction, wallet, connected, walletName, walletType, connect } = useWalletSession();
   const { isConnected, address: storedAddress } = useWalletStore();
   const { success, error: showError } = useToastStore();
   const walletConnected = !!(connected || isConnected || address);
   const isCreator = !!(address && owner && address.toLowerCase() === owner.toLowerCase());
+  const featureAvailability = getFeatureAvailability();
+  const walletCapabilities = getWalletCapabilities(walletType);
+  const privateWalletWarning = getPrivateAuctionWalletWarning(walletType);
 
   useEffect(() => {
     let cancelled = false;
@@ -216,14 +224,23 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     }
 
     setIsPublicBidding(true);
+    transaction.setPreparing('Preparing public bid', 'Sending your public bid request to the connected wallet.');
     try {
       const nonce = Math.floor(Math.random() * 1e12) + 1;
       const params = buildBidPublicParams([`${amount}u64`, auctionId, `${nonce}scalar`, 'true']);
-      const result = await createTransaction(params, executeTransaction, walletName);
+      const result = await createTransaction(params, executeTransaction, walletName, {
+        recoverConnection: connect,
+      });
 
       if (!result.success) {
         throw new Error(result.error || 'Public bid failed');
       }
+
+      transaction.setAwaiting(
+        'Public bid submitted',
+        'The bid was submitted. Public bid counts may take a moment to update on-chain.',
+        result.transactionId
+      );
 
       success('Public bid placed', 'Your wallet should now hold a BidReceipt record for this bid.');
       setPublicBidAmount('');
@@ -248,6 +265,10 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
       showError('Auction ended', 'This auction has already ended.');
       return;
     }
+    if (privateWalletWarning) {
+      showError('Shield required for private flow', privateWalletWarning);
+      return;
+    }
 
     const amount = Math.floor(Number(privateBidAmount));
     if (!Number.isFinite(amount) || amount < minBid) {
@@ -256,6 +277,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     }
 
     setIsPrivateBidding(true);
+    transaction.setPreparing('Preparing private bid', 'Checking the private-record requirements before opening the wallet approval flow.');
     try {
       const nonce = Math.floor(Math.random() * 1e12) + 1;
       const params = buildBidPrivateParams([
@@ -265,11 +287,19 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
         auctionPublicKey,
         `${nonce}scalar`,
       ]);
-      const result = await createTransaction(params, executeTransaction, walletName);
+      const result = await createTransaction(params, executeTransaction, walletName, {
+        recoverConnection: connect,
+      });
 
       if (!result.success) {
         throw new Error(result.error || 'Private bid failed');
       }
+
+      transaction.setAwaiting(
+        'Private bid submitted',
+        'The private bid was submitted. Keep the resulting BidReceipt record in the same wallet for redemption later.',
+        result.transactionId
+      );
 
       success(
         'Private bid placed',
@@ -307,14 +337,23 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     }
 
     setIsEndingPublic(true);
+    transaction.setPreparing('Preparing public winner selection', 'Validating the winning public bid before requesting creator approval.');
     try {
       const winningBidStruct = `{ amount: ${publicBid.amount}u64, auction_id: ${auctionId}, bid_public_key: ${publicBid.bid_public_key} }`;
       const params = buildSelectWinnerParams([winningBidStruct, bidId.endsWith('field') ? bidId : `${bidId}field`]);
-      const result = await createTransaction(params, executeTransaction, walletName);
+      const result = await createTransaction(params, executeTransaction, walletName, {
+        recoverConnection: connect,
+      });
 
       if (!result.success) {
         throw new Error(result.error || 'Winner selection failed');
       }
+
+      transaction.setAwaiting(
+        'Public winner selection submitted',
+        'The winner selection is in flight. The auction state will refresh once the chain mapping updates.',
+        result.transactionId
+      );
 
       success('Public winner selected', 'Your wallet should prompt for the AuctionTicket record.');
       await refreshAuctionState();
@@ -330,15 +369,28 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
       showError('Wallet required', 'Connect the creator wallet to select the private winner.');
       return;
     }
+    if (privateWalletWarning) {
+      showError('Shield required for private flow', privateWalletWarning);
+      return;
+    }
 
     setIsEndingPrivate(true);
+    transaction.setPreparing('Preparing private winner selection', 'Private winner selection requires the creator wallet to supply auction records.');
     try {
       const params = buildSelectWinnerPrivateParams();
-      const result = await createTransaction(params, executeTransaction, walletName);
+      const result = await createTransaction(params, executeTransaction, walletName, {
+        recoverConnection: connect,
+      });
 
       if (!result.success) {
         throw new Error(result.error || 'Private winner selection failed');
       }
+
+      transaction.setAwaiting(
+        'Private winner selection submitted',
+        'The request was submitted. Use the same wallet that holds the AuctionTicket and PrivateBid records.',
+        result.transactionId
+      );
 
       success(
         'Private winner selected',
@@ -357,19 +409,33 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
       showError('Wallet required', 'Connect the winning wallet to redeem this bid.');
       return;
     }
+    if (privateWalletWarning) {
+      showError('Shield required for record redemption', privateWalletWarning);
+      return;
+    }
 
     setIsRedeeming(true);
+    transaction.setPreparing('Preparing redemption', 'Opening the wallet flow so the winning BidReceipt record can be selected.');
     try {
       const params = buildRedeemBidPublicParams([owner]);
-      const result = await createTransaction(params, executeTransaction, walletName);
+      const result = await createTransaction(params, executeTransaction, walletName, {
+        recoverConnection: connect,
+      });
 
       if (!result.success) {
         throw new Error(result.error || 'Redeem failed');
       }
 
+      transaction.setAwaiting(
+        'Redemption submitted',
+        'The redeem request was submitted. Settlement status will change once the redemption mapping updates.',
+        result.transactionId
+      );
+
       success('Redeem submitted', 'Your wallet should prompt you to choose the winning BidReceipt record.');
       await refreshAuctionState();
     } catch (error) {
+      transaction.setFailed('Auction action failed', error instanceof Error ? error.message : 'Unknown error');
       showError('Redeem failed', error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setIsRedeeming(false);
@@ -466,8 +532,32 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
                   <dd className="text-lg text-emerald-400">{highestBid || 0} credits</dd>
                 </div>
               </dl>
+
+              <div className="mt-6 grid gap-3 lg:grid-cols-2">
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <p className="mb-1 text-sm font-medium text-white">Wallet capability</p>
+                  <p className="text-sm text-white/65">
+                    {walletName
+                      ? `${walletName}: ${walletCapabilities.summary}`
+                      : 'All supported wallets can browse and use public bids. Shield is the safe choice for private or mixed auction records.'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                  <p className="mb-1 text-sm font-medium text-white">On-chain indexing</p>
+                  <p className="text-sm text-white/65">
+                    Public counts and highest bid come from chain mappings. Individual public bid history is not fully indexed here yet, so creators still paste the winning bid ID manually.
+                  </p>
+                </div>
+              </div>
             </div>
           </GlassCard>
+
+          <div className="mb-8">
+            <TransactionStatusCard
+              state={transaction.state}
+              explorerUrl={transaction.state.transactionId ? auctionService.getExplorerUrl() : undefined}
+            />
+          </div>
 
           {isCreator && (
             <GlassCard className="mb-8 p-8">
@@ -477,6 +567,11 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
               <p className="mb-4 text-sm text-white/60">
                 Use the creator wallet that holds the AuctionTicket record. Shield Wallet is best for the private-record flows.
               </p>
+              {!featureAvailability.auctionTransactionsReady && (
+                <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-200">
+                  Auction transactions are not fully configured for this deployment. Set the auction program environment variables before shipping to production.
+                </div>
+              )}
 
               {!isEnded && bidCount > 0 && allowsPublicBids && (
                 <div className="mb-6">

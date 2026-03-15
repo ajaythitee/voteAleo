@@ -16,13 +16,17 @@ import {
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassInput, GlassTextarea } from '@/components/ui/GlassInput';
+import { TransactionStatusCard } from '@/components/transactions/TransactionStatusCard';
 import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { pinataService } from '@/services/pinata';
 import { aleoService } from '@/services/aleo';
-import { createTransaction, buildCreateCampaignParams } from '@/utils/transaction';
+import { createTransaction, buildCreateCampaignParams, awaitTransactionConfirmation } from '@/utils/transaction';
 import { Stepper } from '@/components/layout';
 import { useWalletSession } from '@/hooks/useWalletSession';
+import { useTransactionLifecycle } from '@/hooks/useTransactionLifecycle';
+import { getFeatureAvailability, requireFeatureEnv } from '@/lib/env';
+import { getWalletCapabilities } from '@/lib/walletCapabilities';
 
 const CAMPAIGN_CATEGORIES = ['governance', 'community', 'poll', 'dao', 'other'] as const;
 
@@ -62,16 +66,19 @@ export default function CreateCampaignPage() {
   const [isImproving, setIsImproving] = useState(false);
   const [isSuggestingOptions, setIsSuggestingOptions] = useState(false);
   const [step, setStep] = useState(1);
+  const transaction = useTransactionLifecycle();
 
   // Get wallet info including wallet adapter name
-  const { address, executeTransaction, wallet, connected, walletName } = useWalletSession();
+  const { address, executeTransaction, wallet, connected, walletName, walletType, connect } = useWalletSession();
   const { isConnected, address: storeAddress } = useWalletStore();
   const { success, error: showError } = useToastStore();
+  const featureAvailability = getFeatureAvailability();
+  const walletCapabilities = getWalletCapabilities(walletType);
 
   // Use wallet adapter + store connection state
   const walletConnected = !!(connected || isConnected || address || storeAddress);
 
-  const handleInputChange = (field: keyof FormData, value: any) => {
+  const handleInputChange = (field: keyof FormData, value: FormData[keyof FormData]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: '' }));
@@ -125,8 +132,8 @@ export default function CreateCampaignPage() {
       } else {
         throw new Error('AI returned empty response');
       }
-    } catch (e: any) {
-      showError('AI suggestion failed', e?.message || 'Could not improve text');
+    } catch (e: unknown) {
+      showError('AI suggestion failed', e instanceof Error ? e.message : 'Could not improve text');
     } finally {
       setIsImproving(false);
     }
@@ -177,8 +184,8 @@ export default function CreateCampaignPage() {
         console.error('AI returned invalid options:', data.options);
         showError('Invalid suggestions', `AI did not return valid options (got ${data.options?.length || 0}, need at least 2).`);
       }
-    } catch (e: any) {
-      showError('AI suggestion failed', e?.message || 'Could not suggest options');
+    } catch (e: unknown) {
+      showError('AI suggestion failed', e instanceof Error ? e.message : 'Could not suggest options');
     } finally {
       setIsSuggestingOptions(false);
     }
@@ -258,11 +265,11 @@ export default function CreateCampaignPage() {
     }
 
     setIsSubmitting(true);
+    transaction.setPreparing('Preparing campaign transaction', 'Uploading metadata and validating your campaign configuration.');
 
     try {
-      if (!process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID) {
-        throw new Error('Voting program ID is not configured. Set NEXT_PUBLIC_VOTING_PROGRAM_ID in your environment.');
-      }
+      requireFeatureEnv('campaigns', 'Campaign creation is not configured. Add NEXT_PUBLIC_VOTING_PROGRAM_ID before deploying.');
+      requireFeatureEnv('pinata', 'Campaign metadata uploads are disabled because NEXT_PUBLIC_PINATA_JWT is missing.');
 
       // Upload image to IPFS if provided
       let imageCid = '';
@@ -300,10 +307,34 @@ export default function CreateCampaignPage() {
 
       const inputs = [part1, part2, `${startTime}u64`, `${endTime}u64`, `${validOptions.length}u8`];
       const params = buildCreateCampaignParams(inputs);
-      const result = await createTransaction(params, executeTransaction, walletName);
+      const result = await createTransaction(params, executeTransaction, walletName, {
+        recoverConnection: connect,
+      });
 
       if (!result.success) {
         throw new Error(result.error || 'Transaction failed');
+      }
+
+      transaction.setSubmitted(
+        'Campaign submitted',
+        'Your wallet accepted the transaction. We are waiting for the network indexer to catch up.',
+        result.transactionId
+      );
+
+      const confirmation = await awaitTransactionConfirmation(result.transactionId, aleoService.checkTransactionStatus.bind(aleoService));
+
+      if (confirmation.confirmed) {
+        transaction.setConfirmed(
+          'Campaign confirmed',
+          'The campaign transaction has been confirmed on-chain and should appear in the listing shortly.',
+          result.transactionId
+        );
+      } else {
+        transaction.setAwaiting(
+          'Campaign awaiting confirmation',
+          'The transaction was submitted successfully. If the explorer is still catching up, the campaign may take a little longer to appear.',
+          result.transactionId
+        );
       }
 
       success(
@@ -313,9 +344,11 @@ export default function CreateCampaignPage() {
           : 'Your campaign transaction was submitted successfully.'
       );
       router.push('/campaigns');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Create campaign error:', err);
-      showError('Failed to create campaign', err.message || 'Transaction failed');
+      const message = err instanceof Error ? err.message : 'Transaction failed';
+      transaction.setFailed('Campaign creation failed', message);
+      showError('Failed to create campaign', message);
     } finally {
       setIsSubmitting(false);
     }
@@ -335,6 +368,36 @@ export default function CreateCampaignPage() {
             Shape the message, options, and timeline in one flow. Every supported wallet can submit, and Shield users get a smoother privacy-first experience.
           </p>
         </div>
+
+        <div className="mb-6 grid gap-4 lg:grid-cols-[1.2fr,0.8fr]">
+          <GlassCard className="border-white/10 bg-white/5 p-4">
+            <div className="mb-1 flex items-center gap-2 text-sm font-medium text-white">
+              <CheckCircle className="h-4 w-4 text-emerald-300" />
+              Wallet compatibility
+            </div>
+            <p className="text-sm text-white/65">
+              {walletName
+                ? `${walletName}: ${walletCapabilities.summary}`
+                : 'Campaign creation works with all supported wallets. Shield is optional here, not required.'}
+            </p>
+          </GlassCard>
+          <GlassCard className="border-white/10 bg-white/5 p-4">
+            <div className="mb-1 flex items-center gap-2 text-sm font-medium text-white">
+              <AlertCircle className="h-4 w-4 text-amber-300" />
+              Deployment readiness
+            </div>
+            <p className="text-sm text-white/65">
+              {featureAvailability.campaignTransactionsReady && featureAvailability.pinataReady
+                ? `Campaign program, metadata uploads, and ${featureAvailability.network} network settings are configured.`
+                : 'Campaign creation needs environment setup before it is safe to deploy.'}
+            </p>
+          </GlassCard>
+        </div>
+
+        <TransactionStatusCard
+          state={transaction.state}
+          explorerUrl={transaction.state.transactionId ? aleoService.getExplorerUrl(transaction.state.transactionId) : undefined}
+        />
 
         <Stepper
           steps={[
