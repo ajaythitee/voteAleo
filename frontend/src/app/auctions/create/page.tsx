@@ -47,7 +47,7 @@ export default function CreateAuctionPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const transaction = useTransactionLifecycle();
 
-  const { address, executeTransaction, wallet, connected, walletName, walletType, connect } = useWalletSession();
+  const { address, executeTransaction, wallet, connected, walletName, walletType, connect, transactionStatus } = useWalletSession();
   const { isConnected, address: storeAddress } = useWalletStore();
   const { success, error: showError, info } = useToastStore();
   const walletConnected = !!(connected || isConnected || address || storeAddress);
@@ -150,6 +150,35 @@ export default function CreateAuctionPage() {
     return false;
   };
 
+  const checkWalletAwareStatus = async (transactionId: string) => {
+    if (transactionStatus) {
+      try {
+        const result = await transactionStatus(transactionId);
+        if (typeof result === 'string') {
+          return { status: result, transactionId };
+        }
+
+        if (result && typeof result === 'object') {
+          const statusValue =
+            'status' in result && typeof result.status === 'string'
+              ? result.status
+              : 'pending';
+          const resolvedTransactionId =
+            'transactionId' in result && typeof result.transactionId === 'string'
+              ? result.transactionId
+              : transactionId;
+
+          return { status: statusValue, transactionId: resolvedTransactionId };
+        }
+      } catch (error) {
+        console.warn('Wallet transactionStatus failed, falling back to RPC:', error);
+      }
+    }
+
+    const fallback = await aleoService.checkTransactionStatus(transactionId);
+    return fallback ? { ...fallback, transactionId } : null;
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) return;
     if (!walletConnected || !walletName) {
@@ -218,25 +247,29 @@ export default function CreateAuctionPage() {
           'Your wallet accepted the auction transaction. Waiting for the auction mapping to become visible on-chain.',
           result.transactionId
         );
-        const confirmation = await awaitTransactionConfirmation(result.transactionId, aleoService.checkTransactionStatus.bind(aleoService));
+        const confirmation = await awaitTransactionConfirmation(result.transactionId, checkWalletAwareStatus, {
+          attempts: 20,
+          delayMs: 3000,
+        });
         const isTemporaryId = isTemporaryWalletTransactionId(result.transactionId);
+        const resolvedTransactionId = confirmation.transactionId ?? result.transactionId;
         if (confirmation.confirmed) {
           transaction.setConfirmed(
             'Auction confirmed',
             'The auction transaction has been confirmed on-chain and should appear shortly.',
-            result.transactionId
+            resolvedTransactionId
           );
         } else {
           transaction.setAwaiting(
             'Auction awaiting confirmation',
             'The transaction was submitted successfully. Indexers can take a moment to surface the new auction.',
-            result.transactionId
+            resolvedTransactionId
           );
         }
         transaction.setAwaiting(
           'Refreshing auction listings',
           'Waiting for the new auction to appear before refreshing the auction pages.',
-          result.transactionId
+          resolvedTransactionId
         );
         const becameVisible = await waitForAuctionVisibility(previousAuctionCount);
         if (!becameVisible) {
@@ -245,7 +278,7 @@ export default function CreateAuctionPage() {
             isTemporaryId
               ? 'Shield accepted the request, but the auction is not visible on-chain yet. Please wait and refresh before assuming it was created.'
               : 'The wallet accepted the request, but the auction is not visible on-chain yet. Please wait and refresh before assuming it was created.',
-            result.transactionId
+            resolvedTransactionId
           );
           info(
             'Auction pending',
@@ -260,7 +293,7 @@ export default function CreateAuctionPage() {
         transaction.setConfirmed(
           'Auction ready',
           'The auction is visible on-chain and the listings have been refreshed.',
-          result.transactionId
+          resolvedTransactionId
         );
         success('Auction created', 'Your auction is now visible on-chain.');
       } else {

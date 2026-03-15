@@ -69,7 +69,7 @@ export default function CreateCampaignPage() {
   const transaction = useTransactionLifecycle();
 
   // Get wallet info including wallet adapter name
-  const { address, executeTransaction, wallet, connected, walletName, walletType, connect } = useWalletSession();
+  const { address, executeTransaction, wallet, connected, walletName, walletType, connect, transactionStatus } = useWalletSession();
   const { isConnected, address: storeAddress } = useWalletStore();
   const { success, error: showError, info } = useToastStore();
   const featureAvailability = getFeatureAvailability();
@@ -292,6 +292,35 @@ export default function CreateCampaignPage() {
     return false;
   };
 
+  const checkWalletAwareStatus = async (transactionId: string) => {
+    if (transactionStatus) {
+      try {
+        const result = await transactionStatus(transactionId);
+        if (typeof result === 'string') {
+          return { status: result, transactionId };
+        }
+
+        if (result && typeof result === 'object') {
+          const statusValue =
+            'status' in result && typeof result.status === 'string'
+              ? result.status
+              : 'pending';
+          const resolvedTransactionId =
+            'transactionId' in result && typeof result.transactionId === 'string'
+              ? result.transactionId
+              : transactionId;
+
+          return { status: statusValue, transactionId: resolvedTransactionId };
+        }
+      } catch (error) {
+        console.warn('Wallet transactionStatus failed, falling back to RPC:', error);
+      }
+    }
+
+    const fallback = await aleoService.checkTransactionStatus(transactionId);
+    return fallback ? { ...fallback, transactionId } : null;
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) {
       return;
@@ -360,27 +389,31 @@ export default function CreateCampaignPage() {
         result.transactionId
       );
 
-      const confirmation = await awaitTransactionConfirmation(result.transactionId, aleoService.checkTransactionStatus.bind(aleoService));
+      const confirmation = await awaitTransactionConfirmation(result.transactionId, checkWalletAwareStatus, {
+        attempts: 20,
+        delayMs: 3000,
+      });
       const isTemporaryId = isTemporaryWalletTransactionId(result.transactionId);
+      const resolvedTransactionId = confirmation.transactionId ?? result.transactionId;
 
       if (confirmation.confirmed) {
         transaction.setConfirmed(
           'Campaign confirmed',
           'The campaign transaction has been confirmed on-chain and should appear in the listing shortly.',
-          result.transactionId
+          resolvedTransactionId
         );
       } else {
         transaction.setAwaiting(
           'Campaign awaiting confirmation',
           'The transaction was submitted successfully. If the explorer is still catching up, the campaign may take a little longer to appear.',
-          result.transactionId
+          resolvedTransactionId
         );
       }
 
       transaction.setAwaiting(
         'Refreshing campaign listings',
         'Waiting for the new campaign to appear before refreshing the campaign pages.',
-        result.transactionId
+        resolvedTransactionId
       );
       const becameVisible = await waitForCampaignVisibility(previousCampaignCount);
 
@@ -390,7 +423,7 @@ export default function CreateCampaignPage() {
           isTemporaryId
             ? 'Shield accepted the request, but the campaign is not visible on-chain yet. Please wait and refresh before assuming it was created.'
             : 'The transaction was accepted by the wallet, but the campaign is not visible on-chain yet. Please wait and refresh before assuming it was created.',
-          result.transactionId
+          resolvedTransactionId
         );
         info(
           'Campaign pending',
@@ -406,7 +439,7 @@ export default function CreateCampaignPage() {
       transaction.setConfirmed(
         'Campaign ready',
         'The campaign is visible on-chain and the listings have been refreshed.',
-        result.transactionId
+        resolvedTransactionId
       );
 
       success('Campaign created', 'Your campaign is now visible on-chain.');
