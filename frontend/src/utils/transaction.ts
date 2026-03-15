@@ -22,6 +22,13 @@ export interface TransactionResult {
 export interface TransactionStatusCheckResult {
   status: string;
   error?: string;
+  transactionId?: string;
+}
+
+export function isTemporaryWalletTransactionId(transactionId: string | undefined): boolean {
+  if (!transactionId) return false;
+  const normalized = transactionId.toLowerCase();
+  return normalized.startsWith('shield_') || normalized.startsWith('leo_') || normalized.startsWith('puzzle_');
 }
 
 export async function createTransaction(
@@ -139,7 +146,7 @@ export async function awaitTransactionConfirmation(
   transactionId: string | undefined,
   checkStatus: (transactionId: string) => Promise<TransactionStatusCheckResult | null>,
   opts?: { attempts?: number; delayMs?: number }
-): Promise<{ confirmed: boolean; status: string; error?: string }> {
+): Promise<{ confirmed: boolean; status: string; error?: string; transactionId?: string }> {
   if (!transactionId) {
     return { confirmed: false, status: 'submitted' };
   }
@@ -152,11 +159,11 @@ export async function awaitTransactionConfirmation(
     const status = result?.status?.toLowerCase() ?? 'pending';
 
     if (status === 'accepted' || status === 'confirmed' || status === 'completed' || status === 'success') {
-      return { confirmed: true, status };
+      return { confirmed: true, status, transactionId: result?.transactionId ?? transactionId };
     }
 
     if (status === 'rejected' || status === 'failed' || status === 'aborted') {
-      return { confirmed: false, status, error: result?.error };
+      return { confirmed: false, status, error: result?.error, transactionId: result?.transactionId ?? transactionId };
     }
 
     if (attempt < attempts - 1) {
@@ -164,7 +171,7 @@ export async function awaitTransactionConfirmation(
     }
   }
 
-  return { confirmed: false, status: 'pending' };
+  return { confirmed: false, status: 'pending', transactionId };
 }
 
 export function buildCreateCampaignParams(inputs: string[]): TransactionParams {

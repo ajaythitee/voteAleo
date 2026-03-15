@@ -292,6 +292,64 @@ function formatAddress(address: string | undefined): string {
   return `${address.slice(0, 10)}...${address.slice(-8)}`;
 }
 
+function drawStatCard(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  label: string,
+  value: string,
+  accent: [number, number, number]
+) {
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(x, y, width, height, 4, 4, 'FD');
+  doc.setFillColor(...accent);
+  doc.roundedRect(x + 3, y + 3, 5, height - 6, 2, 2, 'F');
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text(label, x + 12, y + 7);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(15, 23, 42);
+  doc.text(value, x + 12, y + 15);
+}
+
+function drawAnalysisCard(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  width: number,
+  title: string,
+  body: string,
+  accent: [number, number, number]
+) {
+  const lines = doc.splitTextToSize(body, width - 12);
+  const height = 16 + lines.length * 4.5 + 8;
+
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(x, y, width, height, 4, 4, 'FD');
+  doc.setFillColor(...accent);
+  doc.roundedRect(x, y, width, 10, 4, 4, 'F');
+  doc.setFillColor(255, 255, 255);
+  doc.rect(x, y + 5, width, 5, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(255, 255, 255);
+  doc.text(title, x + 6, y + 6.5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(51, 65, 85);
+  doc.text(lines, x + 6, y + 15);
+
+  return height;
+}
+
 /**
  * Load logo as base64 data URL
  */

@@ -12,7 +12,7 @@ import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { aleoService } from '@/services/aleo';
 import { pinataService } from '@/services/pinata';
-import { createTransaction, buildCreatePublicAuctionParams, awaitTransactionConfirmation } from '@/utils/transaction';
+import { createTransaction, buildCreatePublicAuctionParams, awaitTransactionConfirmation, isTemporaryWalletTransactionId } from '@/utils/transaction';
 import { Stepper } from '@/components/layout';
 import { useWalletSession } from '@/hooks/useWalletSession';
 import { useTransactionLifecycle } from '@/hooks/useTransactionLifecycle';
@@ -49,7 +49,7 @@ export default function CreateAuctionPage() {
 
   const { address, executeTransaction, wallet, connected, walletName, walletType, connect } = useWalletSession();
   const { isConnected, address: storeAddress } = useWalletStore();
-  const { success, error: showError } = useToastStore();
+  const { success, error: showError, info } = useToastStore();
   const walletConnected = !!(connected || isConnected || address || storeAddress);
   const featureAvailability = getFeatureAvailability();
   const walletCapabilities = getWalletCapabilities(walletType);
@@ -219,6 +219,7 @@ export default function CreateAuctionPage() {
           result.transactionId
         );
         const confirmation = await awaitTransactionConfirmation(result.transactionId, aleoService.checkTransactionStatus.bind(aleoService));
+        const isTemporaryId = isTemporaryWalletTransactionId(result.transactionId);
         if (confirmation.confirmed) {
           transaction.setConfirmed(
             'Auction confirmed',
@@ -237,20 +238,31 @@ export default function CreateAuctionPage() {
           'Waiting for the new auction to appear before refreshing the auction pages.',
           result.transactionId
         );
-        await waitForAuctionVisibility(previousAuctionCount);
+        const becameVisible = await waitForAuctionVisibility(previousAuctionCount);
+        if (!becameVisible) {
+          transaction.setAwaiting(
+            'Auction still pending',
+            isTemporaryId
+              ? 'Shield accepted the request, but the auction is not visible on-chain yet. Please wait and refresh before assuming it was created.'
+              : 'The wallet accepted the request, but the auction is not visible on-chain yet. Please wait and refresh before assuming it was created.',
+            result.transactionId
+          );
+          info(
+            'Auction pending',
+            isTemporaryId
+              ? 'Shield returned a temporary transaction ID. We will only treat this as complete once the auction appears on-chain.'
+              : 'The wallet accepted the request, but the auction is still pending final on-chain visibility.'
+          );
+          return;
+        }
         router.push('/auctions');
         router.refresh();
         transaction.setConfirmed(
           'Auction ready',
-          'The auction flow is complete and the listings have been refreshed.',
+          'The auction is visible on-chain and the listings have been refreshed.',
           result.transactionId
         );
-        success(
-          'Auction submitted',
-          result.transactionId
-            ? `Transaction ${result.transactionId.slice(0, 12)}... was submitted successfully.`
-            : 'Your auction transaction was submitted successfully.'
-        );
+        success('Auction created', 'Your auction is now visible on-chain.');
       } else {
         transaction.setFailed('Auction creation failed', result.error ?? 'Unknown error', result.transactionId);
         showError('Create failed', result.error ?? 'Unknown error');

@@ -21,7 +21,7 @@ import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { pinataService } from '@/services/pinata';
 import { aleoService } from '@/services/aleo';
-import { createTransaction, buildCreateCampaignParams, awaitTransactionConfirmation } from '@/utils/transaction';
+import { createTransaction, buildCreateCampaignParams, awaitTransactionConfirmation, isTemporaryWalletTransactionId } from '@/utils/transaction';
 import { Stepper } from '@/components/layout';
 import { useWalletSession } from '@/hooks/useWalletSession';
 import { useTransactionLifecycle } from '@/hooks/useTransactionLifecycle';
@@ -71,7 +71,7 @@ export default function CreateCampaignPage() {
   // Get wallet info including wallet adapter name
   const { address, executeTransaction, wallet, connected, walletName, walletType, connect } = useWalletSession();
   const { isConnected, address: storeAddress } = useWalletStore();
-  const { success, error: showError } = useToastStore();
+  const { success, error: showError, info } = useToastStore();
   const featureAvailability = getFeatureAvailability();
   const walletCapabilities = getWalletCapabilities(walletType);
 
@@ -361,6 +361,7 @@ export default function CreateCampaignPage() {
       );
 
       const confirmation = await awaitTransactionConfirmation(result.transactionId, aleoService.checkTransactionStatus.bind(aleoService));
+      const isTemporaryId = isTemporaryWalletTransactionId(result.transactionId);
 
       if (confirmation.confirmed) {
         transaction.setConfirmed(
@@ -381,21 +382,34 @@ export default function CreateCampaignPage() {
         'Waiting for the new campaign to appear before refreshing the campaign pages.',
         result.transactionId
       );
-      await waitForCampaignVisibility(previousCampaignCount);
+      const becameVisible = await waitForCampaignVisibility(previousCampaignCount);
+
+      if (!becameVisible) {
+        transaction.setAwaiting(
+          'Campaign still pending',
+          isTemporaryId
+            ? 'Shield accepted the request, but the campaign is not visible on-chain yet. Please wait and refresh before assuming it was created.'
+            : 'The transaction was accepted by the wallet, but the campaign is not visible on-chain yet. Please wait and refresh before assuming it was created.',
+          result.transactionId
+        );
+        info(
+          'Campaign pending',
+          isTemporaryId
+            ? 'Shield returned a temporary transaction ID. We will only treat this as complete once the campaign appears on-chain.'
+            : 'The wallet accepted the request, but the campaign is still pending final on-chain visibility.'
+        );
+        return;
+      }
+
       router.push('/campaigns');
       router.refresh();
       transaction.setConfirmed(
         'Campaign ready',
-        'The campaign flow is complete and the listings have been refreshed.',
+        'The campaign is visible on-chain and the listings have been refreshed.',
         result.transactionId
       );
 
-      success(
-        'Campaign submitted',
-        result.transactionId
-          ? `Transaction ${result.transactionId.slice(0, 12)}... was submitted successfully.`
-          : 'Your campaign transaction was submitted successfully.'
-      );
+      success('Campaign created', 'Your campaign is now visible on-chain.');
     } catch (err: unknown) {
       console.error('Create campaign error:', err);
       const message = err instanceof Error ? err.message : 'Transaction failed';
