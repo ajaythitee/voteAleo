@@ -27,6 +27,7 @@ import { DoomSection } from '@/components/ui/DoomSection';
 import { Scene3D } from '@/components/Scene3D';
 import { Section } from '@/components/layout';
 import { useWalletStore } from '@/stores/walletStore';
+import { useWalletSession } from '@/hooks/useWalletSession';
 import { Campaign } from '@/types';
 import { aleoService } from '@/services/aleo';
 import { auctionService } from '@/services/auction';
@@ -65,7 +66,9 @@ export default function Home() {
   const [auctions, setAuctions] = useState<AuctionListItem[]>([]);
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(true);
   const [isLoadingAuctions, setIsLoadingAuctions] = useState(true);
+  const [votedCampaignIds, setVotedCampaignIds] = useState<Set<string>>(new Set());
   const { isConnected } = useWalletStore();
+  const { address } = useWalletSession();
 
   useEffect(() => {
     loadCampaigns();
@@ -73,6 +76,27 @@ export default function Home() {
   useEffect(() => {
     loadAuctions();
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !address) {
+      setVotedCampaignIds(new Set());
+      return;
+    }
+
+    const normalizedAddress = address.toLowerCase();
+    const votedIds = new Set<string>();
+
+    for (let index = 0; index < window.localStorage.length; index++) {
+      const key = window.localStorage.key(index);
+      if (!key || !key.startsWith('vote_')) continue;
+      if (!key.toLowerCase().endsWith(`_${normalizedAddress}`)) continue;
+
+      const campaignId = key.slice(5, key.length - normalizedAddress.length - 1);
+      if (campaignId) votedIds.add(campaignId);
+    }
+
+    setVotedCampaignIds(votedIds);
+  }, [address, campaigns]);
 
   const loadCampaigns = async () => {
     setIsLoadingCampaigns(true);
@@ -353,6 +377,9 @@ export default function Home() {
             >
               {campaigns.map((campaign, index) => {
                 const status = getCampaignStatus(campaign);
+                const hasVoted =
+                  votedCampaignIds.has(String(campaign.id)) ||
+                  (campaign.onChainId != null && votedCampaignIds.has(String(campaign.onChainId)));
                 const statusConfig = {
                   active: {
                     label: 'Active',
@@ -430,8 +457,14 @@ export default function Home() {
                           {status === 'active' && (
                             <div className="mt-4 pt-4 border-t border-white/10">
                               <div className="flex items-center justify-between">
-                                <span className="text-sm text-emerald-400">Cast your vote</span>
-                                <ArrowRight className="w-4 h-4 text-emerald-400" />
+                                <span className={`text-sm ${hasVoted ? 'text-green-400' : 'text-emerald-400'}`}>
+                                  {hasVoted ? 'Voted' : 'Cast your vote'}
+                                </span>
+                                {hasVoted ? (
+                                  <CheckCircle className="w-4 h-4 text-green-400" />
+                                ) : (
+                                  <ArrowRight className="w-4 h-4 text-emerald-400" />
+                                )}
                               </div>
                             </div>
                           )}

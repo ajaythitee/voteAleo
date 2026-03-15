@@ -32,10 +32,10 @@ export function WalletConnect() {
                 ? 'soter'
                 : 'unknown';
       setConnected(address, 'testnet', walletType);
-    } else if (isDisconnecting) {
+    } else if (!connected && !isConnecting && !isReconnecting) {
       setDisconnected();
     }
-  }, [connected, address, wallet, isConnecting, isDisconnecting, setConnected, setDisconnected]);
+  }, [connected, address, wallet, isConnecting, isDisconnecting, isReconnecting, setConnected, setDisconnected]);
 
   useEffect(() => {
     setConnecting(isConnecting || isReconnecting);

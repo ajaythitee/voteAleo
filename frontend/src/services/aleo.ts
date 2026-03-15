@@ -475,8 +475,8 @@ class AleoService {
    */
   getExplorerUrl(transactionId: string): string {
     const baseUrl = this.config.network === 'mainnet'
-      ? 'https://explorer.aleo.org'
-      : 'https://testnet.aleoscan.io';
+      ? 'https://explorer.provable.com'
+      : 'https://testnet.explorer.provable.com';
     return `${baseUrl}/transaction/${transactionId}`;
   }
 
@@ -485,8 +485,8 @@ class AleoService {
    */
   getProgramExplorerUrl(): string {
     const baseUrl = this.config.network === 'mainnet'
-      ? 'https://explorer.aleo.org'
-      : 'https://testnet.aleoscan.io';
+      ? 'https://explorer.provable.com'
+      : 'https://testnet.explorer.provable.com';
     return `${baseUrl}/program/${this.config.votingProgramId}`;
   }
 }

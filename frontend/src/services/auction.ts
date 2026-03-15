@@ -204,7 +204,12 @@ export const auctionService = {
   },
 
   getExplorerUrl(programId?: string): string {
-    const base = NETWORK === 'mainnet' ? 'https://explorer.aleo.org' : 'https://testnet.aleoscan.io';
+    const base = NETWORK === 'mainnet' ? 'https://explorer.provable.com' : 'https://testnet.explorer.provable.com';
     return `${base}/program/${programId || AUCTION_PROGRAM_ID}`;
+  },
+
+  getTransactionExplorerUrl(transactionId: string): string {
+    const base = NETWORK === 'mainnet' ? 'https://explorer.provable.com' : 'https://testnet.explorer.provable.com';
+    return `${base}/transaction/${transactionId}`;
   },
 };

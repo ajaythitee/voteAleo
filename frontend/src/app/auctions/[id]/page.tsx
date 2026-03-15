@@ -18,7 +18,7 @@ import {
 import { motion } from 'framer-motion';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassCard } from '@/components/ui/GlassCard';
-import { GlassInput } from '@/components/ui/GlassInput';
+import { GlassInput, GlassTextarea } from '@/components/ui/GlassInput';
 import { TransactionStatusCard } from '@/components/transactions/TransactionStatusCard';
 import { useToastStore } from '@/stores/toastStore';
 import { useWalletStore } from '@/stores/walletStore';
@@ -55,6 +55,9 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
   const [privateBidAmount, setPrivateBidAmount] = useState('');
   const [isPublicBidding, setIsPublicBidding] = useState(false);
   const [isPrivateBidding, setIsPrivateBidding] = useState(false);
+  const [showBidReceiptHelper, setShowBidReceiptHelper] = useState(false);
+  const [bidReceiptPaste, setBidReceiptPaste] = useState('');
+  const [extractedBidId, setExtractedBidId] = useState<string | null>(null);
   const [bidCount, setBidCount] = useState(0);
   const [highestBid, setHighestBid] = useState(0);
   const [winningBidId, setWinningBidId] = useState<string | null>(null);
@@ -64,6 +67,8 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
   const [privacySettings, setPrivacySettings] = useState<AuctionPrivacySettings | null>(null);
   const [isRedeemed, setIsRedeemed] = useState(false);
   const [winningBidIdInput, setWinningBidIdInput] = useState('');
+  const [auctionTicketRecord, setAuctionTicketRecord] = useState('');
+  const [privateBidRecord, setPrivateBidRecord] = useState('');
   const [isEndingPublic, setIsEndingPublic] = useState(false);
   const [isEndingPrivate, setIsEndingPrivate] = useState(false);
   const [isRedeeming, setIsRedeeming] = useState(false);
@@ -77,6 +82,44 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
   const featureAvailability = getFeatureAvailability();
   const walletCapabilities = getWalletCapabilities(walletType);
   const privateWalletWarning = getPrivateAuctionWalletWarning(walletType);
+
+  const normalizeBidId = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^\d+field$/i.test(trimmed)) return trimmed;
+    if (/^\d+$/i.test(trimmed)) return `${trimmed}field`;
+    return trimmed;
+  };
+
+  const extractBidIdFromBidReceipt = (receipt: string) => {
+    // Works with common Aleo record formatting: `bid_id: <digits>field`.
+    const fieldMatch = receipt.match(/bid_id\s*:\s*([0-9]+field)\b/i);
+    if (fieldMatch?.[1]) return normalizeBidId(fieldMatch[1]);
+
+    // Fallback if the suffix is missing or formatting is slightly different.
+    const digitsMatch = receipt.match(/bid_id\s*:\s*([0-9]+)\b/i);
+    if (digitsMatch?.[1]) return normalizeBidId(digitsMatch[1]);
+
+    return null;
+  };
+
+  useEffect(() => {
+    if (!bidReceiptPaste) {
+      setExtractedBidId(null);
+      return;
+    }
+    setExtractedBidId(extractBidIdFromBidReceipt(bidReceiptPaste));
+  }, [bidReceiptPaste]);
+
+  const pasteFromClipboard = async (setter: (value: string) => void) => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) setter(text);
+    } catch (error) {
+      console.error(error);
+      showError('Clipboard blocked', 'Could not read from clipboard. Paste it manually instead.');
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -342,6 +385,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
 
       success('Public bid placed', 'Your wallet should now hold a BidReceipt record for this bid.');
       setPublicBidAmount('');
+      setShowBidReceiptHelper(true);
     } catch (error) {
       showError('Public bid failed', error instanceof Error ? error.message : 'Unknown error');
     } finally {
@@ -433,7 +477,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
 
     const bidId = winningBidIdInput.trim();
     if (!bidId) {
-      showError('Missing bid ID', 'Enter the winning public bid ID from the bidder’s BidReceipt.');
+      showError('Missing bid ID', "Enter the winning public bid ID from the bidder's BidReceipt.");
       return;
     }
 
@@ -494,11 +538,21 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
       return;
     }
 
+    const trimmedTicket = auctionTicketRecord.trim();
+    const trimmedPrivateBid = privateBidRecord.trim();
+    if (!trimmedTicket || !trimmedPrivateBid) {
+      showError(
+        'Missing records',
+        'Private winner selection needs 2 inputs: the AuctionTicket record and the matching PrivateBid record. Paste both from the creator wallet.'
+      );
+      return;
+    }
+
     setIsEndingPrivate(true);
     transaction.setPreparing('Preparing private winner selection', 'Private winner selection requires the creator wallet to supply auction records.');
     try {
       const currentAuctionId = auctionId;
-      const params = buildSelectWinnerPrivateParams();
+      const params = buildSelectWinnerPrivateParams([trimmedTicket, trimmedPrivateBid]);
       const result = await createTransaction(params, executeTransaction, walletName, {
         recoverConnection: connect,
       });
@@ -694,7 +748,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
           <div className="mb-8">
             <TransactionStatusCard
               state={transaction.state}
-              explorerUrl={transaction.state.transactionId ? auctionService.getExplorerUrl() : undefined}
+              explorerUrl={transaction.state.transactionId ? auctionService.getTransactionExplorerUrl(transaction.state.transactionId) : undefined}
             />
           </div>
 
@@ -716,7 +770,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
                 <div className="mb-6 rounded-xl border border-sky-500/20 bg-sky-500/10 p-4">
                   <p className="mb-2 text-sm font-medium text-white">Public winner flow</p>
                   <p className="mb-3 text-xs text-white/40">
-                    Paste the winning public bid ID from the bidder’s BidReceipt to select the winner.
+                    Paste the winning public bid ID from the bidder's BidReceipt to select the winner.
                   </p>
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <GlassInput
@@ -726,12 +780,20 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
                       className="flex-1"
                     />
                     <GlassButton
+                      variant="secondary"
+                      onClick={() => pasteFromClipboard(setWinningBidIdInput)}
+                      disabled={isEndingPublic}
+                      icon={<Wallet className="h-4 w-4" />}
+                    >
+                      Paste
+                    </GlassButton>
+                    <GlassButton
                       onClick={handleSelectPublicWinner}
                       disabled={isEndingPublic}
                       loading={isEndingPublic}
                       icon={<Trophy className="h-4 w-4" />}
                     >
-                      {isEndingPublic ? 'Selecting…' : 'Select Public Winner'}
+                      {isEndingPublic ? 'Selecting...' : 'Select Public Winner'}
                     </GlassButton>
                   </div>
                   <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-sky-200/70">
@@ -750,6 +812,20 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
                         <p className="mt-1 text-xs text-white/55">
                           No public bid ID is needed here. The creator wallet must hold the AuctionTicket and the relevant PrivateBid record.
                         </p>
+                        <div className="mt-4 space-y-3">
+                          <GlassTextarea
+                            label="AuctionTicket record"
+                            placeholder="Paste AuctionTicket.record (creator wallet)"
+                            value={auctionTicketRecord}
+                            onChange={(event) => setAuctionTicketRecord(event.target.value)}
+                          />
+                          <GlassTextarea
+                            label="PrivateBid record"
+                            placeholder="Paste PrivateBid.record (matching winning bid)"
+                            value={privateBidRecord}
+                            onChange={(event) => setPrivateBidRecord(event.target.value)}
+                          />
+                        </div>
                       </div>
                     </div>
                     <GlassButton
@@ -758,7 +834,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
                       loading={isEndingPrivate}
                       icon={<Lock className="h-4 w-4" />}
                     >
-                      {isEndingPrivate ? 'Selecting…' : 'Select Private Winner'}
+                      {isEndingPrivate ? 'Selecting...' : 'Select Private Winner'}
                     </GlassButton>
                     <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-200/70">
                       No pasted bid ID needed
@@ -802,12 +878,76 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
                       disabled={isPublicBidding}
                       icon={isPublicBidding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Gavel className="h-4 w-4" />}
                     >
-                      {isPublicBidding ? 'Placing…' : 'Place Public Bid'}
+                      {isPublicBidding ? 'Placing...' : 'Place Public Bid'}
                     </GlassButton>
                   </div>
                   <p className="mt-3 text-sm text-white/50">
                     Minimum bid: {minBid} credits. This creates a BidReceipt record in your wallet.
                   </p>
+
+                  <div className="mt-5 rounded-xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-white">BidReceipt helper</p>
+                        <p className="mt-1 text-xs text-white/55">
+                          If you're bidding from a different wallet than the creator: copy your BidReceipt record from your wallet, paste it here, then share the extracted <span className="font-mono">bid_id</span>.
+                        </p>
+                      </div>
+                      <GlassButton
+                        variant="secondary"
+                        onClick={() => setShowBidReceiptHelper((prev) => !prev)}
+                        icon={<Shield className="h-4 w-4" />}
+                      >
+                        {showBidReceiptHelper ? 'Hide' : 'Show'}
+                      </GlassButton>
+                    </div>
+
+                    {showBidReceiptHelper && (
+                      <div className="mt-4 space-y-3">
+                        <GlassTextarea
+                          label="Paste BidReceipt record"
+                          placeholder="Paste the BidReceipt.record text from your wallet"
+                          value={bidReceiptPaste}
+                          onChange={(event) => setBidReceiptPaste(event.target.value)}
+                        />
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                          <div className="flex-1 rounded-xl border border-white/10 bg-black/30 p-3">
+                            <p className="text-xs uppercase tracking-[0.18em] text-white/40">Extracted bid_id</p>
+                            <p className="mt-1 break-all font-mono text-sm text-white/80">
+                              {extractedBidId ?? 'Not detected yet (make sure the record contains `bid_id:`).'}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <GlassButton
+                              variant="secondary"
+                              onClick={() => pasteFromClipboard(setBidReceiptPaste)}
+                              icon={<Wallet className="h-4 w-4" />}
+                            >
+                              Paste
+                            </GlassButton>
+                            <GlassButton
+                              onClick={async () => {
+                                if (!extractedBidId) {
+                                  showError('No bid_id found', 'Paste a BidReceipt that contains a bid_id field first.');
+                                  return;
+                                }
+                                try {
+                                  await navigator.clipboard.writeText(extractedBidId);
+                                  success('Copied', 'bid_id copied to clipboard. Send it to the auction creator.');
+                                } catch (error) {
+                                  console.error(error);
+                                  showError('Copy failed', 'Could not copy to clipboard.');
+                                }
+                              }}
+                              icon={<CheckCircle className="h-4 w-4" />}
+                            >
+                              Copy bid_id
+                            </GlassButton>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </GlassCard>
               )}
 
@@ -827,7 +967,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
                       disabled={isPrivateBidding}
                       icon={isPrivateBidding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
                     >
-                      {isPrivateBidding ? 'Placing…' : 'Place Private Bid'}
+                      {isPrivateBidding ? 'Placing...' : 'Place Private Bid'}
                     </GlassButton>
                   </div>
 
