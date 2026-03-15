@@ -7,13 +7,13 @@ import { Gavel, ArrowLeft, Loader2, AlertCircle, Upload, X, CheckCircle } from '
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassInput, GlassTextarea } from '@/components/ui/GlassInput';
-import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { aleoService } from '@/services/aleo';
 import { pinataService } from '@/services/pinata';
 import { createTransaction, buildCreatePublicAuctionParams, getAuctionProgramId } from '@/utils/transaction';
 import { Stepper } from '@/components/layout';
+import { useWalletSession } from '@/hooks/useWalletSession';
 
 export default function CreateAuctionPage() {
   const router = useRouter();
@@ -41,12 +41,10 @@ export default function CreateAuctionPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { publicKey, requestTransaction, wallet, connected } = useWallet() as any;
+  const { address, requestTransaction, wallet, connected, walletName } = useWalletSession();
   const { isConnected, address: storeAddress } = useWalletStore();
   const { success, error: showError } = useToastStore();
-  const walletConnected = !!(connected || isConnected || publicKey || storeAddress);
-  const address = (publicKey ?? storeAddress ?? '').toString();
-  const walletName = wallet?.adapter?.name;
+  const walletConnected = !!(connected || isConnected || address || storeAddress);
 
   const handleInputChange = (field: keyof typeof formData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -175,7 +173,7 @@ export default function CreateAuctionPage() {
         formData.revealCreator ? 'true' : 'false',
       ];
       const params = buildCreatePublicAuctionParams(inputs);
-      const txAddress = address || storeAddress || publicKey || '';
+      const txAddress = address || storeAddress || '';
       const result = await createTransaction(params, requestTransaction, txAddress, walletName, getAuctionProgramId());
       if (result.success) {
         success('Auction created', result.transactionId ? `Tx: ${result.transactionId.slice(0, 8)}...` : 'Check your wallet.');
@@ -210,8 +208,7 @@ export default function CreateAuctionPage() {
   return (
     <div className="min-h-screen py-8">
       <div className="max-w-3xl mx-auto px-4 sm:px-6">
-        {/* Header */}
-        <div className="mb-6">
+        <div className="mb-8 overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,118,110,0.22),rgba(56,189,248,0.09)_40%,rgba(249,115,22,0.18))] p-6 shadow-[0_30px_80px_-45px_rgba(15,118,110,0.8)]">
           <Link
             href="/auctions"
             className="inline-flex items-center gap-2 text-white/60 hover:text-white mb-6 transition-colors"
@@ -219,9 +216,14 @@ export default function CreateAuctionPage() {
             <ArrowLeft className="w-4 h-4" />
             Back to Auctions
           </Link>
-          <h1 className="text-3xl font-bold text-white mb-2">Create auction</h1>
-          <p className="text-white/60 text-sm">
-            Configure the item, starting bid, and privacy for your first-price sealed-bid auction on Aleo.
+          <div className="mb-4 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/70">
+            <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">Sealed bid</span>
+            <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">Public + private</span>
+            <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">Shield ready</span>
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-2">Launch an auction that feels premium, not placeholder</h1>
+          <p className="text-white/72 text-sm max-w-2xl">
+            Configure the item, starting bid, and privacy mode for your first-price sealed-bid auction on Aleo, with private-record flows covered for Shield users.
           </p>
         </div>
 
@@ -235,7 +237,7 @@ export default function CreateAuctionPage() {
         />
 
         {/* Form Card */}
-        <GlassCard className="p-8 rounded-[16px]">
+        <GlassCard className="p-8 rounded-[16px] border-white/10 shadow-[0_30px_80px_-48px_rgba(14,116,144,0.95)]">
           {step === 1 && (
             <div className="space-y-6">
               <h2 className="text-xl font-semibold text-white mb-2">Basic Information</h2>

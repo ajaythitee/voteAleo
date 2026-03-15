@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useCallback, useMemo } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { AleoWalletProvider } from '@provablehq/aleo-wallet-adaptor-react';
 import { WalletModalProvider } from '@provablehq/aleo-wallet-adaptor-react-ui';
 import { ShieldWalletAdapter } from '@provablehq/aleo-wallet-adaptor-shield';
@@ -22,7 +22,17 @@ interface WalletWrapperProps {
 }
 
 export function WalletWrapper({ children }: WalletWrapperProps) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const wallets = useMemo(() => {
+    if (!isMounted || typeof window === 'undefined') {
+      return [];
+    }
+
     const instances = [];
 
     try {
@@ -56,7 +66,7 @@ export function WalletWrapper({ children }: WalletWrapperProps) {
     }
 
     return instances;
-  }, []);
+  }, [isMounted]);
 
   const onError = useCallback((error: Error) => {
     console.error('Wallet error:', error);

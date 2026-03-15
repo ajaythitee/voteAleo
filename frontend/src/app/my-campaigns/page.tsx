@@ -16,22 +16,21 @@ import {
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { SkeletonCard } from '@/components/ui/LoadingSpinner';
-import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { useWalletStore } from '@/stores/walletStore';
 import { Campaign } from '@/types';
 import { aleoService } from '@/services/aleo';
 import { parseOnChainCampaign } from '@/services/campaignParser';
 import { formatDistanceToNow, isPast, isFuture } from 'date-fns';
+import { useWalletSession } from '@/hooks/useWalletSession';
 
 export default function MyCampaignsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const { publicKey, connected } = useWallet() as any;
+  const { address, connected } = useWalletSession();
   const { isConnected } = useWalletStore();
   const walletConnected = connected || isConnected;
-  const address = publicKey;
 
   // Fetch campaigns created by this user
   const loadMyCampaigns = async () => {

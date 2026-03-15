@@ -3,22 +3,22 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LogOut, ChevronDown, Copy, ExternalLink, Check, Wallet } from 'lucide-react';
-import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { WalletMultiButton } from '@provablehq/aleo-wallet-adaptor-react-ui';
 import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
+import { useWalletSession } from '@/hooks/useWalletSession';
 
 export function WalletConnect() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const { wallet, publicKey, connected, connecting, disconnect } = useWallet() as any;
+  const { wallet, address, connected, isConnecting, disconnect } = useWalletSession();
   const { setConnected, setDisconnected, setConnecting } = useWalletStore();
   const { success, error: showError } = useToastStore();
 
   // Sync wallet adapter state with our store
   useEffect(() => {
-    if (connected && publicKey) {
+    if (connected && address) {
       const walletName = wallet?.adapter?.name?.toLowerCase() || 'unknown';
       const walletType = walletName.includes('shield')
         ? 'shield'
@@ -31,15 +31,15 @@ export function WalletConnect() {
               : walletName.includes('soter')
                 ? 'soter'
                 : 'unknown';
-      setConnected(publicKey, 'testnet', walletType);
-    } else if (!connected && !connecting) {
+      setConnected(address, 'testnet', walletType);
+    } else if (!connected && !isConnecting) {
       setDisconnected();
     }
-  }, [connected, publicKey, wallet, connecting, setConnected, setDisconnected]);
+  }, [connected, address, wallet, isConnecting, setConnected, setDisconnected]);
 
   useEffect(() => {
-    setConnecting(connecting);
-  }, [connecting, setConnecting]);
+    setConnecting(isConnecting);
+  }, [isConnecting, setConnecting]);
 
   const handleDisconnect = async () => {
     try {
@@ -52,8 +52,8 @@ export function WalletConnect() {
   };
 
   const copyAddress = () => {
-    if (publicKey) {
-      navigator.clipboard.writeText(publicKey);
+    if (address) {
+      navigator.clipboard.writeText(address);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -64,7 +64,7 @@ export function WalletConnect() {
   };
 
   // If connected, show custom dropdown with disconnect option
-  if (connected && publicKey) {
+  if (connected && address) {
     const walletName = wallet?.adapter?.name || 'Wallet';
 
     return (
@@ -77,7 +77,7 @@ export function WalletConnect() {
         >
           <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
           <Wallet className="w-5 h-5 text-emerald-400" />
-          <span className="text-white font-medium">{truncateAddress(publicKey)}</span>
+          <span className="text-white font-medium">{truncateAddress(address)}</span>
           <ChevronDown className={`w-4 h-4 text-white/70 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
         </motion.button>
 
@@ -95,7 +95,7 @@ export function WalletConnect() {
                   <div className="w-2 h-2 rounded-full bg-green-400" />
                   <p className="text-xs text-green-400 font-medium">Connected to {walletName}</p>
                 </div>
-                <p className="text-sm text-white font-mono break-all">{publicKey}</p>
+                <p className="text-sm text-white font-mono break-all">{address}</p>
               </div>
 
               {/* Actions */}

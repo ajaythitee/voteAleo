@@ -96,9 +96,28 @@ function CameraController() {
   return null;
 }
 
-export function Scene3DInner({ className = '' }: { variant?: 'hero' | 'background'; className?: string }) {
+export function Scene3DInner({
+  variant = 'background',
+  className = '',
+}: {
+  variant?: 'hero' | 'background';
+  className?: string;
+}) {
   const isDark = true;
   const [isMobile, setIsMobile] = useState(false);
+  const particleConfig = variant === 'hero'
+    ? {
+        largeCount: isMobile ? 220 : 300,
+        smallCount: isMobile ? 520 : 760,
+        bloom: 0.24,
+        opacity: 0.95,
+      }
+    : {
+        largeCount: isMobile ? 140 : 210,
+        smallCount: isMobile ? 320 : 480,
+        bloom: 0.14,
+        opacity: 0.68,
+      };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -109,7 +128,7 @@ export function Scene3DInner({ className = '' }: { variant?: 'hero' | 'backgroun
   }, []);
 
   return (
-    <div className={`w-full h-full overflow-hidden pointer-events-none ${className}`} style={{ opacity: 0.7 }}>
+    <div className={`w-full h-full overflow-hidden pointer-events-none ${className}`} style={{ opacity: particleConfig.opacity }}>
       <Canvas
         camera={{ position: [0, 0, 5.5], fov: 50 }}
         dpr={[1, 2]}
@@ -134,18 +153,18 @@ export function Scene3DInner({ className = '' }: { variant?: 'hero' | 'backgroun
         <pointLight 
           position={[4, 3, 4]} 
           intensity={isDark ? 0.8 : 0.6} 
-          color={isDark ? '#6366f1' : '#818cf8'}
+          color={variant === 'hero' ? '#34d399' : '#38bdf8'}
           castShadow
         />
         <pointLight 
           position={[-3, -2, 3]} 
           intensity={isDark ? 0.4 : 0.3} 
-          color={isDark ? '#8b5cf6' : '#c4b5fd'}
+          color={variant === 'hero' ? '#f59e0b' : '#818cf8'}
         />
         <pointLight 
           position={[0, -4, 2]} 
           intensity={isDark ? 0.3 : 0.25} 
-          color={isDark ? '#10b981' : '#34d399'}
+          color={variant === 'hero' ? '#fb7185' : '#10b981'}
         />
         <directionalLight 
           position={[5, 5, 5]} 
@@ -157,7 +176,7 @@ export function Scene3DInner({ className = '' }: { variant?: 'hero' | 'backgroun
         <Stars 
           radius={100} 
           depth={50} 
-          count={isMobile ? 1800 : 3000}
+          count={variant === 'hero' ? (isMobile ? 2200 : 3800) : (isMobile ? 1600 : 2600)}
           factor={3.2} 
           saturation={0}
           fade
@@ -165,13 +184,13 @@ export function Scene3DInner({ className = '' }: { variant?: 'hero' | 'backgroun
         />
 
         {/* Particle Field */}
-        <ParticleField count={isMobile ? 160 : 220} isDark={isDark} size={0.03} opacity={0.18} />
-        <ParticleField count={isMobile ? 360 : 520} isDark={isDark} size={0.012} opacity={0.26} />
+        <ParticleField count={particleConfig.largeCount} isDark={isDark} size={variant === 'hero' ? 0.04 : 0.028} opacity={variant === 'hero' ? 0.24 : 0.16} />
+        <ParticleField count={particleConfig.smallCount} isDark={isDark} size={0.012} opacity={variant === 'hero' ? 0.3 : 0.2} />
 
         {/* Post-processing Effects */}
         <EffectComposer>
           <Bloom 
-            intensity={isDark ? 0.18 : 0.08} 
+            intensity={particleConfig.bloom} 
             luminanceThreshold={0.98} 
             luminanceSmoothing={0.9}
             height={300}

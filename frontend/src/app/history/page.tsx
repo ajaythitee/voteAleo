@@ -20,8 +20,8 @@ import {
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { SkeletonCard } from '@/components/ui/LoadingSpinner';
-import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { useWalletStore } from '@/stores/walletStore';
+import { useWalletSession } from '@/hooks/useWalletSession';
 import { Campaign } from '@/types';
 import { aleoService } from '@/services/aleo';
 import { parseOnChainCampaign } from '@/services/campaignParser';
@@ -56,10 +56,9 @@ export default function HistoryPage() {
   const [tab, setTab] = useState<'all' | 'voting' | 'auctions'>('all');
   const [query, setQuery] = useState('');
 
-  const { publicKey, connected } = useWallet() as any;
+  const { address, connected } = useWalletSession();
   const { isConnected } = useWalletStore();
   const walletConnected = connected || isConnected;
-  const address = publicKey;
 
   // Load all ended campaigns and check voting status
   const loadVoteHistory = async () => {

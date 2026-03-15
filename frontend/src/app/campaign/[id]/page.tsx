@@ -23,7 +23,6 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { Modal } from '@/components/ui/Modal';
 import { PageLoader } from '@/components/ui/LoadingSpinner';
-import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { aleoService } from '@/services/aleo';
@@ -32,6 +31,7 @@ import { parseOnChainCampaign } from '@/services/campaignParser';
 import { createTransaction, getProgramId, buildVoteParams } from '@/utils/transaction';
 import { Campaign, VotingOption } from '@/types';
 import { format, formatDistanceToNow, isPast, isFuture } from 'date-fns';
+import { useWalletSession } from '@/hooks/useWalletSession';
 
 export default function CampaignDetailPage() {
   const params = useParams();
@@ -50,13 +50,12 @@ export default function CampaignDetailPage() {
   const [lastVoteProof, setLastVoteProof] = useState<{ transactionId?: string; eventId?: string; address?: string } | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
-  const { publicKey, requestTransaction, wallet, connected } = useWallet() as any;
+  const { address, requestTransaction, wallet, connected } = useWalletSession();
   const { isConnected } = useWalletStore();
   const { success, error: showError } = useToastStore();
 
   // Use wallet adapter connection state
   const walletConnected = connected || isConnected;
-  const address = publicKey;
 
   useEffect(() => {
     const loadCampaign = async () => {

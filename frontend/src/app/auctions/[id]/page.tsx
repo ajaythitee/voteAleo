@@ -16,7 +16,6 @@ import {
   Wallet,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassInput } from '@/components/ui/GlassInput';
@@ -34,6 +33,7 @@ import {
   createTransaction,
   getAuctionProgramId,
 } from '@/utils/transaction';
+import { useWalletSession } from '@/hooks/useWalletSession';
 
 type AuctionPrivacySettings = {
   auctionPrivacy: number;
@@ -63,11 +63,9 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
   const [isEndingPrivate, setIsEndingPrivate] = useState(false);
   const [isRedeeming, setIsRedeeming] = useState(false);
 
-  const { publicKey, requestTransaction, wallet, connected } = useWallet() as any;
+  const { address, requestTransaction, wallet, connected, walletName } = useWalletSession();
   const { isConnected, address: storedAddress } = useWalletStore();
   const { success, error: showError } = useToastStore();
-  const address = (publicKey ?? storedAddress ?? '').toString();
-  const walletName = wallet?.adapter?.name;
   const walletConnected = !!(connected || isConnected || address);
   const isCreator = !!(address && owner && address.toLowerCase() === owner.toLowerCase());
 
@@ -117,19 +115,20 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
 
   useEffect(() => {
     if (!auctionId) return;
+    const currentAuctionId = auctionId;
 
     let cancelled = false;
 
     async function loadAuctionState() {
       const [auctionOwner, currentBidCount, currentHighestBid, currentWinningBidId, settings, publicKeyValue, redeemed] =
         await Promise.all([
-          auctionService.getAuctionOwner(auctionId),
-          auctionService.getBidCount(auctionId),
-          auctionService.getHighestBid(auctionId),
-          auctionService.getWinningBidId(auctionId),
-          auctionService.getAuctionPrivacySettings(auctionId),
-          auctionService.getAuctionPublicKey(auctionId),
-          auctionService.isRedeemed(auctionId),
+          auctionService.getAuctionOwner(currentAuctionId),
+          auctionService.getBidCount(currentAuctionId),
+          auctionService.getHighestBid(currentAuctionId),
+          auctionService.getWinningBidId(currentAuctionId),
+          auctionService.getAuctionPrivacySettings(currentAuctionId),
+          auctionService.getAuctionPublicKey(currentAuctionId),
+          auctionService.isRedeemed(currentAuctionId),
         ]);
 
       if (cancelled) return;

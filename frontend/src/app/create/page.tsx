@@ -16,13 +16,13 @@ import {
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassInput, GlassTextarea } from '@/components/ui/GlassInput';
-import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { pinataService } from '@/services/pinata';
 import { aleoService } from '@/services/aleo';
 import { createTransaction, buildCreateCampaignParams } from '@/utils/transaction';
 import { Stepper } from '@/components/layout';
+import { useWalletSession } from '@/hooks/useWalletSession';
 
 const CAMPAIGN_CATEGORIES = ['governance', 'community', 'poll', 'dao', 'other'] as const;
 
@@ -64,13 +64,12 @@ export default function CreateCampaignPage() {
   const [step, setStep] = useState(1);
 
   // Get wallet info including wallet adapter name
-  const { publicKey, requestTransaction, wallet, connected } = useWallet() as any;
+  const { address, requestTransaction, wallet, connected, walletName } = useWalletSession();
   const { isConnected, address: storeAddress } = useWalletStore();
   const { success, error: showError } = useToastStore();
 
   // Use wallet adapter + store connection state
-  const walletConnected = !!(connected || isConnected || publicKey || storeAddress);
-  const address = (publicKey ?? storeAddress ?? '').toString();
+  const walletConnected = !!(connected || isConnected || address || storeAddress);
 
   const handleInputChange = (field: keyof FormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -300,9 +299,8 @@ export default function CreateCampaignPage() {
       const { part1, part2 } = aleoService.encodeCidToFields(metadataResult.cid);
 
       const inputs = [part1, part2, `${startTime}u64`, `${endTime}u64`, `${validOptions.length}u8`];
-      const walletName = wallet?.adapter?.name;
       const params = buildCreateCampaignParams(inputs);
-      const txAddress = address || storeAddress || publicKey || '';
+      const txAddress = address || storeAddress || '';
       const result = await createTransaction(params, requestTransaction, txAddress, walletName);
 
       if (!result.success) {
@@ -322,11 +320,15 @@ export default function CreateCampaignPage() {
   return (
     <div className="min-h-screen py-8">
       <div className="max-w-3xl mx-auto px-4 sm:px-6">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-white mb-2">Create campaign</h1>
-          <p className="text-white/60 text-sm">
-            Configure your campaign details, options, and schedule. Wallet connection required.
+        <div className="mb-8 overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(16,185,129,0.18),rgba(56,189,248,0.1)_45%,rgba(251,146,60,0.15))] p-6 shadow-[0_30px_80px_-45px_rgba(14,116,144,0.8)]">
+          <div className="pointer-events-none absolute" />
+          <div className="mb-4 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-white/70">
+            <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">Private voting</span>
+            <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">Shield ready</span>
+          </div>
+          <h1 className="mb-2 text-3xl font-bold text-white">Create a campaign people actually want to join</h1>
+          <p className="max-w-2xl text-sm text-white/72">
+            Shape the message, options, and timeline in one flow. Every supported wallet can submit, and Shield users get a smoother privacy-first experience.
           </p>
         </div>
 
@@ -341,7 +343,7 @@ export default function CreateCampaignPage() {
         />
 
         {/* Form Card */}
-        <GlassCard className="p-8">
+        <GlassCard className="p-8 border-white/10 shadow-[0_30px_80px_-48px_rgba(2,132,199,0.9)]">
           {/* Step 1: Basic Info */}
           {step === 1 && (
             <div className="space-y-6">

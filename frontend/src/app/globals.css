@@ -4,14 +4,20 @@
 
 :root {
   --foreground-rgb: 255, 255, 255;
-  --background: #0a0a0f;
-  --background-end: #111118;
+  --background: #07111b;
+  --background-end: #130f17;
+  --surface-elevated: rgba(10, 18, 30, 0.7);
+  --border-subtle: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.18);
 }
 
 .dark {
   --foreground-rgb: 255, 255, 255;
-  --background: #0a0a0f;
-  --background-end: #1a1a24;
+  --background: #07111b;
+  --background-end: #19111a;
+  --surface-elevated: rgba(10, 18, 30, 0.72);
+  --border-subtle: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.18);
 }
 
 * {
@@ -33,10 +39,29 @@ body {
 body {
   color: rgb(var(--foreground-rgb));
   background: var(--background);
-  background-image: linear-gradient(180deg, var(--background) 0%, var(--background-end) 100%);
+  background-image:
+    radial-gradient(circle at top left, rgba(52, 211, 153, 0.18), transparent 28%),
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.16), transparent 26%),
+    radial-gradient(circle at bottom center, rgba(251, 146, 60, 0.14), transparent 30%),
+    linear-gradient(180deg, var(--background) 0%, var(--background-end) 100%);
   background-attachment: fixed;
   min-height: 100vh;
   transition: background-color 0.5s ease, color 0.5s ease;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.35;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(circle at center, black, transparent 85%);
 }
 
 /* Fix select dropdown options visibility */
@@ -52,11 +77,12 @@ select option {
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(12px);
+  background: linear-gradient(180deg, rgba(10, 18, 30, 0.74), rgba(18, 20, 31, 0.62));
+  backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 16px;
+  box-shadow: 0 30px 80px -45px rgba(3, 7, 18, 0.95);
 }
 
 .glass-card-hover {
@@ -65,9 +91,9 @@ select option {
 
 .glass-card-hover:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 40px -12px rgba(0, 0, 0, 0.4);
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 24px 60px -24px rgba(13, 148, 136, 0.32);
+  background: linear-gradient(180deg, rgba(14, 25, 38, 0.8), rgba(22, 24, 36, 0.7));
+  border-color: rgba(110, 231, 183, 0.2);
 }
 
 .glass-button {
@@ -90,14 +116,14 @@ select option {
 
 /* Gradient text (use sparingly, e.g. hero) */
 .gradient-text {
-  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  background: linear-gradient(135deg, #6ee7b7 0%, #38bdf8 55%, #f59e0b 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .gradient-text-alt {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: linear-gradient(135deg, #34d399 0%, #22d3ee 55%, #fb7185 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -124,7 +150,11 @@ select option {
   height: 100%;
   top: 0;
   left: 0;
-  background: radial-gradient(ellipse 80% 50% at 70% 0%, rgba(99, 102, 241, 0.08) 0%, transparent 60%);
+  background:
+    radial-gradient(ellipse 60% 45% at 20% 10%, rgba(52, 211, 153, 0.13) 0%, transparent 65%),
+    radial-gradient(ellipse 55% 40% at 85% 0%, rgba(56, 189, 248, 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 50% 100%, rgba(251, 146, 60, 0.12) 0%, transparent 70%);
+  animation: auroraFloat 18s ease-in-out infinite alternate;
 }
 
 /* Scrollbar */
@@ -149,8 +179,8 @@ select option {
 
 /* Inputs */
 .glass-input {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
   color: white;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -235,8 +265,8 @@ select option {
 
 /* Wallet adapter overrides */
 .wallet-adapter-button-wrapper .wallet-adapter-button {
-  background: rgba(16, 185, 129, 0.2) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.32), rgba(56, 189, 248, 0.26), rgba(251, 146, 60, 0.28)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
   border-radius: 12px !important;
   font-family: inherit !important;
   font-weight: 500 !important;
@@ -246,8 +276,22 @@ select option {
 }
 
 .wallet-adapter-button-wrapper .wallet-adapter-button:hover {
-  background: rgba(99, 102, 241, 0.35) !important;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.42), rgba(56, 189, 248, 0.34), rgba(251, 146, 60, 0.36)) !important;
   border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+::selection {
+  background: rgba(56, 189, 248, 0.35);
+  color: #ffffff;
+}
+
+@keyframes auroraFloat {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(0, -2%, 0) scale(1.08);
+  }
 }
 
 .wallet-adapter-modal-wrapper {

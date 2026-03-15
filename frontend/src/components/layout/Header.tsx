@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, Plus, LayoutGrid, Home, Gavel, ChevronDown, Vote, History } from 'lucide-react';
 import { WalletConnect } from '@/components/wallet/WalletConnect';
 import { useWalletStore } from '@/stores/walletStore';
-import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
+import { useWalletSession } from '@/hooks/useWalletSession';
 
 const navLinks = [
   { href: '/', label: 'Home', icon: Home },
@@ -22,7 +22,7 @@ export function Header() {
   const createRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const { isConnected } = useWalletStore();
-  const walletState = useWallet() as any;
+  const walletState = useWalletSession();
   const walletConnected = !!walletState?.connected;
   const isAnyConnected = isConnected || walletConnected;
 
@@ -49,8 +49,8 @@ export function Header() {
       <motion.div
         className={`border-b backdrop-blur-[12px] transition-all duration-300 ${
           scrolled
-            ? 'border-white/[0.06] bg-[rgba(10,10,15,0.7)] shadow-lg shadow-black/10'
-            : 'border-white/[0.08] bg-[rgba(10,10,15,0.85)]'
+            ? 'border-white/[0.08] bg-[linear-gradient(90deg,rgba(9,15,28,0.82),rgba(9,22,25,0.78),rgba(36,18,20,0.75))] shadow-lg shadow-black/10'
+            : 'border-white/[0.08] bg-[linear-gradient(90deg,rgba(8,12,24,0.9),rgba(8,24,24,0.88),rgba(34,20,18,0.88))]'
         }`}
         initial={false}
         animate={{ opacity: 1 }}
