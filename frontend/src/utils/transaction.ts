@@ -1,12 +1,15 @@
+import type { TransactionOptions } from '@provablehq/aleo-types';
+
 const PROGRAM_ID = process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID as string;
 const AUCTION_PROGRAM_ID = process.env.NEXT_PUBLIC_AUCTION_PROGRAM_ID as string;
-const CHAIN_ID = 'testnetbeta';
 
 export interface TransactionParams {
   programId: string;
   functionId: string;
   inputs: string[];
   fee: number;
+  recordIndices?: number[];
+  privateFee?: boolean;
 }
 
 export interface TransactionResult {
@@ -18,44 +21,28 @@ export interface TransactionResult {
 
 export async function createTransaction(
   params: TransactionParams,
-  requestTransaction: (args: any) => Promise<any>,
-  address: string,
-  walletName?: string,
-  chainIdOverride?: string
+  executeTransaction: (options: TransactionOptions) => Promise<{ transactionId: string } | undefined>,
+  walletName?: string
 ): Promise<TransactionResult> {
   const programId = params.programId;
-  const chainId = chainIdOverride || CHAIN_ID;
 
   console.log('Creating transaction with wallet:', walletName);
   console.log('Transaction params:', JSON.stringify(params, null, 2));
 
   try {
-    const txRequest: any = {
-      chainId,
-      transitions: [
-        {
-          program: programId,
-          functionName: params.functionId,
-          inputs: params.inputs ?? [],
-        },
-      ],
+    const txRequest: TransactionOptions = {
+      program: programId,
+      function: params.functionId,
+      inputs: params.inputs ?? [],
+      fee: params.fee,
+      recordIndices: params.recordIndices,
+      privateFee: params.privateFee,
     };
-
-    // Some wallets (like Leo) expect an explicit address, others (like Shield)
-    // can infer it from the connected account. Only include it when present.
-    if (address) {
-      txRequest.address = address;
-    }
-
-    const response = await requestTransaction(txRequest);
+    const response = await executeTransaction(txRequest);
 
     console.log('Wallet response:', response);
 
-    const txId =
-      response?.transactionId ||
-      response?.txId ||
-      response?.id ||
-      (typeof response === 'string' ? response : undefined);
+    const txId = response?.transactionId || (typeof response === 'string' ? response : undefined);
 
     if (!txId) {
       return { success: true };
@@ -93,6 +80,8 @@ export async function createTransaction(
       errorMessage = 'Your wallet could not find the required Aleo record for this action. Make sure the correct wallet is connected and try again.';
     } else if (errorMessage.includes('timeout') || errorMessage.includes('network')) {
       errorMessage = 'Network timeout. Please check your connection and try again.';
+    } else if (errorMessage.includes('is not a function')) {
+      errorMessage = 'This wallet action is not available in the current session. Reconnect your wallet and try again.';
     }
 
     return { success: false, error: errorMessage };
@@ -198,10 +187,4 @@ export function buildRedeemBidPublicParams(inputs: string[]): TransactionParams 
   };
 }
 
-/**
- * Get the network (chain ID)
- */
-export function getNetwork(): string {
-  return CHAIN_ID;
-}
 

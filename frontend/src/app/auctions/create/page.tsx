@@ -11,7 +11,7 @@ import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { aleoService } from '@/services/aleo';
 import { pinataService } from '@/services/pinata';
-import { createTransaction, buildCreatePublicAuctionParams, getAuctionProgramId } from '@/utils/transaction';
+import { createTransaction, buildCreatePublicAuctionParams } from '@/utils/transaction';
 import { Stepper } from '@/components/layout';
 import { useWalletSession } from '@/hooks/useWalletSession';
 
@@ -41,7 +41,7 @@ export default function CreateAuctionPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const { address, requestTransaction, wallet, connected, walletName } = useWalletSession();
+  const { address, executeTransaction, wallet, connected, walletName } = useWalletSession();
   const { isConnected, address: storeAddress } = useWalletStore();
   const { success, error: showError } = useToastStore();
   const walletConnected = !!(connected || isConnected || address || storeAddress);
@@ -173,10 +173,14 @@ export default function CreateAuctionPage() {
         formData.revealCreator ? 'true' : 'false',
       ];
       const params = buildCreatePublicAuctionParams(inputs);
-      const txAddress = address || storeAddress || '';
-      const result = await createTransaction(params, requestTransaction, txAddress, walletName, getAuctionProgramId());
+      const result = await createTransaction(params, executeTransaction, walletName);
       if (result.success) {
-        success('Auction created', result.transactionId ? `Tx: ${result.transactionId.slice(0, 8)}...` : 'Check your wallet.');
+        success(
+          'Auction submitted',
+          result.transactionId
+            ? `Transaction ${result.transactionId.slice(0, 12)}... was submitted successfully.`
+            : 'Your auction transaction was submitted successfully.'
+        );
         router.push('/auctions');
       } else {
         showError('Create failed', result.error ?? 'Unknown error');

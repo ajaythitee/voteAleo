@@ -50,7 +50,7 @@ export default function CampaignDetailPage() {
   const [lastVoteProof, setLastVoteProof] = useState<{ transactionId?: string; eventId?: string; address?: string } | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
-  const { address, requestTransaction, wallet, connected } = useWalletSession();
+  const { address, executeTransaction, wallet, connected } = useWalletSession();
   const { isConnected } = useWalletStore();
   const { success, error: showError } = useToastStore();
 
@@ -443,7 +443,7 @@ export default function CampaignDetailPage() {
       // Store previous vote count for verification
       const previousTotalVotes = campaign.totalVotes;
       
-      const result = await createTransaction(params, requestTransaction, address, walletName);
+      const result = await createTransaction(params, executeTransaction, walletName);
 
       if (!result.success) {
         throw new Error(result.error || 'Transaction failed');

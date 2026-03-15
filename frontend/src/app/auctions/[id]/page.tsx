@@ -31,7 +31,6 @@ import {
   buildSelectWinnerParams,
   buildSelectWinnerPrivateParams,
   createTransaction,
-  getAuctionProgramId,
 } from '@/utils/transaction';
 import { useWalletSession } from '@/hooks/useWalletSession';
 
@@ -63,7 +62,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
   const [isEndingPrivate, setIsEndingPrivate] = useState(false);
   const [isRedeeming, setIsRedeeming] = useState(false);
 
-  const { address, requestTransaction, wallet, connected, walletName } = useWalletSession();
+  const { address, executeTransaction, wallet, connected, walletName } = useWalletSession();
   const { isConnected, address: storedAddress } = useWalletStore();
   const { success, error: showError } = useToastStore();
   const walletConnected = !!(connected || isConnected || address);
@@ -220,7 +219,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     try {
       const nonce = Math.floor(Math.random() * 1e12) + 1;
       const params = buildBidPublicParams([`${amount}u64`, auctionId, `${nonce}scalar`, 'true']);
-      const result = await createTransaction(params, requestTransaction, address, walletName, getAuctionProgramId());
+      const result = await createTransaction(params, executeTransaction, walletName);
 
       if (!result.success) {
         throw new Error(result.error || 'Public bid failed');
@@ -266,7 +265,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
         auctionPublicKey,
         `${nonce}scalar`,
       ]);
-      const result = await createTransaction(params, requestTransaction, address, walletName, getAuctionProgramId());
+      const result = await createTransaction(params, executeTransaction, walletName);
 
       if (!result.success) {
         throw new Error(result.error || 'Private bid failed');
@@ -311,7 +310,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     try {
       const winningBidStruct = `{ amount: ${publicBid.amount}u64, auction_id: ${auctionId}, bid_public_key: ${publicBid.bid_public_key} }`;
       const params = buildSelectWinnerParams([winningBidStruct, bidId.endsWith('field') ? bidId : `${bidId}field`]);
-      const result = await createTransaction(params, requestTransaction, address, walletName, getAuctionProgramId());
+      const result = await createTransaction(params, executeTransaction, walletName);
 
       if (!result.success) {
         throw new Error(result.error || 'Winner selection failed');
@@ -335,7 +334,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     setIsEndingPrivate(true);
     try {
       const params = buildSelectWinnerPrivateParams();
-      const result = await createTransaction(params, requestTransaction, address, walletName, getAuctionProgramId());
+      const result = await createTransaction(params, executeTransaction, walletName);
 
       if (!result.success) {
         throw new Error(result.error || 'Private winner selection failed');
@@ -362,7 +361,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     setIsRedeeming(true);
     try {
       const params = buildRedeemBidPublicParams([owner]);
-      const result = await createTransaction(params, requestTransaction, address, walletName, getAuctionProgramId());
+      const result = await createTransaction(params, executeTransaction, walletName);
 
       if (!result.success) {
         throw new Error(result.error || 'Redeem failed');

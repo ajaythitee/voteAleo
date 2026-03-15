@@ -64,7 +64,7 @@ export default function CreateCampaignPage() {
   const [step, setStep] = useState(1);
 
   // Get wallet info including wallet adapter name
-  const { address, requestTransaction, wallet, connected, walletName } = useWalletSession();
+  const { address, executeTransaction, wallet, connected, walletName } = useWalletSession();
   const { isConnected, address: storeAddress } = useWalletStore();
   const { success, error: showError } = useToastStore();
 
@@ -300,14 +300,18 @@ export default function CreateCampaignPage() {
 
       const inputs = [part1, part2, `${startTime}u64`, `${endTime}u64`, `${validOptions.length}u8`];
       const params = buildCreateCampaignParams(inputs);
-      const txAddress = address || storeAddress || '';
-      const result = await createTransaction(params, requestTransaction, txAddress, walletName);
+      const result = await createTransaction(params, executeTransaction, walletName);
 
       if (!result.success) {
         throw new Error(result.error || 'Transaction failed');
       }
 
-      success('Campaign Created!', 'Your campaign has been created successfully');
+      success(
+        'Campaign submitted',
+        result.transactionId
+          ? `Transaction ${result.transactionId.slice(0, 12)}... was submitted successfully.`
+          : 'Your campaign transaction was submitted successfully.'
+      );
       router.push('/campaigns');
     } catch (err: any) {
       console.error('Create campaign error:', err);
