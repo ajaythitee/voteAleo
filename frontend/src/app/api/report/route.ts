@@ -264,32 +264,33 @@ function drawAnalysisCard(
   accent: [number, number, number]
 ) {
   const lines = doc.splitTextToSize(body, width - 12);
-  const height = 16 + lines.length * 4.5 + 8;
+  const headerH = 12;
+  const height = headerH + 9 + lines.length * 4.5 + 8;
 
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(220, 228, 238);
   doc.roundedRect(x, y, width, height, 4, 4, 'FD');
   doc.setFillColor(...accent);
-  doc.roundedRect(x, y, width, 10, 4, 4, 'F');
-  doc.setFillColor(255, 255, 255);
-  doc.rect(x, y + 5, width, 5, 'F');
+  // Full-height colored header band (avoid masking the lower half, which can look "cut off").
+  doc.roundedRect(x, y, width, headerH, 4, 4, 'F');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(255, 255, 255);
-  doc.text(title, x + 6, y + 6.5);
+  doc.text(title, x + 6, y + 8);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9.5);
   doc.setTextColor(51, 65, 85);
-  doc.text(lines, x + 6, y + 15);
+  doc.text(lines, x + 6, y + headerH + 6);
 
   return height;
 }
 
 function getAnalysisCardHeight(doc: jsPDF, width: number, body: string) {
   const lines = doc.splitTextToSize(body, width - 12);
-  return 16 + lines.length * 4.5 + 8;
+  const headerH = 12;
+  return headerH + 9 + lines.length * 4.5 + 8;
 }
 
 function ensureSpace(doc: jsPDF, pageW: number, pageH: number, y: number, neededHeight: number) {
