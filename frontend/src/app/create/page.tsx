@@ -31,6 +31,13 @@ import { getWalletCapabilities } from '@/lib/walletCapabilities';
 const CAMPAIGN_CATEGORIES = ['governance', 'community', 'poll', 'dao', 'other'] as const;
 const MAX_CAMPAIGN_OPTIONS = 4;
 
+function isLowSignalAiPrompt(title: string, description: string): boolean {
+  const combined = `${title} ${description}`.trim().toLowerCase();
+  if (!combined) return true;
+  if (combined.length < 12) return true;
+  return /^(hi+|hey+|hello+|heyy+|yo+|sup+|hola+|namaste+)[!.?\s]*$/i.test(combined);
+}
+
 interface FormData {
   title: string;
   description: string;
@@ -108,6 +115,10 @@ export default function CreateCampaignPage() {
       showError('Nothing to improve', 'Add a title or description first.');
       return;
     }
+    if (isLowSignalAiPrompt(formData.title, formData.description)) {
+      showError('Add more context', 'AI improve works best with a real topic or description, not just a greeting or very short line.');
+      return;
+    }
     setIsImproving(true);
     try {
       const res = await fetch('/api/ai/suggest', {
@@ -125,7 +136,6 @@ export default function CreateCampaignPage() {
         throw new Error(err.error || `AI request failed (${res.status})`);
       }
       const data = (await res.json()) as { title?: string; description?: string };
-      console.log('AI suggest response:', data);
       if (data.title || data.description) {
         if (data.title) handleInputChange('title', data.title);
         if (data.description) handleInputChange('description', data.description);
@@ -143,6 +153,10 @@ export default function CreateCampaignPage() {
   const suggestOptionsWithAI = async () => {
     if (!formData.title.trim() && !formData.description.trim()) {
       showError('Missing context', 'Add a title and description first to suggest options.');
+      return;
+    }
+    if (isLowSignalAiPrompt(formData.title, formData.description)) {
+      showError('Add more context', 'Give the campaign a clearer topic before asking AI to suggest voting options.');
       return;
     }
     setIsSuggestingOptions(true);
@@ -163,8 +177,6 @@ export default function CreateCampaignPage() {
         throw new Error(err.error || `AI request failed (${res.status})`);
       }
       const data = (await res.json()) as { title?: string; description?: string; options?: string[] };
-      console.log('AI suggest options response:', data);
-      
       // Update title/description if provided
       if (data.title) handleInputChange('title', data.title);
       if (data.description) handleInputChange('description', data.description);

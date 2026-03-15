@@ -26,12 +26,14 @@ import { auctionService } from '@/services/auction';
 import { parseOnChainAuction, type ParsedAuction } from '@/services/auctionParser';
 import { pinataService } from '@/services/pinata';
 import {
+  awaitTransactionConfirmation,
   buildBidPrivateParams,
   buildBidPublicParams,
   buildRedeemBidPublicParams,
   buildSelectWinnerParams,
   buildSelectWinnerPrivateParams,
   createTransaction,
+  isTemporaryWalletTransactionId,
 } from '@/utils/transaction';
 import { useWalletSession } from '@/hooks/useWalletSession';
 import { useTransactionLifecycle } from '@/hooks/useTransactionLifecycle';
@@ -67,7 +69,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
   const [isRedeeming, setIsRedeeming] = useState(false);
   const transaction = useTransactionLifecycle();
 
-  const { address, executeTransaction, wallet, connected, walletName, walletType, connect } = useWalletSession();
+  const { address, executeTransaction, wallet, connected, walletName, walletType, connect, transactionStatus } = useWalletSession();
   const { isConnected, address: storedAddress } = useWalletStore();
   const { success, error: showError } = useToastStore();
   const walletConnected = !!(connected || isConnected || address);
@@ -187,6 +189,87 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
+  const checkWalletAwareStatus = async (transactionId: string) => {
+    if (transactionStatus) {
+      try {
+        const result = await transactionStatus(transactionId);
+        if (typeof result === 'string') {
+          return { status: result, transactionId };
+        }
+
+        if (result && typeof result === 'object') {
+          const statusValue =
+            'status' in result && typeof result.status === 'string'
+              ? result.status
+              : 'pending';
+          const resolvedTransactionId =
+            'transactionId' in result && typeof result.transactionId === 'string'
+              ? result.transactionId
+              : transactionId;
+
+          return { status: statusValue, transactionId: resolvedTransactionId };
+        }
+      } catch (walletError) {
+        if (
+          isTemporaryWalletTransactionId(transactionId) &&
+          walletError instanceof Error &&
+          walletError.message.includes('Transaction not found for given transaction ID')
+        ) {
+          return { status: 'pending', transactionId };
+        }
+      }
+    }
+
+    if (isTemporaryWalletTransactionId(transactionId)) {
+      return { status: 'pending', transactionId };
+    }
+
+    return null;
+  };
+
+  const awaitAuctionAction = async (
+    submittedTransactionId: string | undefined,
+    verifyChange: () => Promise<boolean>,
+    submittedTitle: string,
+    confirmedTitle: string,
+    failureTitle: string,
+    pendingDescription: string,
+    successDescription: string,
+    failureDescription: string
+  ) => {
+    transaction.setSubmitted(submittedTitle, pendingDescription, submittedTransactionId);
+
+    const confirmation = await awaitTransactionConfirmation(submittedTransactionId, checkWalletAwareStatus, {
+      attempts: 120,
+      delayMs: 1000,
+    });
+    const resolvedTransactionId = confirmation.transactionId ?? submittedTransactionId;
+
+    transaction.setAwaiting(confirmedTitle, pendingDescription, resolvedTransactionId);
+
+    for (let attempt = 0; attempt < 12; attempt++) {
+      if (await verifyChange()) {
+        transaction.setConfirmed(confirmedTitle, successDescription, resolvedTransactionId);
+        return resolvedTransactionId;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+
+    transaction.setFailed(
+      failureTitle,
+      isTemporaryWalletTransactionId(submittedTransactionId)
+        ? `Shield accepted the request, but no on-chain state change was detected. ${failureDescription}`
+        : failureDescription,
+      resolvedTransactionId
+    );
+
+    throw new Error(
+      isTemporaryWalletTransactionId(submittedTransactionId)
+        ? `Shield signed the request but the auction state never updated on-chain. ${failureDescription}`
+        : failureDescription
+    );
+  };
+
   const name = parsed?.name ?? 'Untitled';
   const startingBid = parsed?.startingBid ?? 0;
   const description = parsed?.description ?? '';
@@ -226,8 +309,11 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     setIsPublicBidding(true);
     transaction.setPreparing('Preparing public bid', 'Sending your public bid request to the connected wallet.');
     try {
+      const currentAuctionId = auctionId;
       const nonce = Math.floor(Math.random() * 1e12) + 1;
-      const params = buildBidPublicParams([`${amount}u64`, auctionId, `${nonce}scalar`, 'true']);
+      const previousBidCount = bidCount;
+      const previousHighestBid = highestBid;
+      const params = buildBidPublicParams([`${amount}u64`, currentAuctionId, `${nonce}scalar`, 'true']);
       const result = await createTransaction(params, executeTransaction, walletName, {
         recoverConnection: connect,
       });
@@ -236,15 +322,26 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
         throw new Error(result.error || 'Public bid failed');
       }
 
-      transaction.setAwaiting(
+      await awaitAuctionAction(
+        result.transactionId,
+        async () => {
+          await refreshAuctionState();
+          const [currentBidCount, currentHighestBid] = await Promise.all([
+            auctionService.getBidCount(currentAuctionId),
+            auctionService.getHighestBid(currentAuctionId),
+          ]);
+          return currentBidCount > previousBidCount || currentHighestBid > previousHighestBid;
+        },
         'Public bid submitted',
+        'Public bid processing',
+        'Public bid not confirmed',
         'The bid was submitted. Public bid counts may take a moment to update on-chain.',
-        result.transactionId
+        'The public bid is now reflected in the auction state.',
+        'The public bid never appeared in the auction state.'
       );
 
       success('Public bid placed', 'Your wallet should now hold a BidReceipt record for this bid.');
       setPublicBidAmount('');
-      await refreshAuctionState();
     } catch (error) {
       showError('Public bid failed', error instanceof Error ? error.message : 'Unknown error');
     } finally {
@@ -279,10 +376,13 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     setIsPrivateBidding(true);
     transaction.setPreparing('Preparing private bid', 'Checking the private-record requirements before opening the wallet approval flow.');
     try {
+      const currentAuctionId = auctionId;
       const nonce = Math.floor(Math.random() * 1e12) + 1;
+      const previousBidCount = bidCount;
+      const previousHighestBid = highestBid;
       const params = buildBidPrivateParams([
         `${amount}u64`,
-        auctionId,
+        currentAuctionId,
         owner,
         auctionPublicKey,
         `${nonce}scalar`,
@@ -295,10 +395,22 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
         throw new Error(result.error || 'Private bid failed');
       }
 
-      transaction.setAwaiting(
+      await awaitAuctionAction(
+        result.transactionId,
+        async () => {
+          await refreshAuctionState();
+          const [currentBidCount, currentHighestBid] = await Promise.all([
+            auctionService.getBidCount(currentAuctionId),
+            auctionService.getHighestBid(currentAuctionId),
+          ]);
+          return currentBidCount > previousBidCount || currentHighestBid > previousHighestBid;
+        },
         'Private bid submitted',
+        'Private bid processing',
+        'Private bid not confirmed',
         'The private bid was submitted. Keep the resulting BidReceipt record in the same wallet for redemption later.',
-        result.transactionId
+        'The private bid is now reflected in the auction state.',
+        'The private bid never appeared in the auction state.'
       );
 
       success(
@@ -306,7 +418,6 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
         'Your wallet should now hold a BidReceipt record. Shield Wallet is the smoothest option for record-based flows.'
       );
       setPrivateBidAmount('');
-      await refreshAuctionState();
     } catch (error) {
       showError('Private bid failed', error instanceof Error ? error.message : 'Unknown error');
     } finally {
@@ -339,7 +450,8 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     setIsEndingPublic(true);
     transaction.setPreparing('Preparing public winner selection', 'Validating the winning public bid before requesting creator approval.');
     try {
-      const winningBidStruct = `{ amount: ${publicBid.amount}u64, auction_id: ${auctionId}, bid_public_key: ${publicBid.bid_public_key} }`;
+      const currentAuctionId = auctionId;
+      const winningBidStruct = `{ amount: ${publicBid.amount}u64, auction_id: ${currentAuctionId}, bid_public_key: ${publicBid.bid_public_key} }`;
       const params = buildSelectWinnerParams([winningBidStruct, bidId.endsWith('field') ? bidId : `${bidId}field`]);
       const result = await createTransaction(params, executeTransaction, walletName, {
         recoverConnection: connect,
@@ -349,14 +461,22 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
         throw new Error(result.error || 'Winner selection failed');
       }
 
-      transaction.setAwaiting(
+      await awaitAuctionAction(
+        result.transactionId,
+        async () => {
+          await refreshAuctionState();
+          const currentWinningBidId = await auctionService.getWinningBidId(currentAuctionId);
+          return currentWinningBidId === bidId || !!currentWinningBidId;
+        },
         'Public winner selection submitted',
+        'Public winner selection processing',
+        'Public winner selection not confirmed',
         'The winner selection is in flight. The auction state will refresh once the chain mapping updates.',
-        result.transactionId
+        'The winner is now recorded on-chain.',
+        'The winning bid was not recorded on-chain.'
       );
 
       success('Public winner selected', 'Your wallet should prompt for the AuctionTicket record.');
-      await refreshAuctionState();
     } catch (error) {
       showError('Winner selection failed', error instanceof Error ? error.message : 'Unknown error');
     } finally {
@@ -377,6 +497,7 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     setIsEndingPrivate(true);
     transaction.setPreparing('Preparing private winner selection', 'Private winner selection requires the creator wallet to supply auction records.');
     try {
+      const currentAuctionId = auctionId;
       const params = buildSelectWinnerPrivateParams();
       const result = await createTransaction(params, executeTransaction, walletName, {
         recoverConnection: connect,
@@ -386,17 +507,24 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
         throw new Error(result.error || 'Private winner selection failed');
       }
 
-      transaction.setAwaiting(
+      await awaitAuctionAction(
+        result.transactionId,
+        async () => {
+          await refreshAuctionState();
+          return !!(await auctionService.getWinningBidId(currentAuctionId));
+        },
         'Private winner selection submitted',
+        'Private winner selection processing',
+        'Private winner selection not confirmed',
         'The request was submitted. Use the same wallet that holds the AuctionTicket and PrivateBid records.',
-        result.transactionId
+        'The private winner selection is now reflected on-chain.',
+        'The winning private bid was not recorded on-chain.'
       );
 
       success(
         'Private winner selected',
         'Use the creator wallet that holds the AuctionTicket and PrivateBid records. Shield Wallet is strongly recommended here.'
       );
-      await refreshAuctionState();
     } catch (error) {
       showError('Private winner selection failed', error instanceof Error ? error.message : 'Unknown error');
     } finally {
@@ -417,6 +545,10 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     setIsRedeeming(true);
     transaction.setPreparing('Preparing redemption', 'Opening the wallet flow so the winning BidReceipt record can be selected.');
     try {
+      const currentAuctionId = auctionId;
+      if (!currentAuctionId) {
+        throw new Error('Auction ID is missing.');
+      }
       const params = buildRedeemBidPublicParams([owner]);
       const result = await createTransaction(params, executeTransaction, walletName, {
         recoverConnection: connect,
@@ -426,14 +558,21 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
         throw new Error(result.error || 'Redeem failed');
       }
 
-      transaction.setAwaiting(
+      await awaitAuctionAction(
+        result.transactionId,
+        async () => {
+          await refreshAuctionState();
+          return await auctionService.isRedeemed(currentAuctionId);
+        },
         'Redemption submitted',
+        'Redemption processing',
+        'Redemption not confirmed',
         'The redeem request was submitted. Settlement status will change once the redemption mapping updates.',
-        result.transactionId
+        'The auction redemption is now reflected on-chain.',
+        'The redemption mapping never updated on-chain.'
       );
 
       success('Redeem submitted', 'Your wallet should prompt you to choose the winning BidReceipt record.');
-      await refreshAuctionState();
     } catch (error) {
       transaction.setFailed('Auction action failed', error instanceof Error ? error.message : 'Unknown error');
       showError('Redeem failed', error instanceof Error ? error.message : 'Unknown error');

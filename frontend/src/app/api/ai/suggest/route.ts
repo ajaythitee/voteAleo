@@ -30,7 +30,7 @@ const suggestResultSchema = z.object({
 const contextConfig = {
   campaign: {
     system:
-      'You are improving content for a privacy-preserving voting campaign on VeilProtocol (Aleo blockchain). Keep the exact real-world topic unchanged.',
+      'You are improving content for a privacy-preserving voting campaign. Keep the exact real-world topic unchanged.',
     optionGuidance: [
       'Suggest 2-4 mutually exclusive voting options.',
       'Keep each option clear, concise, and directly tied to the provided campaign topic.',
@@ -39,10 +39,17 @@ const contextConfig = {
   },
   auction: {
     system:
-      'You are improving content for a sealed-bid auction on VeilProtocol (Aleo blockchain). Keep the exact item, collection, or theme unchanged.',
+      'You are improving content for a sealed-bid auction. Keep the exact item, collection, or theme unchanged.',
     optionGuidance: [],
   },
 } as const;
+
+function isLowSignalRequest(title: string, description: string): boolean {
+  const combined = `${title} ${description}`.trim().toLowerCase();
+  if (!combined) return true;
+  if (combined.length < 12) return true;
+  return /^(hi+|hey+|hello+|heyy+|yo+|sup+|hola+|namaste+)[!.?\s]*$/i.test(combined);
+}
 
 // Remove markdown formatting from text
 function cleanText(text: string): string {
@@ -142,6 +149,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (isLowSignalRequest(title, description)) {
+      return NextResponse.json(
+        {
+          error:
+            'Add a bit more real context before using AI improve. Short greetings or one-line filler text do not produce good suggestions.',
+        },
+        { status: 400 },
+      );
+    }
+
     const geminiApiKey = process.env.GEMINI_API_KEY;
 
     if (!geminiApiKey) {
@@ -154,8 +171,6 @@ export async function POST(request: NextRequest) {
         { status: 500 },
       );
     }
-
-    console.log('AI suggest: Using Gemini for', context, suggestOptions ? 'with options' : '');
 
     const config = contextConfig[context];
     let prompt = `${config.system}
@@ -223,7 +238,6 @@ Return JSON with:
       );
     }
 
-    console.log('AI suggest: Success', { hasTitle: !!result.title, hasDescription: !!result.description, optionsCount: result.options?.length || 0 });
     return NextResponse.json(result, { status: 200 });
   } catch (err: any) {
     console.error('AI suggest error:', err);

@@ -51,7 +51,6 @@ export default function CampaignsPage() {
     try {
       // Get total campaign count from on-chain mapping
       const campaignCount = await aleoService.getCampaignCount();
-      console.log('Campaign count from counter:', campaignCount);
 
       if (campaignCount === 0) {
         setCampaigns([]);
@@ -65,7 +64,6 @@ export default function CampaignsPage() {
       for (let i = 1; i <= campaignCount; i++) {
         try {
           const onChainCampaign = await aleoService.fetchCampaign(i);
-          console.log(`Campaign ${i} raw data:`, onChainCampaign);
 
           if (onChainCampaign) {
             const campaignData = await parseOnChainCampaign(onChainCampaign as string, i);

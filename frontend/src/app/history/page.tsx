@@ -73,7 +73,6 @@ export default function HistoryPage() {
 
     try {
       const campaigns = await aleoService.fetchAllCampaigns();
-      console.log('All campaigns for history:', campaigns);
 
       const historyList: VoteHistory[] = [];
       const campaignList: Campaign[] = [];

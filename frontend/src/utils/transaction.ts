@@ -31,6 +31,15 @@ export function isTemporaryWalletTransactionId(transactionId: string | undefined
   return normalized.startsWith('shield_') || normalized.startsWith('leo_') || normalized.startsWith('puzzle_');
 }
 
+function canRecoverWalletConnection(errorMessage: string): boolean {
+  return (
+    errorMessage.includes('Receiving end does not exist') ||
+    errorMessage.includes('Could not establish connection') ||
+    errorMessage.includes('Wallet not connected') ||
+    errorMessage.includes('No response')
+  );
+}
+
 export async function createTransaction(
   params: TransactionParams,
   executeTransaction: (options: TransactionOptions) => Promise<{ transactionId: string } | undefined>,
@@ -40,9 +49,6 @@ export async function createTransaction(
   }
 ): Promise<TransactionResult> {
   const programId = params.programId;
-
-  console.log('Creating transaction with wallet:', walletName);
-  console.log('Transaction params:', JSON.stringify(params, null, 2));
 
   try {
     const txRequest: TransactionOptions = {
@@ -54,8 +60,6 @@ export async function createTransaction(
       privateFee: params.privateFee,
     };
     const response = await executeTransaction(txRequest);
-
-    console.log('Wallet response:', response);
 
     const txId = response?.transactionId || (typeof response === 'string' ? response : undefined);
 
@@ -70,29 +74,15 @@ export async function createTransaction(
       return { success: false, error: `Transaction was rejected: ${txId}` };
     }
 
-    console.log('Transaction created successfully:', txId);
     return { success: true, transactionId: txId };
   } catch (error: any) {
-    console.error('Transaction error:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-      fullError: error,
-    });
-
     // Handle specific error cases
     let errorMessage = error.message || 'Transaction failed';
 
-    if (
-      options?.recoverConnection &&
-      (errorMessage.includes('Receiving end does not exist') ||
-        errorMessage.includes('Could not establish connection') ||
-        errorMessage.includes('Wallet not connected'))
-    ) {
+    if (options?.recoverConnection && canRecoverWalletConnection(errorMessage)) {
       try {
         await options.recoverConnection();
-        await new Promise((resolve) => setTimeout(resolve, 400));
+        await new Promise((resolve) => setTimeout(resolve, 800));
 
         const retryResponse = await executeTransaction({
           program: params.programId,
@@ -138,10 +128,11 @@ export async function createTransaction(
       errorMessage = 'This wallet action is not available in the current session. Reconnect your wallet and try again.';
     } else if (
       errorMessage.includes('Receiving end does not exist') ||
-      errorMessage.includes('Could not establish connection')
+      errorMessage.includes('Could not establish connection') ||
+      errorMessage.includes('No response')
     ) {
       errorMessage =
-        'The wallet extension connection went stale. Re-open Shield, approve the reconnect request, and try again.';
+        'The wallet did not answer the transaction request. Re-open Shield, make sure the extension is unlocked, and try again.';
     }
 
     return { success: false, error: errorMessage };

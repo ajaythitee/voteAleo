@@ -33,9 +33,6 @@ interface AnalysisResult {
   voterFeelings: string;
 }
 
-/**
- * Generate comprehensive AI analysis using Groq (preferred) or Gemini Flash 2.0
- */
 async function generateAIAnalysis(
   title: string,
   totalVotes: number,
@@ -43,26 +40,24 @@ async function generateAIAnalysis(
   startTime: string,
   endTime: string
 ): Promise<AnalysisResult> {
-  const groqApiKey = process.env.GROQ_API_KEY;
   const geminiApiKey = process.env.GEMINI_API_KEY;
 
-  // Default fallback response
   const fallback: AnalysisResult = {
-    summary: 'AI analysis is not configured. Add GROQ_API_KEY or GEMINI_API_KEY to enable AI-powered insights.',
-    insights: 'Enable AI API keys to get detailed campaign analysis and voter sentiment insights.',
+    summary: 'AI analysis is not configured. Add GEMINI_API_KEY to generate a narrative summary for this report.',
+    insights: 'Once Gemini is configured, this section will highlight turnout patterns, leading preferences, and notable result signals.',
     sentiment: 'Neutral',
-    voterFeelings: 'Enable AI analysis to understand voter sentiment and feelings about this campaign.',
+    voterFeelings: 'This section will estimate participant sentiment using the final vote distribution once Gemini is enabled.',
   };
 
-  if (!groqApiKey && !geminiApiKey) {
+  if (!geminiApiKey) {
     return fallback;
   }
 
   const optionsText = options
-      .map((o, idx) => `${idx + 1}. "${o.label}": ${o.votes} votes (${o.percentage ?? 0}%)`)
-      .join('\n');
+    .map((option, index) => `${index + 1}. "${option.label}": ${option.votes} votes (${option.percentage ?? 0}%)`)
+    .join('\n');
 
-  const prompt = `You are analyzing a voting campaign report for VeilProtocol, a privacy-preserving governance platform on Aleo blockchain.
+  const prompt = `You are analyzing the outcome of a privacy-preserving voting campaign.
 
 Campaign Title: "${title}"
 Total Votes: ${totalVotes}
@@ -71,189 +66,106 @@ Voting Period: ${startTime} to ${endTime}
 Results:
 ${optionsText}
 
-Provide a comprehensive analysis in JSON format with these exact keys:
+Return valid JSON with exactly these keys:
 {
-  "summary": "A 2-3 sentence executive summary of the voting outcome and key findings",
-  "insights": "3-4 sentences describing what patterns emerge, what this suggests about voter preferences, and any notable trends",
-  "sentiment": "One word: Positive, Negative, Neutral, or Mixed - describing overall voter sentiment",
-  "voterFeelings": "4-5 sentences analyzing what voters are feeling about this campaign - their concerns, enthusiasm, satisfaction, or dissatisfaction based on the voting patterns and distribution"
+  "summary": "2-3 sentence executive summary",
+  "insights": "3-4 sentence explanation of notable patterns and what they suggest",
+  "sentiment": "One word: Positive, Negative, Neutral, or Mixed",
+  "voterFeelings": "4-5 sentence estimate of what participants may be feeling based on the results"
 }
 
-Be factual, neutral, and professional. Focus on data-driven observations and voter psychology.`;
+Be factual, neutral, professional, and avoid platform branding.`;
 
-  // Try Groq first (faster and cheaper)
-  if (groqApiKey) {
-    try {
-      const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${groqApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'llama-3.1-70b-versatile', // Fast and capable model
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an expert data analyst specializing in governance and voting behavior. Provide accurate, professional analysis in JSON format.',
-            },
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          temperature: 0.7,
-          max_tokens: 800,
-          response_format: { type: 'json_object' },
-        }),
-      });
+  try {
+    const genAI = new GoogleGenerativeAI(geminiApiKey);
+    const model = genAI.getGenerativeModel({
+      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+      generationConfig: {
+        temperature: 0.55,
+        topP: 0.9,
+        topK: 40,
+      },
+    });
 
-      if (groqResponse.ok) {
-        const groqData = await groqResponse.json();
-        const content = groqData.choices?.[0]?.message?.content;
-        
-        if (content) {
-          try {
-            const parsed = JSON.parse(content);
-            return {
-              summary: parsed.summary || fallback.summary,
-              insights: parsed.insights || fallback.insights,
-              sentiment: parsed.sentiment || 'Neutral',
-              voterFeelings: parsed.voterFeelings || fallback.voterFeelings,
-            };
-          } catch {
-            // Fallback: treat as text
-            const text = content.slice(0, 1000);
-            return {
-              summary: text.slice(0, 200) || fallback.summary,
-              insights: text.slice(200, 500) || fallback.insights,
-              sentiment: 'Neutral',
-              voterFeelings: text.slice(500) || fallback.voterFeelings,
-            };
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Groq analysis error:', err);
-      // Fall through to Gemini
-    }
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*\}/);
+    const jsonText = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : text;
+    const parsed = JSON.parse(jsonText);
+
+    return {
+      summary: String(parsed.summary || fallback.summary),
+      insights: String(parsed.insights || fallback.insights),
+      sentiment: String(parsed.sentiment || fallback.sentiment),
+      voterFeelings: String(parsed.voterFeelings || fallback.voterFeelings),
+    };
+  } catch (error) {
+    console.error('Gemini analysis error:', error);
+    return fallback;
   }
-
-  // Fallback to Gemini Flash 2.0
-  if (geminiApiKey) {
-    try {
-      const genAI = new GoogleGenerativeAI(geminiApiKey);
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash-exp',
-        generationConfig: {
-          temperature: 0.7,
-          topP: 0.9,
-          topK: 40,
-        },
-      });
-
-      const result = await model.generateContent(prompt);
-      const response = result.response;
-      const text = response.text().trim();
-
-      try {
-        const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*\}/);
-        const jsonText = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : text;
-        const parsed = JSON.parse(jsonText);
-
-        return {
-          summary: parsed.summary || fallback.summary,
-          insights: parsed.insights || fallback.insights,
-          sentiment: parsed.sentiment || 'Neutral',
-          voterFeelings: parsed.voterFeelings || fallback.voterFeelings,
-        };
-      } catch {
-        // Fallback: treat entire response as summary
-        const textParts = text.split('\n\n');
-        return {
-          summary: textParts[0]?.slice(0, 200) || fallback.summary,
-          insights: textParts[1]?.slice(0, 300) || fallback.insights,
-          sentiment: 'Neutral',
-          voterFeelings: textParts.slice(2).join(' ').slice(0, 400) || fallback.voterFeelings,
-        };
-      }
-    } catch (err) {
-      console.error('Gemini analysis error:', err);
-    }
-  }
-
-  return fallback;
 }
 
-/**
- * Generate chart image URL using QuickChart
- */
-function getChartImageUrl(options: ReportOption[], totalVotes: number): string {
-  const labels = options.map((o) =>
-    o.label.length > 25 ? o.label.slice(0, 22) + '...' : o.label
+function getChartImageUrl(options: ReportOption[]): string {
+  const labels = options.map((option) =>
+    option.label.length > 25 ? `${option.label.slice(0, 22)}...` : option.label
   );
-  const data = options.map((o) => o.votes);
-
-  // Professional color palette
+  const data = options.map((option) => option.votes);
   const colors = [
-    'rgba(16, 185, 129, 0.85)',  // Primary green
-    'rgba(59, 130, 246, 0.85)',  // Blue
-    'rgba(168, 85, 247, 0.85)',  // Purple
-    'rgba(236, 72, 153, 0.85)',  // Pink
-    'rgba(251, 146, 60, 0.85)',  // Orange
+    'rgba(20, 184, 166, 0.88)',
+    'rgba(59, 130, 246, 0.88)',
+    'rgba(245, 158, 11, 0.88)',
+    'rgba(244, 114, 182, 0.88)',
+    'rgba(99, 102, 241, 0.88)',
   ];
 
   const chartConfig = {
     type: 'bar',
     data: {
       labels,
-      datasets: [{
-        label: 'Votes',
-        data,
-        backgroundColor: colors.slice(0, data.length),
-        borderColor: colors.slice(0, data.length).map(c => c.replace('0.85', '1')),
-        borderWidth: 2,
-      }],
+      datasets: [
+        {
+          label: 'Votes',
+          data,
+          backgroundColor: colors.slice(0, data.length),
+          borderColor: colors.slice(0, data.length).map((color) => color.replace('0.88', '1')),
+          borderWidth: 2,
+          borderRadius: 8,
+        },
+      ],
     },
     options: {
       responsive: true,
-      legend: { display: false },
+      plugins: {
+        legend: { display: false },
+      },
+      layout: { padding: 16 },
       scales: {
-        yAxes: [{
-          ticks: {
-            beginAtZero: true,
-            precision: 0,
-          },
-          gridLines: {
-            color: 'rgba(0,0,0,0.1)',
-          },
-        }],
-        xAxes: [{
-          gridLines: {
-            display: false,
-          },
-        }],
+        y: {
+          beginAtZero: true,
+          ticks: { precision: 0, color: '#334155' },
+          grid: { color: 'rgba(148, 163, 184, 0.18)' },
+        },
+        x: {
+          ticks: { color: '#334155' },
+          grid: { display: false },
+        },
       },
     },
   };
 
   const encoded = encodeURIComponent(JSON.stringify(chartConfig));
-  return `https://quickchart.io/chart?c=${encoded}&width=600&height=320&format=png`;
+  return `https://quickchart.io/chart?c=${encoded}&width=900&height=420&format=png&backgroundColor=white`;
 }
 
-/**
- * Fetch chart image as base64
- */
 async function fetchChartImage(chartUrl: string): Promise<string | null> {
   try {
     const response = await fetch(chartUrl, {
       headers: {
-        'User-Agent': 'VeilProtocol-Report-Generator/1.0',
+        'User-Agent': 'VoteAleo-Report-Generator/1.0',
       },
     });
 
     if (!response.ok) {
-      console.warn('Chart fetch failed:', response.status);
       return null;
     }
 
@@ -265,13 +177,9 @@ async function fetchChartImage(chartUrl: string): Promise<string | null> {
   }
 }
 
-/**
- * Format date for display
- */
 function formatDate(dateString: string): string {
   try {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
+    return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -283,13 +191,39 @@ function formatDate(dateString: string): string {
   }
 }
 
-/**
- * Format address for display (truncate if too long)
- */
 function formatAddress(address: string | undefined): string {
   if (!address) return 'Not available';
   if (address.length <= 20) return address;
   return `${address.slice(0, 10)}...${address.slice(-8)}`;
+}
+
+function getLogoBase64(): string | null {
+  try {
+    const logoPath = join(process.cwd(), 'public', 'logo.svg');
+    return `data:image/svg+xml;base64,${Buffer.from(readFileSync(logoPath, 'utf-8')).toString('base64')}`;
+  } catch {
+    try {
+      const altPath = join(process.cwd(), 'frontend', 'public', 'logo.svg');
+      return `data:image/svg+xml;base64,${Buffer.from(readFileSync(altPath, 'utf-8')).toString('base64')}`;
+    } catch {
+      return null;
+    }
+  }
+}
+
+function drawPageBackground(doc: jsPDF, pageW: number, pageH: number) {
+  doc.setFillColor(246, 248, 252);
+  doc.rect(0, 0, pageW, pageH, 'F');
+
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, pageW, 46, 'F');
+
+  doc.setFillColor(20, 184, 166);
+  doc.circle(pageW - 18, 14, 16, 'F');
+  doc.setFillColor(59, 130, 246);
+  doc.circle(pageW - 8, 34, 12, 'F');
+  doc.setFillColor(251, 191, 36);
+  doc.circle(pageW - 42, 8, 9, 'F');
 }
 
 function drawStatCard(
@@ -302,8 +236,8 @@ function drawStatCard(
   value: string,
   accent: [number, number, number]
 ) {
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(220, 228, 238);
   doc.roundedRect(x, y, width, height, 4, 4, 'FD');
   doc.setFillColor(...accent);
   doc.roundedRect(x + 3, y + 3, 5, height - 6, 2, 2, 'F');
@@ -312,7 +246,7 @@ function drawStatCard(
   doc.setTextColor(100, 116, 139);
   doc.text(label, x + 12, y + 7);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
+  doc.setFontSize(12);
   doc.setTextColor(15, 23, 42);
   doc.text(value, x + 12, y + 15);
 }
@@ -330,7 +264,7 @@ function drawAnalysisCard(
   const height = 16 + lines.length * 4.5 + 8;
 
   doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(226, 232, 240);
+  doc.setDrawColor(220, 228, 238);
   doc.roundedRect(x, y, width, height, 4, 4, 'FD');
   doc.setFillColor(...accent);
   doc.roundedRect(x, y, width, 10, 4, 4, 'F');
@@ -350,35 +284,6 @@ function drawAnalysisCard(
   return height;
 }
 
-/**
- * Load logo as base64 data URL
- */
-function getLogoBase64(): string | null {
-  try {
-    // Try to read from public folder
-    const logoPath = join(process.cwd(), 'public', 'logo.svg');
-    const logoContent = readFileSync(logoPath, 'utf-8');
-    
-    // Encode SVG content for data URL
-    const encoded = Buffer.from(logoContent).toString('base64');
-    return `data:image/svg+xml;base64,${encoded}`;
-  } catch (error) {
-    // Try alternative path (for different build environments)
-    try {
-      const altPath = join(process.cwd(), 'frontend', 'public', 'logo.svg');
-      const logoContent = readFileSync(altPath, 'utf-8');
-      const encoded = Buffer.from(logoContent).toString('base64');
-      return `data:image/svg+xml;base64,${encoded}`;
-    } catch (altError) {
-      console.warn('Could not load logo from any path:', error, altError);
-      return null;
-    }
-  }
-}
-
-/**
- * Generate professional PDF report
- */
 function generatePDF(
   campaignId: string | number,
   title: string,
@@ -393,16 +298,14 @@ function generatePDF(
 ): ArrayBuffer {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageW = (doc as any).internal?.pageSize?.getWidth?.() ?? 210;
+  const pageH = (doc as any).internal?.pageSize?.getHeight?.() ?? 297;
   const margin = 20;
-  const contentW = pageW - 2 * margin;
-  let y = 20;
+  const contentW = pageW - margin * 2;
+  let y = 56;
 
-  // ===== HEADER =====
-  doc.setFillColor(16, 185, 129);
-  doc.rect(0, 0, pageW, 32, 'F');
+  drawPageBackground(doc, pageW, pageH);
   doc.setTextColor(255, 255, 255);
-  
-  // Add logo
+
   const logoBase64 = getLogoBase64();
   if (logoBase64) {
     try {
@@ -411,76 +314,76 @@ function generatePDF(
       console.warn('Could not add logo image:', error);
     }
   }
-  
-  doc.setFontSize(24);
-  doc.setFont('helvetica', 'bold');
+
   const logoOffset = logoBase64 ? 20 : 0;
-  doc.text('VeilProtocol', margin + logoOffset, 20);
-
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(24);
+  doc.text('Campaign Report', margin + logoOffset, 20);
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(11);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Campaign Analysis Report', margin + logoOffset, 27);
-
-  const currentDate = new Date().toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  doc.text('A polished summary of the final result and voter sentiment', margin + logoOffset, 27);
   doc.setFontSize(9);
-  doc.text(`Generated: ${currentDate}`, pageW - margin, 27, { align: 'right' });
-
-  y = 40;
-
-  // ===== CAMPAIGN TITLE =====
-  doc.setTextColor(30, 30, 30);
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  const titleLines = doc.splitTextToSize(
-    title.length > 70 ? title.slice(0, 67) + '...' : title,
-    contentW
+  doc.text(
+    `Generated: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`,
+    pageW - margin,
+    27,
+    { align: 'right' }
   );
-  doc.text(titleLines, margin, y);
-  y += titleLines.length * 7 + 6;
 
-  // ===== CAMPAIGN METADATA =====
-  doc.setFontSize(10);
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(220, 228, 238);
+  doc.roundedRect(margin, y, contentW, 34, 7, 7, 'FD');
+  doc.setFillColor(20, 184, 166);
+  doc.roundedRect(margin + 4, y + 4, 6, 26, 3, 3, 'F');
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  const titleLines = doc.splitTextToSize(title.length > 70 ? `${title.slice(0, 67)}...` : title, contentW - 20);
+  doc.text(titleLines, margin + 16, y + 10);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(80, 80, 80);
-  doc.text(`Campaign ID: #${campaignId}`, margin, y);
-  y += 5;
-  
-  if (creator) {
-    doc.text(`Campaign Creator: ${formatAddress(creator)}`, margin, y);
-    y += 5;
-  }
-  
-  doc.text(`Voting Period: ${formatDate(startTime)} — ${formatDate(endTime)}`, margin, y);
-  y += 5;
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(16, 185, 129);
-  doc.text(`Total Votes: ${totalVotes}`, margin, y);
-  y += 12;
+  doc.setFontSize(9);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Campaign ID #${campaignId}`, margin + 16, y + 21);
+  doc.text(`Voting window: ${formatDate(startTime)} to ${formatDate(endTime)}`, margin + 16, y + 27);
+  y += 44;
 
-  // ===== RESULTS TABLE =====
+  const leadingOption = options.reduce<ReportOption | null>((best, option) => {
+    if (!best || option.votes > best.votes) return option;
+    return best;
+  }, null);
+
+  drawStatCard(doc, margin, y, 52, 20, 'Turnout', totalVotes === 0 ? 'No votes yet' : `${totalVotes} votes`, [20, 184, 166]);
+  drawStatCard(
+    doc,
+    margin + 58,
+    y,
+    52,
+    20,
+    'Leading option',
+    leadingOption ? `${leadingOption.label.slice(0, 18)}${leadingOption.label.length > 18 ? '...' : ''}` : 'None',
+    [59, 130, 246]
+  );
+  drawStatCard(doc, margin + 116, y, 54, 20, 'Creator', formatAddress(creator), [245, 158, 11]);
+  y += 30;
+
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(30, 30, 30);
-  doc.text('Voting Results', margin, y);
+  doc.setTextColor(15, 23, 42);
+  doc.text('Results Overview', margin, y);
   y += 8;
-
-  const tableData = options.map((o, idx) => [
-    `${idx + 1}. ${o.label.length > 45 ? o.label.slice(0, 42) + '...' : o.label}`,
-    String(o.votes),
-    `${o.percentage ?? 0}%`,
-  ]);
 
   autoTable(doc, {
     startY: y,
     head: [['Option', 'Votes', 'Share']],
-    body: tableData,
+    body: options.map((option, index) => [
+      `${index + 1}. ${option.label.length > 45 ? `${option.label.slice(0, 42)}...` : option.label}`,
+      String(option.votes),
+      `${option.percentage ?? 0}%`,
+    ]),
     margin: { left: margin, right: margin },
     headStyles: {
-      fillColor: [16, 185, 129],
+      fillColor: [15, 23, 42],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       fontSize: 11,
@@ -490,7 +393,7 @@ function generatePDF(
       textColor: [30, 30, 30],
     },
     alternateRowStyles: {
-      fillColor: [248, 250, 252],
+      fillColor: [244, 247, 251],
     },
     columnStyles: {
       0: { cellWidth: 'auto' },
@@ -505,75 +408,39 @@ function generatePDF(
 
   y = (doc as any).lastAutoTable.finalY + 12;
 
-  // ===== CHART =====
   if (chartBase64 && y < 200) {
     try {
       const chartHeight = 60;
-      doc.addImage(
-        `data:image/png;base64,${chartBase64}`,
-        'PNG',
-        margin,
-        y,
-        contentW,
-        chartHeight
-      );
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(220, 228, 238);
+      doc.roundedRect(margin, y - 4, contentW, chartHeight + 10, 6, 6, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      doc.text('Vote Distribution', margin + 6, y + 2);
+      doc.addImage(`data:image/png;base64,${chartBase64}`, 'PNG', margin + 5, y + 5, contentW - 10, chartHeight - 2);
       y += chartHeight + 12;
     } catch (error) {
       console.error('Chart image error:', error);
-      y += 5;
     }
   }
 
-  // Check if we need a new page
   if (y > 240) {
     doc.addPage();
+    drawPageBackground(doc, pageW, pageH);
     y = 20;
   }
 
-  // ===== AI ANALYSIS SECTION =====
-  doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(30, 30, 30);
-  doc.text('AI-Powered Analysis', margin, y);
+  doc.setFontSize(13);
+  doc.setTextColor(15, 23, 42);
+  doc.text('Gemini Narrative Analysis', margin, y);
   y += 8;
 
-  // Summary
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(16, 185, 129);
-  doc.text('Executive Summary', margin, y);
-  y += 6;
+  y += drawAnalysisCard(doc, margin, y, contentW, 'Executive Summary', analysis.summary, [20, 184, 166]) + 6;
+  y += drawAnalysisCard(doc, margin, y, contentW, 'Key Insights', analysis.insights, [59, 130, 246]) + 6;
+  y += drawAnalysisCard(doc, margin, y, contentW, 'Voter Sentiment Signals', analysis.voterFeelings, [245, 158, 11]) + 8;
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.setTextColor(50, 50, 50);
-  const summaryLines = doc.splitTextToSize(analysis.summary, contentW);
-  doc.text(summaryLines, margin, y);
-  y += summaryLines.length * 5 + 8;
-
-  // Insights
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(16, 185, 129);
-  doc.text('Key Insights', margin, y);
-  y += 6;
-
-  doc.setFont('helvetica', 'normal');
-  const insightsLines = doc.splitTextToSize(analysis.insights, contentW);
-  doc.text(insightsLines, margin, y);
-  y += insightsLines.length * 5 + 8;
-
-  // Voter Feelings Analysis
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(16, 185, 129);
-  doc.text('What Voters Are Feeling', margin, y);
-  y += 6;
-
-  doc.setFont('helvetica', 'normal');
-  const feelingsLines = doc.splitTextToSize(analysis.voterFeelings, contentW);
-  doc.text(feelingsLines, margin, y);
-  y += feelingsLines.length * 5 + 8;
-
-  // Sentiment badge
   const sentimentColors: Record<string, [number, number, number]> = {
     Positive: [16, 185, 129],
     Negative: [239, 68, 68],
@@ -581,18 +448,17 @@ function generatePDF(
     Mixed: [251, 146, 60],
   };
   const sentimentColor = sentimentColors[analysis.sentiment] || [107, 114, 128];
-
   doc.setFillColor(...sentimentColor);
-  doc.roundedRect(margin, y - 4, 40, 8, 2, 2, 'F');
+  doc.roundedRect(margin, y - 4, 42, 8, 2, 2, 'F');
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
   doc.text(`Sentiment: ${analysis.sentiment}`, margin + 2, y + 2);
   y += 14;
 
-  // ===== FOOTER WITH OWNER DETAILS =====
   if (y > 250) {
     doc.addPage();
+    drawPageBackground(doc, pageW, pageH);
     y = 20;
   }
 
@@ -600,30 +466,17 @@ function generatePDF(
   doc.line(margin, y, pageW - margin, y);
   y += 10;
 
-  // VeilProtocol branding with logo
-  const footerLogoBase64 = getLogoBase64();
-  if (footerLogoBase64) {
-    try {
-      doc.addImage(footerLogoBase64, 'SVG', margin, y - 2, 10, 10);
-    } catch (error) {
-      console.warn('Could not add footer logo:', error);
-    }
-  }
-  
-  doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(16, 185, 129);
-  const logoFooterOffset = footerLogoBase64 ? 12 : 0;
-  doc.text('VeilProtocol', margin + logoFooterOffset, y);
+  doc.setFontSize(12);
+  doc.setTextColor(15, 23, 42);
+  doc.text('Report Notes', margin, y);
   y += 6;
-
-  doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(80, 80, 80);
-  doc.text('Privacy-Preserving Governance & Marketplace on Aleo Blockchain', margin, y);
+  doc.setFontSize(9);
+  doc.setTextColor(71, 85, 105);
+  doc.text('This PDF summarizes the final tally, option share, and AI-generated interpretation of the result.', margin, y);
   y += 6;
 
-  // Owner/Creator details
   if (creator) {
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 30, 30);
@@ -635,11 +488,9 @@ function generatePDF(
     y += 8;
   }
 
-  // Report metadata
   doc.setFontSize(8);
   doc.setTextColor(120, 120, 120);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Report generated by VeilProtocol • Campaign #${campaignId}`, margin, y);
+  doc.text(`Generated report - Campaign #${campaignId}`, margin, y);
   y += 4;
 
   if (programId) {
@@ -647,18 +498,13 @@ function generatePDF(
     y += 4;
   }
 
-  // Final branding
   doc.setFontSize(7);
   doc.setTextColor(150, 150, 150);
-  doc.text('© VeilProtocol. All rights reserved. Built on Aleo blockchain.', margin, y + 4);
+  doc.text('Prepared for post-campaign review and record-keeping.', margin, y + 4);
 
-  // Convert to ArrayBuffer for web response compatibility
   return doc.output('arraybuffer') as ArrayBuffer;
 }
 
-/**
- * Main POST handler
- */
 export async function POST(request: NextRequest) {
   const requestStartTime = Date.now();
 
@@ -675,7 +521,6 @@ export async function POST(request: NextRequest) {
       programId = '',
     } = body;
 
-    // Validation
     if (!title || !options?.length) {
       return NextResponse.json(
         { error: 'Missing required fields: title and options are required' },
@@ -684,35 +529,25 @@ export async function POST(request: NextRequest) {
     }
 
     if (totalVotes < 0) {
-      return NextResponse.json(
-        { error: 'Invalid total votes count' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Invalid total votes count' }, { status: 400 });
     }
 
-    // Ensure campaign has ended before allowing report generation
     try {
-      const endDate = new Date(endTime);
-      const now = new Date();
-      if (endDate > now) {
+      if (new Date(endTime) > new Date()) {
         return NextResponse.json(
           { error: 'Report can only be generated after the campaign ends' },
           { status: 400 }
         );
       }
-    } catch (dateError) {
-      console.warn('Could not validate end time:', dateError);
+    } catch (error) {
+      console.warn('Could not validate end time:', error);
     }
 
-    // Parallel execution: Fetch chart and generate AI analysis simultaneously
-    const chartUrl = getChartImageUrl(options, totalVotes);
-
     const [chartBase64, analysis] = await Promise.all([
-      fetchChartImage(chartUrl),
+      fetchChartImage(getChartImageUrl(options)),
       generateAIAnalysis(title, totalVotes, options, startTime, endTime),
     ]);
 
-    // Generate PDF
     const pdfArrayBuffer = generatePDF(
       campaignId,
       title,
@@ -727,11 +562,7 @@ export async function POST(request: NextRequest) {
     );
 
     const generationTime = Date.now() - requestStartTime;
-    console.log(`Report generated in ${generationTime}ms for campaign #${campaignId}`);
-
-    const filename = `veilprotocol-campaign-${campaignId}-report.pdf`;
-
-    // Wrap bytes in a Blob so it is a valid BodyInit for NextResponse
+    const filename = `votealeo-campaign-${campaignId}-report.pdf`;
     const pdfBlob = new Blob([pdfArrayBuffer], { type: 'application/pdf' });
 
     return new NextResponse(pdfBlob, {
@@ -743,12 +574,12 @@ export async function POST(request: NextRequest) {
         'X-Generation-Time': String(generationTime),
       },
     });
-  } catch (err: any) {
-    console.error('Report generation error:', err);
+  } catch (error) {
+    console.error('Report generation error:', error);
     return NextResponse.json(
       {
         error: 'Report generation failed',
-        message: err instanceof Error ? err.message : 'Unknown error',
+        message: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     );

@@ -45,7 +45,6 @@ export default function MyCampaignsPage() {
 
     try {
       const allCampaigns = await aleoService.fetchAllCampaigns();
-      console.log('All campaigns:', allCampaigns);
 
       const myCampaigns: Campaign[] = [];
 

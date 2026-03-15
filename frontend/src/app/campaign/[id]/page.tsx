@@ -29,7 +29,7 @@ import { useToastStore } from '@/stores/toastStore';
 import { aleoService } from '@/services/aleo';
 import { pinataService } from '@/services/pinata';
 import { parseOnChainCampaign } from '@/services/campaignParser';
-import { createTransaction, getProgramId, buildVoteParams } from '@/utils/transaction';
+import { awaitTransactionConfirmation, buildVoteParams, createTransaction, getProgramId, isTemporaryWalletTransactionId } from '@/utils/transaction';
 import { Campaign, VotingOption } from '@/types';
 import { format, formatDistanceToNow, isPast, isFuture } from 'date-fns';
 import { useWalletSession } from '@/hooks/useWalletSession';
@@ -55,7 +55,7 @@ export default function CampaignDetailPage() {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const transaction = useTransactionLifecycle();
 
-  const { address, executeTransaction, wallet, connected, walletType, connect } = useWalletSession();
+  const { address, executeTransaction, wallet, connected, walletType, walletName, connect, transactionStatus } = useWalletSession();
   const { isConnected } = useWalletStore();
   const { success, error: showError } = useToastStore();
   const featureAvailability = getFeatureAvailability();
@@ -334,6 +334,67 @@ export default function CampaignDetailPage() {
   };
 
   const status = getCampaignStatus();
+
+  const checkWalletAwareStatus = async (transactionId: string) => {
+    if (transactionStatus) {
+      try {
+        const result = await transactionStatus(transactionId);
+        if (typeof result === 'string') {
+          return { status: result, transactionId };
+        }
+
+        if (result && typeof result === 'object') {
+          const statusValue =
+            'status' in result && typeof result.status === 'string'
+              ? result.status
+              : 'pending';
+          const resolvedTransactionId =
+            'transactionId' in result && typeof result.transactionId === 'string'
+              ? result.transactionId
+              : transactionId;
+
+          return { status: statusValue, transactionId: resolvedTransactionId };
+        }
+      } catch (walletError) {
+        if (
+          isTemporaryWalletTransactionId(transactionId) &&
+          walletError instanceof Error &&
+          walletError.message.includes('Transaction not found for given transaction ID')
+        ) {
+          return { status: 'pending', transactionId };
+        }
+      }
+    }
+
+    if (isTemporaryWalletTransactionId(transactionId)) {
+      return { status: 'pending', transactionId };
+    }
+
+    const fallback = await aleoService.checkTransactionStatus(transactionId);
+    return fallback ? { ...fallback, transactionId } : null;
+  };
+
+  const refreshCampaignFromChain = async (onChainId: number, fallbackCampaign: Campaign) => {
+    const onChainData = await aleoService.fetchCampaign(onChainId);
+    if (!onChainData) return false;
+
+    const updatedCampaign = await parseOnChainCampaign(onChainData, onChainId);
+    if (!updatedCampaign) return false;
+
+    updatedCampaign.title = fallbackCampaign.title;
+    updatedCampaign.description = fallbackCampaign.description;
+    updatedCampaign.imageUrl = fallbackCampaign.imageUrl;
+
+    if (updatedCampaign.totalVotes > 0) {
+      updatedCampaign.options = updatedCampaign.options.map((opt) => ({
+        ...opt,
+        percentage: Math.round((opt.voteCount / updatedCampaign.totalVotes) * 100),
+      }));
+    }
+
+    setCampaign(updatedCampaign);
+    return true;
+  };
   
 
   const handleVote = async () => {
@@ -445,7 +506,6 @@ export default function CampaignDetailPage() {
           }
 
       const inputs = aleoService.formatCastVoteInputs(campaignIdNum, selectedOption, timestamp);
-      const walletName = wallet.adapter.name;
       const params = buildVoteParams(inputs);
 
       // Store previous vote count for verification
@@ -465,65 +525,22 @@ export default function CampaignDetailPage() {
         result.transactionId
       );
 
-      // Verify vote was registered by polling for vote count increase
-      // Reuse addressHash from pre-flight check or calculate it
       const addressHash = aleoService.hashToField(address);
-      
-      // Start polling for vote status in the background
-      // This ensures hasVoted is updated once the transaction is finalized
-      const pollForVoteStatus = async () => {
-        let attempts = 0;
-        const maxAttempts = 30; // Poll for up to 60 seconds (2s * 30)
-        
-        while (attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
-          attempts++;
-          
-          try {
-            const voted = await aleoService.hasVoted(campaignIdNum, addressHash);
-            if (voted) {
-              setHasVoted(true);
-              // Update localStorage to mark as confirmed
-              if (address) {
-                const voteKey = `vote_${campaignIdNum}_${address}`;
-                localStorage.setItem(voteKey, JSON.stringify({
-                  voted: true,
-                  timestamp: Date.now(),
-                  confirmed: true,
-                }));
-              }
-              // Refresh campaign data
-              try {
-                const id = parseInt(campaignId);
-                const onChainData = await aleoService.fetchCampaign(id);
-                if (onChainData) {
-                  const updatedCampaign = await parseOnChainCampaign(onChainData, id);
-                  if (updatedCampaign && campaign) {
-                    updatedCampaign.title = campaign.title;
-                    updatedCampaign.description = campaign.description;
-                    updatedCampaign.imageUrl = campaign.imageUrl;
-                    if (updatedCampaign.totalVotes > 0) {
-                      updatedCampaign.options = updatedCampaign.options.map(opt => ({
-                        ...opt,
-                        percentage: Math.round((opt.voteCount / updatedCampaign.totalVotes) * 100),
-                      }));
-                    }
-                    setCampaign(updatedCampaign);
-                  }
-                }
-              } catch (e) {
-                // Silent fail
-              }
-              return; // Stop polling once confirmed
-            }
-          } catch (e) {
-            // Silent fail for polling
-          }
-        }
-      };
-      
-      // Start polling in background (don't await)
-      pollForVoteStatus();
+
+      const confirmation = await awaitTransactionConfirmation(result.transactionId, checkWalletAwareStatus, {
+        attempts: 120,
+        delayMs: 1000,
+      });
+      const resolvedTransactionId = confirmation.transactionId ?? result.transactionId;
+      const transactionVisible = confirmation.confirmed || !isTemporaryWalletTransactionId(result.transactionId);
+
+      if (transactionVisible) {
+        transaction.setAwaiting(
+          confirmation.confirmed ? 'Vote confirmed by wallet' : 'Vote broadcast pending',
+          'The wallet accepted the vote. We are now waiting for the campaign state to update on-chain.',
+          resolvedTransactionId
+        );
+      }
       
       const verification = await aleoService.verifyVoteRegistration(
         campaignIdNum,
@@ -532,36 +549,23 @@ export default function CampaignDetailPage() {
       );
 
       if (!verification.verified) {
-        transaction.setAwaiting(
-          'Vote awaiting confirmation',
-          'The transaction was submitted successfully. Aleo indexers may take a little time before the vote count updates.',
-          result.transactionId
+        transaction.setFailed(
+          'Vote not confirmed',
+          isTemporaryWalletTransactionId(result.transactionId)
+            ? 'Shield accepted the vote request, but no on-chain vote registration was detected. Please retry only after confirming your balance and wallet state.'
+            : verification.error || 'The vote did not appear on-chain.',
+          resolvedTransactionId
         );
-        // Transaction was submitted but not yet finalized - this is normal for async transactions
-        // Show success message but note that verification is pending
-        if (verification.error?.includes('timeout') || verification.error?.includes('did not increase')) {
-          success(
-            'Vote Submitted', 
-            'Your vote transaction has been submitted and is being processed. The vote count will update once the transaction is finalized (usually within 30-60 seconds). Please refresh the page in a moment to see updated counts.'
-          );
-        } else if (verification.error?.includes('not found in has_voted')) {
-          // Transaction submitted but not yet finalized - this is expected
-          success(
-            'Vote Submitted', 
-            'Your vote transaction has been submitted and is being processed on the blockchain. The vote will be registered once the transaction is finalized. Please wait 30-60 seconds and refresh the page to see updated counts.'
-          );
-        } else {
-          // For other errors, show warning but don't fail completely
-          success(
-            'Vote Submitted', 
-            'Your vote transaction has been submitted. Please refresh the page in a moment to see updated counts.'
-          );
-        }
+        throw new Error(
+          isTemporaryWalletTransactionId(result.transactionId)
+            ? 'Shield signed the vote request but no on-chain vote was detected. No confirmed vote was recorded.'
+            : verification.error || 'The vote transaction did not complete on-chain.'
+        );
       } else {
         transaction.setConfirmed(
           'Vote confirmed',
           `Your vote was confirmed on-chain. Total votes are now ${verification.newTotalVotes}.`,
-          result.transactionId
+          resolvedTransactionId
         );
         success('Vote Cast!', `Your anonymous vote has been recorded and verified. Total votes: ${verification.newTotalVotes}`);
       }
@@ -576,42 +580,20 @@ export default function CampaignDetailPage() {
         localStorage.setItem(voteKey, JSON.stringify({
           voted: true,
           timestamp: Date.now(),
-          transactionId: result.transactionId,
+          transactionId: resolvedTransactionId,
+          confirmed: true,
         }));
       }
       
       setLastVoteProof({
-        transactionId: result.transactionId,
+        transactionId: resolvedTransactionId,
         eventId: 'eventId' in result ? (result as { eventId?: string }).eventId : undefined,
         address: address || undefined,
       });
 
-      // Refresh campaign data with verified vote count
       try {
-        const id = parseInt(campaignId);
-        const onChainData = await aleoService.fetchCampaign(id);
-        if (onChainData) {
-          const updatedCampaign = await parseOnChainCampaign(onChainData, id);
-          if (updatedCampaign && campaign) {
-            // Preserve metadata from previous state
-            updatedCampaign.title = campaign.title;
-            updatedCampaign.description = campaign.description;
-            updatedCampaign.imageUrl = campaign.imageUrl;
-            
-            // Recalculate percentages with updated vote counts
-            if (updatedCampaign.totalVotes > 0) {
-              updatedCampaign.options = updatedCampaign.options.map(opt => ({
-                ...opt,
-                percentage: Math.round((opt.voteCount / updatedCampaign.totalVotes) * 100),
-              }));
-            }
-            
-            setCampaign(updatedCampaign);
-          }
-        }
+        await refreshCampaignFromChain(campaignIdNum, campaign);
       } catch (refreshErr) {
-        // Silent fail for refresh
-        // If refresh fails but verification succeeded, still update local state
         if (verification.verified && campaign) {
           const updatedCampaign = { ...campaign };
           updatedCampaign.totalVotes = verification.newTotalVotes;

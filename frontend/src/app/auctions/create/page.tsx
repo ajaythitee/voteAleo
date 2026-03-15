@@ -20,6 +20,13 @@ import { getFeatureAvailability, requireFeatureEnv } from '@/lib/env';
 import { getPrivateAuctionWalletWarning, getWalletCapabilities } from '@/lib/walletCapabilities';
 import { auctionService } from '@/services/auction';
 
+function isLowSignalAiPrompt(title: string, description: string): boolean {
+  const combined = `${title} ${description}`.trim().toLowerCase();
+  if (!combined) return true;
+  if (combined.length < 12) return true;
+  return /^(hi+|hey+|hello+|heyy+|yo+|sup+|hola+|namaste+)[!.?\s]*$/i.test(combined);
+}
+
 export default function CreateAuctionPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -86,6 +93,10 @@ export default function CreateAuctionPage() {
       showError('Nothing to improve', 'Add a name or description first.');
       return;
     }
+    if (isLowSignalAiPrompt(formData.name, formData.description)) {
+      showError('Add more context', 'AI improve works best with a real item description or theme, not just a greeting or very short line.');
+      return;
+    }
     setIsImproving(true);
     try {
       const res = await fetch('/api/ai/suggest', {
@@ -103,7 +114,6 @@ export default function CreateAuctionPage() {
         throw new Error(err.error || `AI request failed (${res.status})`);
       }
       const data = (await res.json()) as { title?: string; description?: string };
-      console.log('AI suggest response:', data);
       if (data.title || data.description) {
         if (data.title) handleInputChange('name', data.title);
         if (data.description) handleInputChange('description', data.description);
