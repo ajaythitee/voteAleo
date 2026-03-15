@@ -185,7 +185,12 @@ export default function CampaignDetailPage() {
           setHasVoted(false);
         }
       } catch (err: any) {
-        setError(err.message || 'Failed to load campaign');
+        console.error('Failed to load campaign:', err);
+        if (campaign) {
+          showError('Refresh failed', err.message || 'Could not refresh the campaign right now.');
+        } else {
+          setError(err.message || 'Failed to load campaign');
+        }
         setIsCheckingVote(false);
       } finally {
         setIsLoading(false);
@@ -549,17 +554,16 @@ export default function CampaignDetailPage() {
       );
 
       if (!verification.verified) {
-        transaction.setFailed(
-          'Vote not confirmed',
+        transaction.setAwaiting(
+          'Vote awaiting confirmation',
           isTemporaryWalletTransactionId(result.transactionId)
-            ? 'Shield accepted the vote request, but no on-chain vote registration was detected. Please retry only after confirming your balance and wallet state.'
-            : verification.error || 'The vote did not appear on-chain.',
+            ? 'Shield accepted the vote request. The wallet spent credits, but the indexer has not reflected the vote yet. We will keep the UI in a pending state instead of marking it as failed.'
+            : verification.error || 'The vote has not appeared on-chain yet. The page will stay in a pending state while indexers catch up.',
           resolvedTransactionId
         );
-        throw new Error(
-          isTemporaryWalletTransactionId(result.transactionId)
-            ? 'Shield signed the vote request but no on-chain vote was detected. No confirmed vote was recorded.'
-            : verification.error || 'The vote transaction did not complete on-chain.'
+        success(
+          'Vote submitted',
+          'Your vote was signed and submitted. The page will keep checking for the final on-chain update.'
         );
       } else {
         transaction.setConfirmed(
@@ -581,7 +585,7 @@ export default function CampaignDetailPage() {
           voted: true,
           timestamp: Date.now(),
           transactionId: resolvedTransactionId,
-          confirmed: true,
+          confirmed: verification.verified,
         }));
       }
       
@@ -616,6 +620,7 @@ export default function CampaignDetailPage() {
       }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Transaction failed';
+      console.error('Vote transaction error:', err);
       transaction.setFailed('Vote failed', errorMessage);
       
       // Provide more specific error messages
@@ -639,7 +644,6 @@ export default function CampaignDetailPage() {
         showError('Vote Failed', errorMessage);
       }
       
-      setError(errorMessage);
     } finally {
       setIsVoting(false);
     }

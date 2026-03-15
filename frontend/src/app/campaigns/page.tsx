@@ -37,10 +37,12 @@ export default function CampaignsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [votedCampaignIds, setVotedCampaignIds] = useState<Set<string>>(new Set());
 
   const { isConnected } = useWalletStore();
   const walletState = useWallet() as any;
   const walletConnected = !!walletState?.connected;
+  const walletAddress = (walletState?.address || walletState?.publicKey || '').toString();
   const isAnyConnected = isConnected || walletConnected;
 
   // Fetch campaigns from blockchain using on-chain mappings (no Aleoscan dependency)
@@ -88,6 +90,29 @@ export default function CampaignsPage() {
   useEffect(() => {
     loadCampaigns();
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !walletAddress) {
+      setVotedCampaignIds(new Set());
+      return;
+    }
+
+    const normalizedAddress = walletAddress.toLowerCase();
+    const votedIds = new Set<string>();
+
+    for (let index = 0; index < window.localStorage.length; index++) {
+      const key = window.localStorage.key(index);
+      if (!key || !key.startsWith('vote_')) continue;
+      if (!key.toLowerCase().endsWith(`_${normalizedAddress}`)) continue;
+
+      const campaignId = key.slice(5, key.length - normalizedAddress.length - 1);
+      if (campaignId) {
+        votedIds.add(campaignId);
+      }
+    }
+
+    setVotedCampaignIds(votedIds);
+  }, [walletAddress, campaigns]);
 
   const getCampaignStatus = (campaign: Campaign) => {
     const now = new Date();
@@ -231,7 +256,14 @@ export default function CampaignsPage() {
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredCampaigns.map((campaign) => (
-            <CampaignCard key={campaign.id} campaign={campaign} />
+            <CampaignCard
+              key={campaign.id}
+              campaign={campaign}
+              hasVoted={
+                votedCampaignIds.has(String(campaign.id)) ||
+                (campaign.onChainId != null && votedCampaignIds.has(String(campaign.onChainId)))
+              }
+            />
           ))}
         </div>
       )}
@@ -239,7 +271,7 @@ export default function CampaignsPage() {
   );
 }
 
-function CampaignCard({ campaign }: { campaign: Campaign }) {
+function CampaignCard({ campaign, hasVoted }: { campaign: Campaign; hasVoted: boolean }) {
   const status = getCampaignStatus(campaign);
 
   function getCampaignStatus(campaign: Campaign) {
@@ -355,8 +387,14 @@ function CampaignCard({ campaign }: { campaign: Campaign }) {
             {status === 'active' && (
               <div className="mt-4 pt-4 border-t border-white/10">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-emerald-400">Cast your vote</span>
-                  <ArrowRight className="w-4 h-4 text-emerald-400" />
+                  <span className={`text-sm ${hasVoted ? 'text-green-400' : 'text-emerald-400'}`}>
+                    {hasVoted ? 'Voted' : 'Cast your vote'}
+                  </span>
+                  {hasVoted ? (
+                    <CheckCircle className="w-4 h-4 text-green-400" />
+                  ) : (
+                    <ArrowRight className="w-4 h-4 text-emerald-400" />
+                  )}
                 </div>
               </div>
             )}
