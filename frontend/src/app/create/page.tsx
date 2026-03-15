@@ -29,6 +29,7 @@ import { getFeatureAvailability, requireFeatureEnv } from '@/lib/env';
 import { getWalletCapabilities } from '@/lib/walletCapabilities';
 
 const CAMPAIGN_CATEGORIES = ['governance', 'community', 'poll', 'dao', 'other'] as const;
+const MAX_CAMPAIGN_OPTIONS = 4;
 
 interface FormData {
   title: string;
@@ -171,7 +172,7 @@ export default function CreateCampaignPage() {
       // Update options if provided
       if (data.options && data.options.length >= 2) {
         // Ensure we have at least 2 options (required), no upper limit
-        const validOptions = data.options;
+        const validOptions = data.options.slice(0, MAX_CAMPAIGN_OPTIONS);
         // Pad to match current form length if needed, but keep at least 2
         const currentLength = Math.max(formData.options.length, 2);
         const newOptions = [...validOptions];
@@ -197,6 +198,10 @@ export default function CreateCampaignPage() {
   };
 
   const addOption = () => {
+    if (formData.options.length >= MAX_CAMPAIGN_OPTIONS) {
+      showError('Option limit reached', `Campaigns support up to ${MAX_CAMPAIGN_OPTIONS} options.`);
+      return;
+    }
     handleInputChange('options', [...formData.options, '']);
   };
 
@@ -236,6 +241,10 @@ export default function CreateCampaignPage() {
       setErrors((prev) => ({ ...prev, options: 'At least 2 options are required' }));
       return false;
     }
+    if (validOptions.length > MAX_CAMPAIGN_OPTIONS) {
+      setErrors((prev) => ({ ...prev, options: `Campaigns support at most ${MAX_CAMPAIGN_OPTIONS} options` }));
+      return false;
+    }
 
     return true;
   };
@@ -273,6 +282,8 @@ export default function CreateCampaignPage() {
     const validOptions = formData.options.filter((opt) => opt.trim());
     if (validOptions.length < 2) {
       newErrors.options = 'At least 2 options are required';
+    } else if (validOptions.length > MAX_CAMPAIGN_OPTIONS) {
+      newErrors.options = `Campaigns support at most ${MAX_CAMPAIGN_OPTIONS} options`;
     }
 
     setErrors(newErrors);
@@ -313,8 +324,19 @@ export default function CreateCampaignPage() {
           return { status: statusValue, transactionId: resolvedTransactionId };
         }
       } catch (error) {
+        if (
+          isTemporaryWalletTransactionId(transactionId) &&
+          error instanceof Error &&
+          error.message.includes('Transaction not found for given transaction ID')
+        ) {
+          return { status: 'pending', transactionId };
+        }
         console.warn('Wallet transactionStatus failed, falling back to RPC:', error);
       }
+    }
+
+    if (isTemporaryWalletTransactionId(transactionId)) {
+      return { status: 'pending', transactionId };
     }
 
     const fallback = await aleoService.checkTransactionStatus(transactionId);
@@ -390,8 +412,8 @@ export default function CreateCampaignPage() {
       );
 
       const confirmation = await awaitTransactionConfirmation(result.transactionId, checkWalletAwareStatus, {
-        attempts: 20,
-        delayMs: 3000,
+        attempts: 120,
+        delayMs: 1000,
       });
       const isTemporaryId = isTemporaryWalletTransactionId(result.transactionId);
       const resolvedTransactionId = confirmation.transactionId ?? result.transactionId;
@@ -418,18 +440,18 @@ export default function CreateCampaignPage() {
       const becameVisible = await waitForCampaignVisibility(previousCampaignCount);
 
       if (!becameVisible) {
-        transaction.setAwaiting(
-          'Campaign still pending',
+        transaction.setFailed(
+          'Campaign broadcast not confirmed',
           isTemporaryId
-            ? 'Shield accepted the request, but the campaign is not visible on-chain yet. Please wait and refresh before assuming it was created.'
-            : 'The transaction was accepted by the wallet, but the campaign is not visible on-chain yet. Please wait and refresh before assuming it was created.',
+            ? 'Shield accepted the signature, but no on-chain transaction was confirmed and the campaign never appeared. Treat this attempt as failed and retry.'
+            : 'The wallet accepted the request, but no on-chain transaction was confirmed and the campaign never appeared.',
           resolvedTransactionId
         );
-        info(
-          'Campaign pending',
+        showError(
+          'Campaign creation failed',
           isTemporaryId
-            ? 'Shield returned a temporary transaction ID. We will only treat this as complete once the campaign appears on-chain.'
-            : 'The wallet accepted the request, but the campaign is still pending final on-chain visibility.'
+            ? 'Shield signed the request but never completed the broadcast. No credits were deducted and no campaign was created.'
+            : 'The transaction did not become visible on-chain, so the campaign was not created.'
         );
         return;
       }
@@ -652,10 +674,11 @@ export default function CreateCampaignPage() {
                 <div className="flex items-center gap-3 pt-2">
                   <button
                     onClick={addOption}
+                    disabled={formData.options.length >= MAX_CAMPAIGN_OPTIONS}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-white/60"
                   >
                     <Plus className="w-4 h-4" />
-                    Add Option
+                    {formData.options.length >= MAX_CAMPAIGN_OPTIONS ? 'Max 4 options' : 'Add Option'}
                   </button>
                   <GlassButton
                     type="button"

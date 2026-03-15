@@ -32,7 +32,7 @@ const contextConfig = {
     system:
       'You are improving content for a privacy-preserving voting campaign on VeilProtocol (Aleo blockchain). Keep the exact real-world topic unchanged.',
     optionGuidance: [
-      'Suggest 3-6 mutually exclusive voting options.',
+      'Suggest 2-4 mutually exclusive voting options.',
       'Keep each option clear, concise, and directly tied to the provided campaign topic.',
       'Do not introduce a new topic or generic filler options.',
     ],
@@ -109,7 +109,7 @@ async function generateWithGemini(prompt: string, geminiApiKey: string, suggestO
         .filter((opt: string) => opt.length > 0); // Remove any empty after cleaning
       
       if (validOptions.length >= 2) {
-        resultObj.options = validOptions.slice(0, 6); // Max 6 options
+        resultObj.options = validOptions.slice(0, 4); // Contract supports max 4 options
       }
     }
     
@@ -168,13 +168,15 @@ Current description: "${description}"`;
 
 ${config.optionGuidance.join('\n')}
 
+Hard rule: the on-chain voting contract supports at most 4 options.
+
 Do NOT change the core topic of the campaign. The improved title and description must clearly match the same subject as the current title and description.
 
 Return JSON with:
 {
   "title": "improved title (plain text, no markdown) that keeps the same topic",
   "description": "improved description (plain text, no markdown) that keeps the same topic",
-  "options": ["Option 1", "Option 2", "Option 3", "Option 4", "Option 5", "Option 6"]
+  "options": ["Option 1", "Option 2", "Option 3", "Option 4"]
 }`;
     } else {
       prompt += `

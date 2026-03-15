@@ -171,8 +171,19 @@ export default function CreateAuctionPage() {
           return { status: statusValue, transactionId: resolvedTransactionId };
         }
       } catch (error) {
+        if (
+          isTemporaryWalletTransactionId(transactionId) &&
+          error instanceof Error &&
+          error.message.includes('Transaction not found for given transaction ID')
+        ) {
+          return { status: 'pending', transactionId };
+        }
         console.warn('Wallet transactionStatus failed, falling back to RPC:', error);
       }
+    }
+
+    if (isTemporaryWalletTransactionId(transactionId)) {
+      return { status: 'pending', transactionId };
     }
 
     const fallback = await aleoService.checkTransactionStatus(transactionId);
@@ -248,8 +259,8 @@ export default function CreateAuctionPage() {
           result.transactionId
         );
         const confirmation = await awaitTransactionConfirmation(result.transactionId, checkWalletAwareStatus, {
-          attempts: 20,
-          delayMs: 3000,
+          attempts: 120,
+          delayMs: 1000,
         });
         const isTemporaryId = isTemporaryWalletTransactionId(result.transactionId);
         const resolvedTransactionId = confirmation.transactionId ?? result.transactionId;
@@ -273,18 +284,18 @@ export default function CreateAuctionPage() {
         );
         const becameVisible = await waitForAuctionVisibility(previousAuctionCount);
         if (!becameVisible) {
-          transaction.setAwaiting(
-            'Auction still pending',
+          transaction.setFailed(
+            'Auction broadcast not confirmed',
             isTemporaryId
-              ? 'Shield accepted the request, but the auction is not visible on-chain yet. Please wait and refresh before assuming it was created.'
-              : 'The wallet accepted the request, but the auction is not visible on-chain yet. Please wait and refresh before assuming it was created.',
+              ? 'Shield accepted the signature, but no on-chain transaction was confirmed and the auction never appeared. Treat this attempt as failed and retry.'
+              : 'The wallet accepted the request, but no on-chain transaction was confirmed and the auction never appeared.',
             resolvedTransactionId
           );
-          info(
-            'Auction pending',
+          showError(
+            'Auction creation failed',
             isTemporaryId
-              ? 'Shield returned a temporary transaction ID. We will only treat this as complete once the auction appears on-chain.'
-              : 'The wallet accepted the request, but the auction is still pending final on-chain visibility.'
+              ? 'Shield signed the request but never completed the broadcast. No credits were deducted and no auction was created.'
+              : 'The transaction did not become visible on-chain, so the auction was not created.'
           );
           return;
         }

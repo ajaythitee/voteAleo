@@ -60,7 +60,10 @@ export async function createTransaction(
     const txId = response?.transactionId || (typeof response === 'string' ? response : undefined);
 
     if (!txId) {
-      return { success: true };
+      return {
+        success: false,
+        error: 'The wallet did not return a transaction ID, so the transaction was not broadcast.',
+      };
     }
 
     if (typeof txId === 'string' && (txId.includes('rejected') || txId.includes('error') || txId.includes('failed'))) {
@@ -108,7 +111,10 @@ export async function createTransaction(
           return { success: true, transactionId: retryTxId };
         }
 
-        return { success: true };
+        return {
+          success: false,
+          error: 'The wallet reconnected but did not return a transaction ID for the submitted request.',
+        };
       } catch (recoveryError: any) {
         errorMessage = recoveryError?.message || errorMessage;
       }
@@ -180,6 +186,7 @@ export function buildCreateCampaignParams(inputs: string[]): TransactionParams {
     functionId: 'create_campaign',
     inputs,
     fee: 500000,
+    privateFee: false,
   };
 }
 
@@ -189,6 +196,7 @@ export function buildVoteParams(inputs: string[]): TransactionParams {
     functionId: 'cast_vote',
     inputs,
     fee: 300000,
+    privateFee: false,
   };
 }
 
@@ -216,6 +224,7 @@ export function buildCreatePublicAuctionParams(inputs: string[]): TransactionPar
     functionId: 'create_public_auction',
     inputs,
     fee: 500000,
+    privateFee: false,
   };
 }
 
@@ -229,6 +238,7 @@ export function buildBidPublicParams(inputs: string[]): TransactionParams {
     functionId: 'bid_public',
     inputs,
     fee: 300000,
+    privateFee: false,
   };
 }
 
@@ -238,6 +248,7 @@ export function buildBidPrivateParams(inputs: string[]): TransactionParams {
     functionId: 'bid_private',
     inputs,
     fee: 300000,
+    privateFee: false,
   };
 }
 
@@ -252,6 +263,7 @@ export function buildSelectWinnerParams(inputs: string[]): TransactionParams {
     functionId: 'select_winner_public',
     inputs,
     fee: 500000,
+    privateFee: false,
   };
 }
 
@@ -261,6 +273,7 @@ export function buildSelectWinnerPrivateParams(inputs: string[] = []): Transacti
     functionId: 'select_winner_private',
     inputs,
     fee: 500000,
+    privateFee: false,
   };
 }
 
@@ -270,6 +283,7 @@ export function buildRedeemBidPublicParams(inputs: string[]): TransactionParams 
     functionId: 'redeem_bid_public',
     inputs,
     fee: 300000,
+    privateFee: false,
   };
 }
 
