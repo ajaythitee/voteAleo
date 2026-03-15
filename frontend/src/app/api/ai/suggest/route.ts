@@ -32,106 +32,12 @@ function cleanText(text: string): string {
     .trim();
 }
 
-async function fetchWithRetry(
-  url: string,
-  opts: RequestInit,
-  retries = 1
-): Promise<Response> {
-  let res = await fetch(url, opts);
-  if (retries > 0 && res.status >= 500) {
-    await new Promise((r) => setTimeout(r, 1000));
-    res = await fetch(url, opts);
-  }
-  return res;
-}
-
-async function generateWithGroq(prompt: string, groqApiKey: string, suggestOptions: boolean): Promise<SuggestResult | null> {
-  try {
-    const response = await fetchWithRetry('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${groqApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          {
-            role: 'system',
-            content: suggestOptions
-              ? 'You are an expert product copywriter and campaign strategist. You MUST stay strictly on the same topic as the current title and description. Do NOT introduce unrelated themes or random concepts. Return ONLY valid JSON. All text must be plain, human-friendly language without markdown formatting (no **, no #, no code blocks).'
-              : 'You are an expert product copywriter. You MUST preserve the core topic and meaning of the current title and description. Do NOT change the subject to something unrelated. Return ONLY valid JSON. All text must be plain, human-friendly language without markdown formatting (no **, no #, no code blocks).',
-          },
-          { role: 'user', content: prompt },
-        ],
-        temperature: suggestOptions ? 0.3 : 0.4,
-        max_tokens: suggestOptions ? 600 : 400,
-        response_format: { type: 'json_object' },
-      }),
-    }, 1);
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Unknown error');
-      console.error('Groq API error:', response.status, errorText);
-      return null;
-    }
-    
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) {
-      console.error('Groq: No content in response');
-      return null;
-    }
-
-    let parsed;
-    try {
-      parsed = typeof content === 'string' ? JSON.parse(content) : content;
-    } catch (parseErr) {
-      console.error('Groq: JSON parse error:', parseErr);
-      return null;
-    }
-
-    const titleStr = typeof parsed.title === 'string' && parsed.title.trim() ? parsed.title.trim() : '';
-    const descStr = typeof parsed.description === 'string' && parsed.description.trim() ? parsed.description.trim() : '';
-    
-    const result: SuggestResult = {
-      title: cleanText(titleStr),
-      description: cleanText(descStr),
-    };
-    
-    if (suggestOptions && Array.isArray(parsed.options)) {
-      const validOptions = parsed.options
-        .filter((opt: unknown) => typeof opt === 'string' && opt.trim())
-        .map((opt: string) => cleanText(opt.trim()))
-        .filter((opt: string) => opt.length > 0); // Remove any empty after cleaning
-      
-      if (validOptions.length >= 2) {
-        result.options = validOptions.slice(0, 6); // Max 6 options
-      }
-    }
-    
-    // If we have options, that's valid even if title/description are empty
-    if (result.options && result.options.length >= 2) {
-      return result;
-    }
-    
-    // Otherwise, we need at least title or description
-    if (!result.title && !result.description) {
-      return null;
-    }
-    
-    return result;
-  } catch (err) {
-    console.error('Groq generation error:', err);
-    return null;
-  }
-}
-
 async function generateWithGemini(prompt: string, geminiApiKey: string, suggestOptions: boolean): Promise<SuggestResult | null> {
   try {
     const genAI = new GoogleGenerativeAI(geminiApiKey);
+    const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: modelName,
       generationConfig: {
         temperature: suggestOptions ? 0.3 : 0.4,
         topP: 0.9,
@@ -206,21 +112,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const groqApiKey = process.env.GROQ_API_KEY;
     const geminiApiKey = process.env.GEMINI_API_KEY;
 
-    if (!groqApiKey && !geminiApiKey) {
-      console.error('AI suggest: No API keys configured');
+    if (!geminiApiKey) {
+      console.error('AI suggest: No GEMINI_API_KEY configured');
       return NextResponse.json(
         {
           error:
-            'AI is not configured. Add GROQ_API_KEY and/or GEMINI_API_KEY in Vercel Project Settings > Environment Variables (or in .env.local for local dev).',
+            'AI is not configured. Add GEMINI_API_KEY (and optionally GEMINI_MODEL) in your environment (.env.local for local dev).',
         },
         { status: 500 },
       );
     }
 
-    console.log('AI suggest: Using', groqApiKey ? 'Groq' : 'Gemini', 'for', context, suggestOptions ? 'with options' : '');
+    console.log('AI suggest: Using Gemini for', context, suggestOptions ? 'with options' : '');
 
     const isCampaign = context === 'campaign';
     const baseContext = isCampaign
@@ -260,14 +165,7 @@ Return JSON with:
 }`;
     }
 
-    let result: SuggestResult | null = null;
-
-    if (groqApiKey) {
-      result = await generateWithGroq(prompt, groqApiKey, suggestOptions);
-    }
-    if (!result && geminiApiKey) {
-      result = await generateWithGemini(prompt, geminiApiKey, suggestOptions);
-    }
+    const result: SuggestResult | null = await generateWithGemini(prompt, geminiApiKey, suggestOptions);
 
     // Validate result based on what was requested
     if (!result) {

@@ -5,13 +5,17 @@ interface WalletState {
   isConnected: boolean;
   address: string | null;
   network: string | null;
-  walletType: 'leo' | 'puzzle' | null;
+  walletType: 'shield' | 'leo' | 'puzzle' | 'fox' | 'soter' | 'unknown' | null;
   isConnecting: boolean;
   error: string | null;
 }
 
 interface WalletActions {
-  setConnected: (address: string, network: string, walletType: 'leo' | 'puzzle') => void;
+  setConnected: (
+    address: string,
+    network: string,
+    walletType: 'shield' | 'leo' | 'puzzle' | 'fox' | 'soter' | 'unknown'
+  ) => void;
   setDisconnected: () => void;
   setConnecting: (isConnecting: boolean) => void;
   setError: (error: string | null) => void;

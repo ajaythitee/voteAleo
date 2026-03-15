@@ -54,6 +54,37 @@ export const auctionService = {
     }
   },
 
+  async getAuctionPublicKey(auctionIdKey: string): Promise<string | null> {
+    try {
+      const keyEncoded = encodeURIComponent(auctionIdKey);
+      const res = await fetch(rpcUrl(`auction_public_keys/${keyEncoded}`));
+      if (!res.ok) return null;
+      const data = await res.json().catch(async () => (await res.text())?.trim());
+      return data != null ? String(data) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getAuctionPrivacySettings(
+    auctionIdKey: string
+  ): Promise<{ auctionPrivacy: number; bidTypesAccepted: number } | null> {
+    try {
+      const keyEncoded = encodeURIComponent(auctionIdKey);
+      const res = await fetch(rpcUrl(`auction_privacy_settings/${keyEncoded}`));
+      if (!res.ok) return null;
+      const raw = await res.text();
+      const auctionPrivacyMatch = raw.match(/auction_privacy\s*:\s*(\d+)/i);
+      const bidTypesMatch = raw.match(/bid_types_accepted\s*:\s*(\d+)/i);
+      return {
+        auctionPrivacy: auctionPrivacyMatch ? Number(auctionPrivacyMatch[1]) : 1,
+        bidTypesAccepted: bidTypesMatch ? Number(bidTypesMatch[1]) : 1,
+      };
+    } catch {
+      return null;
+    }
+  },
+
   /** Get public auction data by auction_id (field key).
    * Prefer raw text to handle RPC returning struct-as-string (like campaigns).
    */
@@ -109,6 +140,30 @@ export const auctionService = {
       if (!res.ok) return null;
       const data = await res.json().catch(async () => (await res.text())?.trim());
       return data != null && String(data).length > 0 ? String(data) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  async isRedeemed(auctionIdKey: string): Promise<boolean> {
+    try {
+      const keyEncoded = encodeURIComponent(auctionIdKey);
+      const res = await fetch(rpcUrl(`redemptions/${keyEncoded}`));
+      if (!res.ok) return false;
+      const data = await res.json().catch(async () => (await res.text())?.trim());
+      return String(data).toLowerCase() === 'true';
+    } catch {
+      return false;
+    }
+  },
+
+  async getPublicBidOwner(bidIdKey: string): Promise<string | null> {
+    try {
+      const keyEncoded = encodeURIComponent(bidIdKey);
+      const res = await fetch(rpcUrl(`public_bid_owners/${keyEncoded}`));
+      if (!res.ok) return null;
+      const data = await res.json().catch(async () => (await res.text())?.trim());
+      return data != null ? String(data) : null;
     } catch {
       return null;
     }

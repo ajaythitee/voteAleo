@@ -47,7 +47,7 @@ export interface WalletState {
   isConnected: boolean;
   address: string | null;
   network: string | null;
-  walletType: 'leo' | 'puzzle' | null;
+  walletType: 'shield' | 'leo' | 'puzzle' | 'fox' | 'soter' | 'unknown' | null;
   isConnecting: boolean;
   error: string | null;
 }

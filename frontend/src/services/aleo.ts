@@ -236,8 +236,12 @@ class AleoService {
         return null;
       }
 
-      const data = await response.json();
-      return data;
+      const text = await response.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        return text;
+      }
     } catch (error) {
       console.error('Error fetching campaign:', error);
       return null;
@@ -278,7 +282,8 @@ class AleoService {
    */
   async hasVoted(campaignId: number, addressHash: string): Promise<boolean> {
     try {
-      const votedKey = this.hashToField(`${campaignId}${addressHash}`);
+      const normalizedAddressHash = String(addressHash).replace(/field$/, '');
+      const votedKey = this.hashToField(`${campaignId}${normalizedAddressHash}`);
       const url = `${this.config.rpcUrl}/${this.config.network}/program/${this.config.votingProgramId}/mapping/has_voted/${votedKey}`;
 
       const response = await fetch(url);
@@ -306,11 +311,9 @@ class AleoService {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         const campaignData = await this.fetchCampaign(campaignId);
-        if (campaignData && typeof campaignData === 'string') {
-          const parsed = this.parseCampaignVoteCounts(campaignData);
-          if (parsed && parsed.totalVotes > previousTotalVotes) {
-            return { success: true, newTotalVotes: parsed.totalVotes };
-          }
+        const parsed = this.parseCampaignVoteCounts(campaignData);
+        if (parsed && parsed.totalVotes > previousTotalVotes) {
+          return { success: true, newTotalVotes: parsed.totalVotes };
         }
         
         // Wait before next attempt
@@ -332,8 +335,21 @@ class AleoService {
   /**
    * Parse vote counts from raw campaign data string
    */
-  private parseCampaignVoteCounts(campaignData: string): { totalVotes: number; votes: number[] } | null {
+  private parseCampaignVoteCounts(campaignData: unknown): { totalVotes: number; votes: number[] } | null {
     try {
+      if (campaignData && typeof campaignData === 'object') {
+        const inner = (typeof (campaignData as { value?: unknown }).value === 'object'
+          ? (campaignData as { value: Record<string, unknown> }).value
+          : campaignData) as Record<string, unknown>;
+        const totalVotes = Number(String(inner.total_votes ?? '0').replace(/\D/g, '')) || 0;
+        const votes = Array.from({ length: 4 }, (_, i) => {
+          return Number(String(inner[`votes_${i}`] ?? '0').replace(/\D/g, '')) || 0;
+        });
+        return { totalVotes, votes };
+      }
+
+      if (typeof campaignData !== 'string') return null;
+
       // Extract total_votes
       const totalVotesMatch = campaignData.match(/total_votes\s*:\s*(\d+)(?:u64)?/i);
       const totalVotes = totalVotesMatch ? Number(totalVotesMatch[1]) : 0;

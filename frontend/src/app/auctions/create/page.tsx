@@ -26,7 +26,7 @@ export default function CreateAuctionPage() {
     imagePreview: string | null;
     itemId: string;
     startingBid: string;
-    bidType: '1' | '2';
+    bidType: '0' | '1' | '2';
     revealCreator: boolean;
   }>({
     name: '',
@@ -35,7 +35,7 @@ export default function CreateAuctionPage() {
     imagePreview: null,
     itemId: '',
     startingBid: '',
-    bidType: '1',
+    bidType: '2',
     revealCreator: true,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -323,12 +323,16 @@ export default function CreateAuctionPage() {
                 <label className="block text-sm font-medium text-white/70 mb-2">Bid types accepted</label>
                 <select
                   value={formData.bidType}
-                  onChange={(e) => handleInputChange('bidType', e.target.value as '1' | '2')}
+                  onChange={(e) => handleInputChange('bidType', e.target.value as '0' | '1' | '2')}
                   className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all [&>option]:bg-gray-900 [&>option]:text-white"
                 >
+                  <option value="0" className="bg-gray-900 text-white">Private bids only</option>
                   <option value="1" className="bg-gray-900 text-white">Public bids only</option>
-                  <option value="2" className="bg-gray-900 text-white">Public and private (mix)</option>
+                  <option value="2" className="bg-gray-900 text-white">Public and private (mixed)</option>
                 </select>
+                <p className="mt-2 text-xs text-white/50">
+                  Shield Wallet is recommended for private and mixed auctions because those flows rely on Aleo records.
+                </p>
               </div>
 
               {/* Reveal creator toggle */}

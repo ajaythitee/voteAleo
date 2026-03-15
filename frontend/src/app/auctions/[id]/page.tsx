@@ -2,73 +2,114 @@
 
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
-import { Gavel, ArrowLeft, Loader2, AlertCircle, Users, Trophy, Ban } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowLeft,
+  Ban,
+  CheckCircle,
+  Gavel,
+  Loader2,
+  Lock,
+  Shield,
+  Trophy,
+  Users,
+  Wallet,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
-import { GlassCard } from '@/components/ui/GlassCard';
-import { GlassButton } from '@/components/ui/GlassButton';
-import { GlassInput } from '@/components/ui/GlassInput';
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
-import { useWalletStore } from '@/stores/walletStore';
+import { GlassButton } from '@/components/ui/GlassButton';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { GlassInput } from '@/components/ui/GlassInput';
 import { useToastStore } from '@/stores/toastStore';
+import { useWalletStore } from '@/stores/walletStore';
 import { auctionService } from '@/services/auction';
 import { parseOnChainAuction, type ParsedAuction } from '@/services/auctionParser';
 import { pinataService } from '@/services/pinata';
 import {
-  createTransaction,
+  buildBidPrivateParams,
   buildBidPublicParams,
+  buildRedeemBidPublicParams,
   buildSelectWinnerParams,
+  buildSelectWinnerPrivateParams,
+  createTransaction,
   getAuctionProgramId,
 } from '@/utils/transaction';
+
+type AuctionPrivacySettings = {
+  auctionPrivacy: number;
+  bidTypesAccepted: number;
+};
 
 export default function AuctionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [auctionId, setAuctionId] = useState<string | null>(null);
-  const [data, setData] = useState<unknown>(null);
+  const [rawAuction, setRawAuction] = useState<unknown>(null);
   const [parsed, setParsed] = useState<ParsedAuction | null>(null);
   const [loading, setLoading] = useState(true);
-  const [bidAmount, setBidAmount] = useState('');
-  const [isBidding, setIsBidding] = useState(false);
+  const [publicBidAmount, setPublicBidAmount] = useState('');
+  const [privateBidAmount, setPrivateBidAmount] = useState('');
+  const [isPublicBidding, setIsPublicBidding] = useState(false);
+  const [isPrivateBidding, setIsPrivateBidding] = useState(false);
   const [bidCount, setBidCount] = useState(0);
   const [highestBid, setHighestBid] = useState(0);
   const [winningBidId, setWinningBidId] = useState<string | null>(null);
+  const [winningBidOwner, setWinningBidOwner] = useState<string | null>(null);
   const [owner, setOwner] = useState<string | null>(null);
-  const [bids, setBids] = useState<{ bidId: string; amount: number }[]>([]);
+  const [auctionPublicKey, setAuctionPublicKey] = useState<string | null>(null);
+  const [privacySettings, setPrivacySettings] = useState<AuctionPrivacySettings | null>(null);
+  const [isRedeemed, setIsRedeemed] = useState(false);
   const [winningBidIdInput, setWinningBidIdInput] = useState('');
-  const [isEnding, setIsEnding] = useState(false);
+  const [isEndingPublic, setIsEndingPublic] = useState(false);
+  const [isEndingPrivate, setIsEndingPrivate] = useState(false);
+  const [isRedeeming, setIsRedeeming] = useState(false);
 
-  const { publicKey, requestTransaction, wallet } = useWallet() as any;
-  const { isConnected } = useWalletStore();
+  const { publicKey, requestTransaction, wallet, connected } = useWallet() as any;
+  const { isConnected, address: storedAddress } = useWalletStore();
   const { success, error: showError } = useToastStore();
-  const address = publicKey ?? '';
+  const address = (publicKey ?? storedAddress ?? '').toString();
   const walletName = wallet?.adapter?.name;
-  const isCreator = address && owner && address.toLowerCase() === owner.toLowerCase();
+  const walletConnected = !!(connected || isConnected || address);
+  const isCreator = !!(address && owner && address.toLowerCase() === owner.toLowerCase());
 
   useEffect(() => {
     let cancelled = false;
-    async function load() {
+
+    async function loadAuction() {
       setLoading(true);
       try {
         const decodedId = decodeURIComponent(id);
-        let key = decodedId;
+        let auctionKey = decodedId;
         const numericId = /^\d+$/.test(decodedId) ? parseInt(decodedId, 10) : null;
+
         if (numericId != null && numericId > 0) {
-          const byIndex = await auctionService.getPublicAuctionIdByIndex(numericId);
-          if (byIndex) key = byIndex;
+          const indexedAuctionId = await auctionService.getPublicAuctionIdByIndex(numericId);
+          if (indexedAuctionId) {
+            auctionKey = indexedAuctionId;
+          }
         }
-        const raw = await auctionService.getPublicAuction(key);
-        if (!cancelled && raw != null) {
-          setAuctionId(key);
-          setData(raw);
-          const result = await parseOnChainAuction(raw, key);
-          if (!cancelled && result) setParsed(result);
+
+        const raw = await auctionService.getPublicAuction(auctionKey);
+        if (cancelled || raw == null) return;
+
+        setAuctionId(auctionKey);
+        setRawAuction(raw);
+        const parsedAuction = await parseOnChainAuction(raw, auctionKey);
+        if (!cancelled) {
+          setParsed(parsedAuction);
         }
-      } catch (e) {
-        if (!cancelled) console.error(e);
+      } catch (error) {
+        if (!cancelled) {
+          console.error(error);
+        }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
-    load();
+
+    loadAuction();
+
     return () => {
       cancelled = true;
     };
@@ -76,43 +117,89 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
 
   useEffect(() => {
     if (!auctionId) return;
+
     let cancelled = false;
-    (async () => {
-      const [o, bc, hb, wb] = await Promise.all([
-        auctionService.getAuctionOwner(auctionId),
-        auctionService.getBidCount(auctionId),
-        auctionService.getHighestBid(auctionId),
-        auctionService.getWinningBidId(auctionId),
-      ]);
+
+    async function loadAuctionState() {
+      const [auctionOwner, currentBidCount, currentHighestBid, currentWinningBidId, settings, publicKeyValue, redeemed] =
+        await Promise.all([
+          auctionService.getAuctionOwner(auctionId),
+          auctionService.getBidCount(auctionId),
+          auctionService.getHighestBid(auctionId),
+          auctionService.getWinningBidId(auctionId),
+          auctionService.getAuctionPrivacySettings(auctionId),
+          auctionService.getAuctionPublicKey(auctionId),
+          auctionService.isRedeemed(auctionId),
+        ]);
+
       if (cancelled) return;
-      setOwner(o);
-      setBidCount(bc);
-      setHighestBid(hb);
-      setWinningBidId(wb);
-    })();
+
+      setOwner(auctionOwner);
+      setBidCount(currentBidCount);
+      setHighestBid(currentHighestBid);
+      setWinningBidId(currentWinningBidId);
+      setPrivacySettings(settings);
+      setAuctionPublicKey(publicKeyValue);
+      setIsRedeemed(redeemed);
+
+      if (currentWinningBidId) {
+        const currentWinner = await auctionService.getPublicBidOwner(currentWinningBidId);
+        if (!cancelled) {
+          setWinningBidOwner(currentWinner);
+        }
+      } else {
+        setWinningBidOwner(null);
+      }
+    }
+
+    loadAuctionState();
+
     return () => {
       cancelled = true;
     };
   }, [auctionId]);
 
-  useEffect(() => {
-    if (!auctionId || !isCreator) return;
-    fetch(`/api/auctions/${encodeURIComponent(auctionId)}/bids`)
-      .then((r) => r.json())
-      .then((j) => setBids(j.bids || []))
-      .catch(() => setBids([]));
-  }, [auctionId, isCreator]);
+  const refreshAuctionState = async () => {
+    if (!auctionId) return;
+
+    const [currentBidCount, currentHighestBid, currentWinningBidId, redeemed] = await Promise.all([
+      auctionService.getBidCount(auctionId),
+      auctionService.getHighestBid(auctionId),
+      auctionService.getWinningBidId(auctionId),
+      auctionService.isRedeemed(auctionId),
+    ]);
+
+    setBidCount(currentBidCount);
+    setHighestBid(currentHighestBid);
+    setWinningBidId(currentWinningBidId);
+    setIsRedeemed(redeemed);
+
+    if (currentWinningBidId) {
+      setWinningBidOwner(await auctionService.getPublicBidOwner(currentWinningBidId));
+    } else {
+      setWinningBidOwner(null);
+    }
+  };
 
   const name = parsed?.name ?? 'Untitled';
   const startingBid = parsed?.startingBid ?? 0;
-  const description = parsed?.description;
+  const description = parsed?.description ?? '';
   const imageUrl = parsed?.imageUrl ? pinataService.getProxiedUrl(parsed.imageUrl) : undefined;
   const minBid = highestBid > 0 ? highestBid + 1 : startingBid;
   const isEnded = !!winningBidId;
+  const isWinner = !!(address && winningBidOwner && address.toLowerCase() === winningBidOwner.toLowerCase());
+  const allowsPublicBids = (privacySettings?.bidTypesAccepted ?? 1) !== 0;
+  const allowsPrivateBids = (privacySettings?.bidTypesAccepted ?? 1) !== 1;
+  const bidMode =
+    privacySettings?.bidTypesAccepted === 0
+      ? 'Private only'
+      : privacySettings?.bidTypesAccepted === 2
+        ? 'Mixed'
+        : 'Public only';
 
-  const handleBid = async () => {
+  const handlePublicBid = async () => {
     if (!auctionId || !address || !walletName) {
-      showError('Wallet required', 'Connect a wallet to place a bid.');
+      showError('Wallet required', 'Connect a wallet to place a public bid.');
       return;
     }
     if (isCreator) {
@@ -123,99 +210,191 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
       showError('Auction ended', 'This auction has already ended.');
       return;
     }
-    const amount = Math.floor(Number(bidAmount));
-    if (!Number.isFinite(amount) || amount <= 0) {
-      showError('Invalid amount', 'Enter a valid bid amount.');
+
+    const amount = Math.floor(Number(publicBidAmount));
+    if (!Number.isFinite(amount) || amount < minBid) {
+      showError('Invalid amount', `Enter a public bid of at least ${minBid} credits.`);
       return;
     }
-    if (amount < minBid) {
-      showError('Below minimum', `Bid must be at least ${minBid} credits.`);
-      return;
-    }
-    setIsBidding(true);
+
+    setIsPublicBidding(true);
     try {
       const nonce = Math.floor(Math.random() * 1e12) + 1;
-      const inputs = [`${amount}u64`, auctionId, `${nonce}scalar`, 'true'];
-      const params = buildBidPublicParams(inputs);
+      const params = buildBidPublicParams([`${amount}u64`, auctionId, `${nonce}scalar`, 'true']);
       const result = await createTransaction(params, requestTransaction, address, walletName, getAuctionProgramId());
-      if (result.success) {
-        success('Bid placed', result.transactionId ? `Tx: ${result.transactionId.slice(0, 8)}...` : 'Check your wallet.');
-        setBidAmount('');
-        const [bc, hb] = await Promise.all([
-          auctionService.getBidCount(auctionId),
-          auctionService.getHighestBid(auctionId),
-        ]);
-        setBidCount(bc);
-        setHighestBid(hb);
-      } else {
-        showError('Bid failed', result.error ?? 'Unknown error');
+
+      if (!result.success) {
+        throw new Error(result.error || 'Public bid failed');
       }
-    } catch (e: unknown) {
-      showError('Bid failed', e instanceof Error ? e.message : 'Unknown error');
+
+      success('Public bid placed', 'Your wallet should now hold a BidReceipt record for this bid.');
+      setPublicBidAmount('');
+      await refreshAuctionState();
+    } catch (error) {
+      showError('Public bid failed', error instanceof Error ? error.message : 'Unknown error');
     } finally {
-      setIsBidding(false);
+      setIsPublicBidding(false);
     }
   };
 
-  const handleEndAuction = async () => {
-    const bidId = winningBidIdInput.trim();
-    if (!bidId || !auctionId || !address || !walletName) {
-      showError('Invalid input', 'Enter the winning bid ID (ask the highest bidder for their bid receipt).');
+  const handlePrivateBid = async () => {
+    if (!auctionId || !address || !walletName || !owner || !auctionPublicKey) {
+      showError('Auction unavailable', 'The owner address or auction public key is missing.');
       return;
     }
-    const bid = await auctionService.getPublicBid(bidId);
-    if (!bid || bid.auction_id !== auctionId) {
-      showError('Invalid bid', 'Could not find this bid for this auction. Check the bid ID.');
+    if (isCreator) {
+      showError('Creator cannot bid', 'The auction creator cannot bid on their own auction.');
       return;
     }
-    if (bid.amount !== highestBid) {
-      showError('Wrong bid', 'This bid amount does not match the highest bid. Only the highest bidder can win.');
+    if (isEnded) {
+      showError('Auction ended', 'This auction has already ended.');
       return;
     }
-    if (!bid.bid_public_key) {
-      showError('Missing data', 'Could not load bid public key. Try again.');
+
+    const amount = Math.floor(Number(privateBidAmount));
+    if (!Number.isFinite(amount) || amount < minBid) {
+      showError('Invalid amount', `Enter a private bid of at least ${minBid} credits.`);
       return;
     }
-    setIsEnding(true);
+
+    setIsPrivateBidding(true);
     try {
-      const inputs = [
-        `${bid.amount}u64`,
+      const nonce = Math.floor(Math.random() * 1e12) + 1;
+      const params = buildBidPrivateParams([
+        `${amount}u64`,
         auctionId,
-        bid.bid_public_key,
-        bidId.endsWith('field') ? bidId : `${bidId}field`,
-      ];
-      const params = buildSelectWinnerParams(inputs);
+        owner,
+        auctionPublicKey,
+        `${nonce}scalar`,
+      ]);
       const result = await createTransaction(params, requestTransaction, address, walletName, getAuctionProgramId());
-      if (result.success) {
-        success('Auction ended', 'Winner selected. Winner must redeem to claim.');
-        setWinningBidId(bidId);
-      } else {
-        showError('End failed', result.error ?? 'Unknown error. Ensure you have the AuctionTicket record.');
+
+      if (!result.success) {
+        throw new Error(result.error || 'Private bid failed');
       }
-    } catch (e: unknown) {
-      showError('End failed', e instanceof Error ? e.message : 'Unknown error');
+
+      success(
+        'Private bid placed',
+        'Your wallet should now hold a BidReceipt record. Shield Wallet is the smoothest option for record-based flows.'
+      );
+      setPrivateBidAmount('');
+      await refreshAuctionState();
+    } catch (error) {
+      showError('Private bid failed', error instanceof Error ? error.message : 'Unknown error');
     } finally {
-      setIsEnding(false);
+      setIsPrivateBidding(false);
+    }
+  };
+
+  const handleSelectPublicWinner = async () => {
+    if (!auctionId || !address || !walletName) {
+      showError('Wallet required', 'Connect the creator wallet to select the winner.');
+      return;
+    }
+
+    const bidId = winningBidIdInput.trim();
+    if (!bidId) {
+      showError('Missing bid ID', 'Enter the winning public bid ID from the bidder’s BidReceipt.');
+      return;
+    }
+
+    const publicBid = await auctionService.getPublicBid(bidId);
+    if (!publicBid || publicBid.auction_id !== auctionId || !publicBid.bid_public_key) {
+      showError('Invalid bid', 'That public bid could not be verified for this auction.');
+      return;
+    }
+    if (publicBid.amount !== highestBid) {
+      showError('Wrong bid', 'Only the highest public bid can be selected.');
+      return;
+    }
+
+    setIsEndingPublic(true);
+    try {
+      const winningBidStruct = `{ amount: ${publicBid.amount}u64, auction_id: ${auctionId}, bid_public_key: ${publicBid.bid_public_key} }`;
+      const params = buildSelectWinnerParams([winningBidStruct, bidId.endsWith('field') ? bidId : `${bidId}field`]);
+      const result = await createTransaction(params, requestTransaction, address, walletName, getAuctionProgramId());
+
+      if (!result.success) {
+        throw new Error(result.error || 'Winner selection failed');
+      }
+
+      success('Public winner selected', 'Your wallet should prompt for the AuctionTicket record.');
+      await refreshAuctionState();
+    } catch (error) {
+      showError('Winner selection failed', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setIsEndingPublic(false);
+    }
+  };
+
+  const handleSelectPrivateWinner = async () => {
+    if (!auctionId || !address || !walletName) {
+      showError('Wallet required', 'Connect the creator wallet to select the private winner.');
+      return;
+    }
+
+    setIsEndingPrivate(true);
+    try {
+      const params = buildSelectWinnerPrivateParams();
+      const result = await createTransaction(params, requestTransaction, address, walletName, getAuctionProgramId());
+
+      if (!result.success) {
+        throw new Error(result.error || 'Private winner selection failed');
+      }
+
+      success(
+        'Private winner selected',
+        'Use the creator wallet that holds the AuctionTicket and PrivateBid records. Shield Wallet is strongly recommended here.'
+      );
+      await refreshAuctionState();
+    } catch (error) {
+      showError('Private winner selection failed', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setIsEndingPrivate(false);
+    }
+  };
+
+  const handleRedeemWinningBid = async () => {
+    if (!walletName || !address || !owner) {
+      showError('Wallet required', 'Connect the winning wallet to redeem this bid.');
+      return;
+    }
+
+    setIsRedeeming(true);
+    try {
+      const params = buildRedeemBidPublicParams([owner]);
+      const result = await createTransaction(params, requestTransaction, address, walletName, getAuctionProgramId());
+
+      if (!result.success) {
+        throw new Error(result.error || 'Redeem failed');
+      }
+
+      success('Redeem submitted', 'Your wallet should prompt you to choose the winning BidReceipt record.');
+      await refreshAuctionState();
+    } catch (error) {
+      showError('Redeem failed', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setIsRedeeming(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-10 h-10 text-emerald-400 animate-spin" />
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-10 w-10 animate-spin text-emerald-400" />
       </div>
     );
   }
 
-  if (!auctionId || !data) {
+  if (!auctionId || rawAuction == null) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-4">
-        <GlassCard className="p-8 max-w-md text-center">
-          <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-white mb-2">Auction not found</h2>
-          <p className="text-white/60 mb-6">The auction may not exist or the ID is invalid.</p>
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <GlassCard className="max-w-md p-8 text-center">
+          <AlertCircle className="mx-auto mb-4 h-12 w-12 text-amber-400" />
+          <h2 className="mb-2 text-xl font-semibold text-white">Auction not found</h2>
+          <p className="mb-6 text-white/60">The auction may not exist or the ID is invalid.</p>
           <Link href="/auctions">
-            <GlassButton variant="secondary" icon={<ArrowLeft className="w-4 h-4" />}>
+            <GlassButton variant="secondary" icon={<ArrowLeft className="h-4 w-4" />}>
               Back to Auctions
             </GlassButton>
           </Link>
@@ -226,18 +405,14 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="min-h-screen pb-20">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <Link href="/auctions" className="inline-flex items-center gap-2 text-white/60 hover:text-white mb-8">
-          <ArrowLeft className="w-4 h-4" />
+      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+        <Link href="/auctions" className="mb-8 inline-flex items-center gap-2 text-white/60 hover:text-white">
+          <ArrowLeft className="h-4 w-4" />
           Back to Auctions
         </Link>
 
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <GlassCard className="p-0 mb-8 overflow-hidden">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+          <GlassCard className="mb-8 overflow-hidden p-0">
             {imageUrl ? (
               <div className="relative h-56 w-full bg-white/[0.06]">
                 <a href={parsed?.imageUrl || imageUrl} target="_blank" rel="noreferrer">
@@ -246,21 +421,24 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
               </div>
             ) : null}
+
             <div className="p-8">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                  <Gavel className="w-6 h-6 text-emerald-400" />
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/20">
+                  <Gavel className="h-6 w-6 text-emerald-400" />
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-white">{name}</h1>
-                  <p className="text-sm text-white/50 font-mono truncate max-w-xs">ID: {auctionId.slice(0, 20)}...</p>
+                  <p className="max-w-xs truncate font-mono text-sm text-white/50">ID: {auctionId.slice(0, 20)}...</p>
                 </div>
               </div>
+
               <div className="mb-6">
-                <h2 className="text-lg font-semibold text-white mb-3">About this Auction</h2>
-                <p className="text-white/70 leading-relaxed">{description ?? ''}</p>
+                <h2 className="mb-3 text-lg font-semibold text-white">About this Auction</h2>
+                <p className="leading-relaxed text-white/70">{description}</p>
               </div>
-              <dl className="grid gap-4">
+
+              <dl className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <dt className="text-sm text-white/50">Starting bid</dt>
                   <dd className="text-lg text-emerald-400">{startingBid} credits</dd>
@@ -269,110 +447,200 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
                   <dt className="text-sm text-white/50">Minimum bid</dt>
                   <dd className="text-lg text-emerald-400">{minBid} credits</dd>
                 </div>
-                <div className="flex gap-6">
-                  <div>
-                    <dt className="text-sm text-white/50 flex items-center gap-1">
-                      <Users className="w-4 h-4" /> Bids
-                    </dt>
-                    <dd className="text-lg text-white/80">{bidCount}</dd>
-                  </div>
-                  {highestBid > 0 && (
-                    <div>
-                      <dt className="text-sm text-white/50 flex items-center gap-1">
-                        <Trophy className="w-4 h-4" /> Highest
-                      </dt>
-                      <dd className="text-lg text-emerald-400">{highestBid} credits</dd>
-                    </div>
-                  )}
+                <div>
+                  <dt className="text-sm text-white/50">Bid mode</dt>
+                  <dd className="text-lg text-white/80">{bidMode}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-white/50">Settlement</dt>
+                  <dd className="text-lg text-white/80">{isRedeemed ? 'Redeemed' : isEnded ? 'Winner selected' : 'Open'}</dd>
+                </div>
+                <div>
+                  <dt className="flex items-center gap-1 text-sm text-white/50">
+                    <Users className="h-4 w-4" /> Bids
+                  </dt>
+                  <dd className="text-lg text-white/80">{bidCount}</dd>
+                </div>
+                <div>
+                  <dt className="flex items-center gap-1 text-sm text-white/50">
+                    <Trophy className="h-4 w-4" /> Highest bid
+                  </dt>
+                  <dd className="text-lg text-emerald-400">{highestBid || 0} credits</dd>
                 </div>
               </dl>
             </div>
           </GlassCard>
 
           {isCreator && (
-            <GlassCard className="p-8 mb-8">
-              <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                <Users className="w-5 h-5" /> Bidders
+            <GlassCard className="mb-8 p-8">
+              <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+                <Users className="h-5 w-5" /> Creator controls
               </h2>
-              {bids.length > 0 ? (
-                <ul className="space-y-2 mb-4">
-                  {bids.map((b, i) => (
-                    <li key={i} className="flex justify-between text-sm text-white/80">
-                      <span className="font-mono truncate max-w-[200px]">{b.bidId || '—'}</span>
-                      <span className="text-emerald-400">{b.amount} credits</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-white/50 mb-4">Bid count: {bidCount}. Highest: {highestBid} credits.</p>
-              )}
-              {!isEnded && bidCount > 0 && (
-                <>
-                  <p className="text-xs text-white/40 mb-3">
-                    Enter the winning bid ID (from the highest bidder&apos;s receipt) to end the auction.
+              <p className="mb-4 text-sm text-white/60">
+                Use the creator wallet that holds the AuctionTicket record. Shield Wallet is best for the private-record flows.
+              </p>
+
+              {!isEnded && bidCount > 0 && allowsPublicBids && (
+                <div className="mb-6">
+                  <p className="mb-3 text-xs text-white/40">
+                    Paste the winning public bid ID from the bidder’s BidReceipt to select the winner.
                   </p>
-                  <div className="flex gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row">
                     <GlassInput
-                      placeholder="Winning bid ID (e.g. 123...field)"
+                      placeholder="Winning public bid ID"
                       value={winningBidIdInput}
-                      onChange={(e) => setWinningBidIdInput(e.target.value)}
+                      onChange={(event) => setWinningBidIdInput(event.target.value)}
                       className="flex-1"
                     />
                     <GlassButton
-                      onClick={handleEndAuction}
-                      disabled={isEnding}
-                      loading={isEnding}
-                      icon={<Trophy className="w-4 h-4" />}
+                      onClick={handleSelectPublicWinner}
+                      disabled={isEndingPublic}
+                      loading={isEndingPublic}
+                      icon={<Trophy className="h-4 w-4" />}
                     >
-                      {isEnding ? 'Ending…' : 'End Auction'}
+                      {isEndingPublic ? 'Selecting…' : 'Select Public Winner'}
                     </GlassButton>
                   </div>
-                  <p className="text-xs text-amber-400/80 mt-2">
-                    Note: Only the highest bid can win. Bidders do not lock funds—only the winner pays when they redeem.
-                  </p>
-                </>
+                </div>
               )}
+
+              {!isEnded && bidCount > 0 && allowsPrivateBids && (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <Shield className="mt-0.5 h-5 w-5 text-emerald-400" />
+                      <div>
+                        <p className="text-sm font-medium text-white">Select private winner</p>
+                        <p className="mt-1 text-xs text-white/55">
+                          This flow expects the creator wallet to hold both the AuctionTicket and a PrivateBid record.
+                        </p>
+                      </div>
+                    </div>
+                    <GlassButton
+                      onClick={handleSelectPrivateWinner}
+                      disabled={isEndingPrivate}
+                      loading={isEndingPrivate}
+                      icon={<Lock className="h-4 w-4" />}
+                    >
+                      {isEndingPrivate ? 'Selecting…' : 'Select Private Winner'}
+                    </GlassButton>
+                  </div>
+                </div>
+              )}
+
               {isEnded && (
-                <p className="text-sm text-emerald-400">Auction ended. Winner can redeem their bid.</p>
+                <p className="text-sm text-emerald-400">
+                  {isRedeemed ? 'Auction settled successfully.' : 'A winner has been selected and is waiting to redeem.'}
+                </p>
               )}
             </GlassCard>
           )}
 
-          {isConnected && !isCreator && !isEnded && (
-            <GlassCard className="p-8 mb-8">
-              <h2 className="text-lg font-semibold text-white mb-4">Place a bid</h2>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <GlassInput
-                  type="number"
-                  placeholder="Amount (credits)"
-                  value={bidAmount}
-                  onChange={(e) => setBidAmount(e.target.value)}
-                  min={minBid}
-                />
-                <GlassButton
-                  onClick={handleBid}
-                  disabled={isBidding}
-                  icon={isBidding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gavel className="w-4 h-4" />}
-                >
-                  {isBidding ? 'Placing…' : 'Place bid'}
-                </GlassButton>
-              </div>
-              <p className="text-sm text-white/50 mt-3">
-                Minimum bid: {minBid} credits. Your address will be visible to the creator.
+          {!walletConnected && !isEnded && (
+            <GlassCard className="mb-8 flex items-start gap-3 p-8 text-white/70">
+              <Wallet className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
+              <p className="text-sm">
+                Connect a wallet to bid. Shield Wallet is the recommended choice when you want private bidding and record selection to work smoothly.
               </p>
             </GlassCard>
           )}
 
-          {isConnected && isCreator && !isEnded && (
-            <GlassCard className="p-8 mb-8 flex items-center gap-3 text-amber-400/90">
-              <Ban className="w-5 h-5 shrink-0" />
+          {walletConnected && !isCreator && !isEnded && (
+            <div className="mb-8 space-y-6">
+              {allowsPublicBids && (
+                <GlassCard className="p-8">
+                  <h2 className="mb-4 text-lg font-semibold text-white">Place a public bid</h2>
+                  <div className="flex flex-col gap-4 sm:flex-row">
+                    <GlassInput
+                      type="number"
+                      min={minBid}
+                      placeholder="Amount (credits)"
+                      value={publicBidAmount}
+                      onChange={(event) => setPublicBidAmount(event.target.value)}
+                    />
+                    <GlassButton
+                      onClick={handlePublicBid}
+                      disabled={isPublicBidding}
+                      icon={isPublicBidding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Gavel className="h-4 w-4" />}
+                    >
+                      {isPublicBidding ? 'Placing…' : 'Place Public Bid'}
+                    </GlassButton>
+                  </div>
+                  <p className="mt-3 text-sm text-white/50">
+                    Minimum bid: {minBid} credits. This creates a BidReceipt record in your wallet.
+                  </p>
+                </GlassCard>
+              )}
+
+              {allowsPrivateBids && (
+                <GlassCard className="p-8">
+                  <h2 className="mb-4 text-lg font-semibold text-white">Place a private bid</h2>
+                  <div className="flex flex-col gap-4 sm:flex-row">
+                    <GlassInput
+                      type="number"
+                      min={minBid}
+                      placeholder="Amount (credits)"
+                      value={privateBidAmount}
+                      onChange={(event) => setPrivateBidAmount(event.target.value)}
+                    />
+                    <GlassButton
+                      onClick={handlePrivateBid}
+                      disabled={isPrivateBidding}
+                      icon={isPrivateBidding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+                    >
+                      {isPrivateBidding ? 'Placing…' : 'Place Private Bid'}
+                    </GlassButton>
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+                    <div className="flex items-start gap-3">
+                      <Shield className="mt-0.5 h-5 w-5 text-emerald-400" />
+                      <div>
+                        <p className="text-sm font-medium text-emerald-300">Shield-friendly private flow</p>
+                        <p className="mt-1 text-sm text-white/60">
+                          Private bids are record-based. Keep the BidReceipt safe because the winner needs it later for redemption.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </GlassCard>
+              )}
+            </div>
+          )}
+
+          {walletConnected && isCreator && !isEnded && (
+            <GlassCard className="mb-8 flex items-center gap-3 p-8 text-amber-400/90">
+              <Ban className="h-5 w-5 shrink-0" />
               <p className="text-sm">You cannot bid on your own auction.</p>
             </GlassCard>
           )}
 
           {isEnded && !isCreator && (
-            <GlassCard className="p-8 mb-8 text-white/60 text-sm">
-              This auction has ended. Only the winner pays when redeeming; other bidders do not lock funds.
+            <GlassCard className="mb-8 p-8 text-sm text-white/60">
+              <p>Only the winner pays when redeeming. Non-winning bidders do not lock funds.</p>
+
+              {isWinner && !isRedeemed && (
+                <div className="mt-4">
+                  <GlassButton
+                    onClick={handleRedeemWinningBid}
+                    disabled={isRedeeming}
+                    loading={isRedeeming}
+                    icon={<CheckCircle className="h-4 w-4" />}
+                  >
+                    {isRedeeming ? 'Redeeming…' : 'Redeem Winning Bid'}
+                  </GlassButton>
+                </div>
+              )}
+
+              {isWinner && isRedeemed && (
+                <p className="mt-4 text-emerald-400">Your winning bid has already been redeemed.</p>
+              )}
+
+              {!isWinner && winningBidOwner && (
+                <p className="mt-4 text-white/45">
+                  Winner: {winningBidOwner.slice(0, 12)}...{winningBidOwner.slice(-6)}
+                </p>
+              )}
             </GlassCard>
           )}
         </motion.div>

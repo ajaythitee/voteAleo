@@ -30,17 +30,13 @@ export async function createTransaction(
   console.log('Transaction params:', JSON.stringify(params, null, 2));
 
   try {
-    if (!params.inputs || params.inputs.length === 0) {
-      return { success: false, error: 'No inputs provided for transaction' };
-    }
-
     const txRequest: any = {
       chainId,
       transitions: [
         {
           program: programId,
           functionName: params.functionId,
-          inputs: params.inputs,
+          inputs: params.inputs ?? [],
         },
       ],
     };
@@ -93,6 +89,8 @@ export async function createTransaction(
     } else if (errorMessage.includes('assert') || errorMessage.includes('assertion')) {
       errorMessage =
         'Transaction validation failed. This could mean the campaign is inactive, you already voted, or the option index is invalid.';
+    } else if (errorMessage.includes('record')) {
+      errorMessage = 'Your wallet could not find the required Aleo record for this action. Make sure the correct wallet is connected and try again.';
     } else if (errorMessage.includes('timeout') || errorMessage.includes('network')) {
       errorMessage = 'Network timeout. Please check your connection and try again.';
     }
@@ -159,10 +157,19 @@ export function buildBidPublicParams(inputs: string[]): TransactionParams {
   };
 }
 
+export function buildBidPrivateParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'bid_private',
+    inputs,
+    fee: 300000,
+  };
+}
+
 /**
  * Build params for select_winner_public.
- * inputs: [winning_bid_amount, auction_id, bid_public_key, winning_bid_id]
- * Note: auction_ticket is a record - wallet must have it and will prompt to select.
+ * inputs: [winning_bid_struct, winning_bid_id]
+ * AuctionTicket is a record, so the wallet can prompt for it.
  */
 export function buildSelectWinnerParams(inputs: string[]): TransactionParams {
   return {
@@ -170,6 +177,24 @@ export function buildSelectWinnerParams(inputs: string[]): TransactionParams {
     functionId: 'select_winner_public',
     inputs,
     fee: 500000,
+  };
+}
+
+export function buildSelectWinnerPrivateParams(inputs: string[] = []): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'select_winner_private',
+    inputs,
+    fee: 500000,
+  };
+}
+
+export function buildRedeemBidPublicParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'redeem_bid_public',
+    inputs,
+    fee: 300000,
   };
 }
 

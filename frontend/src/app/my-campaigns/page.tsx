@@ -20,7 +20,7 @@ import { useWallet } from '@provablehq/aleo-wallet-adaptor-react';
 import { useWalletStore } from '@/stores/walletStore';
 import { Campaign } from '@/types';
 import { aleoService } from '@/services/aleo';
-import { parseAleoStruct, parseOnChainCampaign } from '@/services/campaignParser';
+import { parseOnChainCampaign } from '@/services/campaignParser';
 import { formatDistanceToNow, isPast, isFuture } from 'date-fns';
 
 export default function MyCampaignsPage() {
@@ -55,13 +55,10 @@ export default function MyCampaignsPage() {
           const idMatch = entry.id.match(/(\d+)/);
           const id = idMatch ? parseInt(idMatch[1]) : 0;
 
-          if (id > 0 && typeof entry.data === 'string') {
-            const parsed = parseAleoStruct(entry.data);
-            if (parsed && parsed.creator === address) {
-              const campaignData = await parseOnChainCampaign(entry.data as string, id);
-              if (campaignData) {
-                myCampaigns.push(campaignData);
-              }
+          if (id > 0) {
+            const campaignData = await parseOnChainCampaign(entry.data, id);
+            if (campaignData && campaignData.creator === address) {
+              myCampaigns.push(campaignData);
             }
           }
         } catch (err) {

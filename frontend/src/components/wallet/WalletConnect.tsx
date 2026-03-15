@@ -20,8 +20,18 @@ export function WalletConnect() {
   useEffect(() => {
     if (connected && publicKey) {
       const walletName = wallet?.adapter?.name?.toLowerCase() || 'unknown';
-      const walletType = walletName.includes('leo') ? 'leo' : walletName.includes('puzzle') ? 'puzzle' : 'leo';
-      setConnected(publicKey, 'testnet', walletType as 'leo' | 'puzzle');
+      const walletType = walletName.includes('shield')
+        ? 'shield'
+        : walletName.includes('leo')
+          ? 'leo'
+          : walletName.includes('puzzle')
+            ? 'puzzle'
+            : walletName.includes('fox')
+              ? 'fox'
+              : walletName.includes('soter')
+                ? 'soter'
+                : 'unknown';
+      setConnected(publicKey, 'testnet', walletType);
     } else if (!connected && !connecting) {
       setDisconnected();
     }

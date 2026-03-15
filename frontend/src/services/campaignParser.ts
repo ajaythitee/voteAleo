@@ -56,14 +56,43 @@ export function parseAleoStruct(str: string): Record<string, string> | null {
   }
 }
 
+function parseCampaignObject(data: Record<string, unknown>): Record<string, string> | null {
+  try {
+    const inner = (typeof data.value === 'object' ? data.value : data) as Record<string, unknown>;
+    const cid = (inner.metadata_cid ?? {}) as Record<string, unknown>;
+
+    const result: Record<string, string> = {
+      creator: inner.creator != null ? String(inner.creator) : '',
+      start_time: String(inner.start_time ?? '0').replace(/\D/g, ''),
+      end_time: String(inner.end_time ?? '0').replace(/\D/g, ''),
+      option_count: String(inner.option_count ?? '0').replace(/\D/g, ''),
+      total_votes: String(inner.total_votes ?? '0').replace(/\D/g, ''),
+      is_active: String(inner.is_active ?? 'false'),
+      'metadata_cid.part1': cid.part1 != null ? String(cid.part1) : '',
+      'metadata_cid.part2': cid.part2 != null ? String(cid.part2) : '',
+    };
+
+    for (let i = 0; i < 4; i++) {
+      result[`votes_${i}`] = String(inner[`votes_${i}`] ?? '0').replace(/\D/g, '') || '0';
+    }
+
+    return result;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Parse on-chain campaign data and fetch metadata from IPFS; returns a Campaign or null.
  */
 export async function parseOnChainCampaign(data: unknown, id: number): Promise<Campaign | null> {
   try {
-    if (typeof data !== 'string') return null;
-
-    const parsed = parseAleoStruct(data);
+    const parsed =
+      typeof data === 'string'
+        ? parseAleoStruct(data)
+        : data && typeof data === 'object'
+          ? parseCampaignObject(data as Record<string, unknown>)
+          : null;
     if (!parsed) return null;
 
     let title = `Campaign #${id}`;
