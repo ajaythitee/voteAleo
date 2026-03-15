@@ -16,6 +16,7 @@ import '@provablehq/aleo-wallet-adaptor-react-ui/dist/styles.css';
 const VOTING_PROGRAM_ID = process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID as string;
 const AUCTION_PROGRAM_ID = process.env.NEXT_PUBLIC_AUCTION_PROGRAM_ID as string;
 const PROGRAM_IDS = [VOTING_PROGRAM_ID, AUCTION_PROGRAM_ID, 'credits.aleo'];
+const APP_NAME = 'VeilProtocol';
 
 interface WalletWrapperProps {
   children: ReactNode;
@@ -36,7 +37,7 @@ export function WalletWrapper({ children }: WalletWrapperProps) {
     const instances = [];
 
     try {
-      instances.push(new ShieldWalletAdapter());
+      instances.push(new ShieldWalletAdapter({ appName: APP_NAME }));
     } catch (e) {
       console.warn('ShieldWalletAdapter constructor failed:', e);
     }
@@ -75,9 +76,9 @@ export function WalletWrapper({ children }: WalletWrapperProps) {
   return (
     <AleoWalletProvider
       wallets={wallets}
-      autoConnect={false}
+      autoConnect
       network={Network.TESTNET}
-      decryptPermission={DecryptPermission.UponRequest}
+      decryptPermission={DecryptPermission.AutoDecrypt}
       programs={PROGRAM_IDS}
       onError={onError}
     >

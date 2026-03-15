@@ -42,6 +42,8 @@ export function useWalletSession() {
       walletType: inferWalletType(walletName),
       network: walletContext?.network ?? walletStore.network ?? null,
       isConnecting: !!(walletContext?.connecting || walletStore.isConnecting),
+      isDisconnecting: !!walletContext?.disconnecting,
+      isReconnecting: !!walletContext?.reconnecting,
     };
   }, [walletContext, walletStore.address, walletStore.isConnected, walletStore.network, walletStore.isConnecting]);
 }

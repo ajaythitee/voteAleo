@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { z } from 'zod';
 
 export const runtime = 'nodejs';
 
@@ -19,6 +20,29 @@ interface SuggestResult {
   description: string;
   options?: string[]; // For campaigns: suggested voting options (2-4)
 }
+
+const suggestResultSchema = z.object({
+  title: z.string().trim().default(''),
+  description: z.string().trim().default(''),
+  options: z.array(z.string().trim()).optional(),
+});
+
+const contextConfig = {
+  campaign: {
+    system:
+      'You are improving content for a privacy-preserving voting campaign on VeilProtocol (Aleo blockchain). Keep the exact real-world topic unchanged.',
+    optionGuidance: [
+      'Suggest 3-6 mutually exclusive voting options.',
+      'Keep each option clear, concise, and directly tied to the provided campaign topic.',
+      'Do not introduce a new topic or generic filler options.',
+    ],
+  },
+  auction: {
+    system:
+      'You are improving content for a sealed-bid auction on VeilProtocol (Aleo blockchain). Keep the exact item, collection, or theme unchanged.',
+    optionGuidance: [],
+  },
+} as const;
 
 // Remove markdown formatting from text
 function cleanText(text: string): string {
@@ -64,16 +88,22 @@ async function generateWithGemini(prompt: string, geminiApiKey: string, suggestO
       return null;
     }
 
-    const titleStr = typeof parsed.title === 'string' && parsed.title.trim() ? parsed.title.trim() : '';
-    const descStr = typeof parsed.description === 'string' && parsed.description.trim() ? parsed.description.trim() : '';
+    const validated = suggestResultSchema.safeParse(parsed);
+    if (!validated.success) {
+      console.error('Gemini: invalid response shape', validated.error.flatten());
+      return null;
+    }
+
+    const titleStr = validated.data.title;
+    const descStr = validated.data.description;
     
     const resultObj: SuggestResult = {
       title: cleanText(titleStr),
       description: cleanText(descStr),
     };
     
-    if (suggestOptions && Array.isArray(parsed.options)) {
-      const validOptions = parsed.options
+    if (suggestOptions && Array.isArray(validated.data.options)) {
+      const validOptions = validated.data.options
         .filter((opt: unknown) => typeof opt === 'string' && opt.trim())
         .map((opt: string) => cleanText(opt.trim()))
         .filter((opt: string) => opt.length > 0); // Remove any empty after cleaning
@@ -127,25 +157,16 @@ export async function POST(request: NextRequest) {
 
     console.log('AI suggest: Using Gemini for', context, suggestOptions ? 'with options' : '');
 
-    const isCampaign = context === 'campaign';
-    const baseContext = isCampaign
-      ? 'You are improving the title and description for a privacy-preserving voting campaign on VeilProtocol (Aleo blockchain). You must keep the same real-world topic as the current title and description. Do not invent a different subject.'
-      : 'You are improving the title and description for a sealed-bid auction on VeilProtocol (Aleo blockchain). You must keep the same real-world item or theme as the current title and description. Do not invent a different subject.';
-
-    let prompt = `${baseContext}
+    const config = contextConfig[context];
+    let prompt = `${config.system}
 
 Current title: "${title}"
 Current description: "${description}"`;
 
-    if (isCampaign && suggestOptions) {
+    if (context === 'campaign' && suggestOptions) {
       prompt += `
 
-Based on the campaign title and description, suggest 3-6 voting options that voters can choose from.
-Options should be:
-- Clear and concise (2-5 words each)
-- Mutually exclusive choices
-- Directly relevant to the exact campaign topic described above (do NOT introduce unrelated topics)
-- Human-friendly language (no markdown, no formatting)
+${config.optionGuidance.join('\n')}
 
 Do NOT change the core topic of the campaign. The improved title and description must clearly match the same subject as the current title and description.
 
@@ -173,7 +194,7 @@ Return JSON with:
       return NextResponse.json(
         {
           error:
-            'AI could not generate a suggestion. Check that GROQ_API_KEY and/or GEMINI_API_KEY are set in Vercel Environment Variables, and try again.',
+            'AI could not generate a suggestion. Check that GEMINI_API_KEY is set in Vercel Environment Variables, and try again.',
         },
         { status: 500 },
       );

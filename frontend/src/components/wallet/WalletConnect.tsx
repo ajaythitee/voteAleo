@@ -12,7 +12,7 @@ export function WalletConnect() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const { wallet, address, connected, isConnecting, disconnect } = useWalletSession();
+  const { wallet, address, connected, isConnecting, isDisconnecting, isReconnecting, disconnect } = useWalletSession();
   const { setConnected, setDisconnected, setConnecting } = useWalletStore();
   const { success, error: showError } = useToastStore();
 
@@ -32,22 +32,24 @@ export function WalletConnect() {
                 ? 'soter'
                 : 'unknown';
       setConnected(address, 'testnet', walletType);
-    } else if (!connected && !isConnecting) {
+    } else if (isDisconnecting) {
       setDisconnected();
     }
-  }, [connected, address, wallet, isConnecting, setConnected, setDisconnected]);
+  }, [connected, address, wallet, isConnecting, isDisconnecting, setConnected, setDisconnected]);
 
   useEffect(() => {
-    setConnecting(isConnecting);
-  }, [isConnecting, setConnecting]);
+    setConnecting(isConnecting || isReconnecting);
+  }, [isConnecting, isReconnecting, setConnecting]);
 
   const handleDisconnect = async () => {
     try {
-      await disconnect();
       setShowDropdown(false);
+      await disconnect();
+      setDisconnected();
       success('Wallet Disconnected', 'Your wallet has been disconnected');
-    } catch (err: any) {
-      showError('Disconnect Failed', err.message);
+    } catch (err: unknown) {
+      setDisconnected();
+      showError('Disconnect Failed', err instanceof Error ? err.message : 'Disconnect failed');
     }
   };
 
@@ -64,7 +66,7 @@ export function WalletConnect() {
   };
 
   // If connected, show custom dropdown with disconnect option
-  if (connected && address) {
+  if ((connected && address) || (!isConnecting && address)) {
     const walletName = wallet?.adapter?.name || 'Wallet';
 
     return (

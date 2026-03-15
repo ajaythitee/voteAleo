@@ -215,6 +215,31 @@ export default function CreateCampaignPage() {
     handleInputChange('options', newOptions);
   };
 
+  const validateInfoStep = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.title.trim()) {
+      newErrors.title = 'Title is required';
+    }
+
+    if (!formData.description.trim()) {
+      newErrors.description = 'Description is required';
+    }
+
+    setErrors((prev) => ({ ...prev, ...newErrors }));
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const validateOptionsStep = (): boolean => {
+    const validOptions = formData.options.filter((opt) => opt.trim());
+    if (validOptions.length < 2) {
+      setErrors((prev) => ({ ...prev, options: 'At least 2 options are required' }));
+      return false;
+    }
+
+    return true;
+  };
+
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
@@ -252,6 +277,19 @@ export default function CreateCampaignPage() {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const waitForCampaignVisibility = async (previousCount: number) => {
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const currentCount = await aleoService.getCampaignCount();
+      if (currentCount > previousCount) {
+        return true;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+
+    return false;
   };
 
   const handleSubmit = async () => {
@@ -301,6 +339,7 @@ export default function CreateCampaignPage() {
       );
 
       const validOptions = formData.options.filter((opt) => opt.trim());
+      const previousCampaignCount = await aleoService.getCampaignCount();
 
       // Encode CID to fields
       const { part1, part2 } = aleoService.encodeCidToFields(metadataResult.cid);
@@ -337,13 +376,26 @@ export default function CreateCampaignPage() {
         );
       }
 
+      transaction.setAwaiting(
+        'Refreshing campaign listings',
+        'Waiting for the new campaign to appear before refreshing the campaign pages.',
+        result.transactionId
+      );
+      await waitForCampaignVisibility(previousCampaignCount);
+      router.push('/campaigns');
+      router.refresh();
+      transaction.setConfirmed(
+        'Campaign ready',
+        'The campaign flow is complete and the listings have been refreshed.',
+        result.transactionId
+      );
+
       success(
         'Campaign submitted',
         result.transactionId
           ? `Transaction ${result.transactionId.slice(0, 12)}... was submitted successfully.`
           : 'Your campaign transaction was submitted successfully.'
       );
-      router.push('/campaigns');
     } catch (err: unknown) {
       console.error('Create campaign error:', err);
       const message = err instanceof Error ? err.message : 'Transaction failed';
@@ -499,7 +551,13 @@ export default function CreateCampaignPage() {
               </div>
 
               <div className="flex justify-end">
-                <GlassButton onClick={() => setStep(2)}>
+                <GlassButton
+                  onClick={() => {
+                    if (validateInfoStep()) {
+                      setStep(2);
+                    }
+                  }}
+                >
                   Next: Voting Options
                 </GlassButton>
               </div>
@@ -569,7 +627,13 @@ export default function CreateCampaignPage() {
                 <GlassButton variant="secondary" onClick={() => setStep(1)}>
                   Back
                 </GlassButton>
-                <GlassButton onClick={() => setStep(3)}>
+                <GlassButton
+                  onClick={() => {
+                    if (validateOptionsStep()) {
+                      setStep(3);
+                    }
+                  }}
+                >
                   Next: Schedule
                 </GlassButton>
               </div>

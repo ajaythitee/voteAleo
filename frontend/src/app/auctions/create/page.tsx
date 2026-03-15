@@ -18,6 +18,7 @@ import { useWalletSession } from '@/hooks/useWalletSession';
 import { useTransactionLifecycle } from '@/hooks/useTransactionLifecycle';
 import { getFeatureAvailability, requireFeatureEnv } from '@/lib/env';
 import { getPrivateAuctionWalletWarning, getWalletCapabilities } from '@/lib/walletCapabilities';
+import { auctionService } from '@/services/auction';
 
 export default function CreateAuctionPage() {
   const router = useRouter();
@@ -110,12 +111,20 @@ export default function CreateAuctionPage() {
       } else {
         throw new Error('AI returned empty response');
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('AI improve error:', e);
-      showError('AI suggestion failed', e?.message || 'Could not improve text');
+      showError('AI suggestion failed', e instanceof Error ? e.message : 'Could not improve text');
     } finally {
       setIsImproving(false);
     }
+  };
+
+  const validateDetailsStep = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    if (!formData.name.trim()) newErrors.name = 'Auction name is required';
+    if (!formData.description.trim()) newErrors.description = 'Description is required';
+    setErrors((prev) => ({ ...prev, ...newErrors }));
+    return Object.keys(newErrors).length === 0;
   };
 
   const validateForm = (): boolean => {
@@ -126,6 +135,19 @@ export default function CreateAuctionPage() {
     if (!Number.isFinite(startBid) || startBid < 0) newErrors.startingBid = 'Enter a valid starting bid (credits)';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const waitForAuctionVisibility = async (previousCount: number) => {
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const currentCount = await auctionService.getAuctionCount();
+      if (currentCount > previousCount) {
+        return true;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+
+    return false;
   };
 
   const handleSubmit = async () => {
@@ -167,6 +189,7 @@ export default function CreateAuctionPage() {
         name: `auction-${Date.now()}.json`,
         type: 'auction-metadata',
       });
+      const previousAuctionCount = await auctionService.getAuctionCount();
       const { part1, part2 } = aleoService.encodeCidToFields(metadataResult.cid);
 
       const auctionNameField = aleoService.encodeStringToSingleField(formData.name.trim());
@@ -209,13 +232,25 @@ export default function CreateAuctionPage() {
             result.transactionId
           );
         }
+        transaction.setAwaiting(
+          'Refreshing auction listings',
+          'Waiting for the new auction to appear before refreshing the auction pages.',
+          result.transactionId
+        );
+        await waitForAuctionVisibility(previousAuctionCount);
+        router.push('/auctions');
+        router.refresh();
+        transaction.setConfirmed(
+          'Auction ready',
+          'The auction flow is complete and the listings have been refreshed.',
+          result.transactionId
+        );
         success(
           'Auction submitted',
           result.transactionId
             ? `Transaction ${result.transactionId.slice(0, 12)}... was submitted successfully.`
             : 'Your auction transaction was submitted successfully.'
         );
-        router.push('/auctions');
       } else {
         transaction.setFailed('Auction creation failed', result.error ?? 'Unknown error', result.transactionId);
         showError('Create failed', result.error ?? 'Unknown error');
@@ -364,7 +399,15 @@ export default function CreateAuctionPage() {
               </div>
 
               <div className="flex justify-end">
-                <GlassButton onClick={() => setStep(2)}>Next: Auction Settings</GlassButton>
+                <GlassButton
+                  onClick={() => {
+                    if (validateDetailsStep()) {
+                      setStep(2);
+                    }
+                  }}
+                >
+                  Next: Auction Settings
+                </GlassButton>
               </div>
             </div>
           )}
