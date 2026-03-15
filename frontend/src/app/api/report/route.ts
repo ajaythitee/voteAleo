@@ -119,35 +119,38 @@ function getChartImageUrl(options: ReportOption[]): string {
   ];
 
   const chartConfig = {
-    type: 'bar',
+    type: 'doughnut',
     data: {
       labels,
       datasets: [
         {
-          label: 'Votes',
           data,
           backgroundColor: colors.slice(0, data.length),
           borderColor: colors.slice(0, data.length).map((color) => color.replace('0.88', '1')),
           borderWidth: 2,
-          borderRadius: 8,
+          hoverOffset: 6,
         },
       ],
     },
     options: {
       responsive: true,
       plugins: {
-        legend: { display: false },
+        legend: {
+          display: true,
+          position: 'right',
+          labels: {
+            color: '#334155',
+            boxWidth: 14,
+            padding: 14,
+            font: { size: 12 },
+          },
+        },
       },
       layout: { padding: 16 },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { precision: 0, color: '#334155' },
-          grid: { color: 'rgba(148, 163, 184, 0.18)' },
-        },
-        x: {
-          ticks: { color: '#334155' },
-          grid: { display: false },
+      cutout: '56%',
+      elements: {
+        arc: {
+          borderWidth: 3,
         },
       },
     },
@@ -284,6 +287,21 @@ function drawAnalysisCard(
   return height;
 }
 
+function getAnalysisCardHeight(doc: jsPDF, width: number, body: string) {
+  const lines = doc.splitTextToSize(body, width - 12);
+  return 16 + lines.length * 4.5 + 8;
+}
+
+function ensureSpace(doc: jsPDF, pageW: number, pageH: number, y: number, neededHeight: number) {
+  if (y + neededHeight <= pageH - 24) {
+    return y;
+  }
+
+  doc.addPage();
+  drawPageBackground(doc, pageW, pageH);
+  return 20;
+}
+
 function generatePDF(
   campaignId: string | number,
   title: string,
@@ -318,10 +336,10 @@ function generatePDF(
   const logoOffset = logoBase64 ? 20 : 0;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(24);
-  doc.text('Campaign Report', margin + logoOffset, 20);
+  doc.text('Private Voting with VeilProtocol', margin + logoOffset, 20);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(11);
-  doc.text('A polished summary of the final result and voter sentiment', margin + logoOffset, 27);
+  doc.text('Campaign summary, result breakdown, and voter sentiment', margin + logoOffset, 27);
   doc.setFontSize(9);
   doc.text(
     `Generated: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`,
@@ -410,7 +428,7 @@ function generatePDF(
 
   if (chartBase64 && y < 200) {
     try {
-      const chartHeight = 60;
+      const chartHeight = 78;
       doc.setFillColor(255, 255, 255);
       doc.setDrawColor(220, 228, 238);
       doc.roundedRect(margin, y - 4, contentW, chartHeight + 10, 6, 6, 'FD');
@@ -418,7 +436,7 @@ function generatePDF(
       doc.setFontSize(11);
       doc.setTextColor(15, 23, 42);
       doc.text('Vote Distribution', margin + 6, y + 2);
-      doc.addImage(`data:image/png;base64,${chartBase64}`, 'PNG', margin + 5, y + 5, contentW - 10, chartHeight - 2);
+      doc.addImage(`data:image/png;base64,${chartBase64}`, 'PNG', margin + 5, y + 5, contentW - 10, chartHeight - 4);
       y += chartHeight + 12;
     } catch (error) {
       console.error('Chart image error:', error);
@@ -437,8 +455,11 @@ function generatePDF(
   doc.text('Gemini Narrative Analysis', margin, y);
   y += 8;
 
+  y = ensureSpace(doc, pageW, pageH, y, getAnalysisCardHeight(doc, contentW, analysis.summary) + 6);
   y += drawAnalysisCard(doc, margin, y, contentW, 'Executive Summary', analysis.summary, [20, 184, 166]) + 6;
+  y = ensureSpace(doc, pageW, pageH, y, getAnalysisCardHeight(doc, contentW, analysis.insights) + 6);
   y += drawAnalysisCard(doc, margin, y, contentW, 'Key Insights', analysis.insights, [59, 130, 246]) + 6;
+  y = ensureSpace(doc, pageW, pageH, y, getAnalysisCardHeight(doc, contentW, analysis.voterFeelings) + 8);
   y += drawAnalysisCard(doc, margin, y, contentW, 'Voter Sentiment Signals', analysis.voterFeelings, [245, 158, 11]) + 8;
 
   const sentimentColors: Record<string, [number, number, number]> = {
@@ -456,11 +477,7 @@ function generatePDF(
   doc.text(`Sentiment: ${analysis.sentiment}`, margin + 2, y + 2);
   y += 14;
 
-  if (y > 250) {
-    doc.addPage();
-    drawPageBackground(doc, pageW, pageH);
-    y = 20;
-  }
+  y = ensureSpace(doc, pageW, pageH, y, 40);
 
   doc.setDrawColor(229, 231, 235);
   doc.line(margin, y, pageW - margin, y);
