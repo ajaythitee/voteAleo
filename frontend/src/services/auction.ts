@@ -1,9 +1,19 @@
 const AUCTION_PROGRAM_ID = process.env.NEXT_PUBLIC_AUCTION_PROGRAM_ID as string;
 const RPC_URL = process.env.NEXT_PUBLIC_ALEO_RPC_URL || 'https://api.explorer.provable.com/v1';
 const NETWORK = process.env.NEXT_PUBLIC_ALEO_NETWORK || 'testnet';
+const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || '').replace(/\/$/, '');
 
 function rpcUrl(path: string): string {
   return `${RPC_URL}/${NETWORK}/program/${AUCTION_PROGRAM_ID}/mapping/${path}`;
+}
+
+function chainUrl(path: string): string {
+  return `${RPC_URL}/${NETWORK}/${path}`;
+}
+
+function backendUrl(path: string): string | null {
+  if (!BACKEND_URL) return null;
+  return `${BACKEND_URL}${path}`;
 }
 
 function parseNumberish(raw: string): number {
@@ -13,6 +23,38 @@ function parseNumberish(raw: string): number {
 
 export const auctionService = {
   getProgramId: (): string => AUCTION_PROGRAM_ID,
+  getBackendUrl: (): string => BACKEND_URL,
+
+  async getLatestBlockHeight(): Promise<number> {
+    const candidates = [
+      chainUrl('block/height/latest'),
+      chainUrl('block/latest/height'),
+      chainUrl('latest/height'),
+    ];
+
+    for (const url of candidates) {
+      try {
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) continue;
+        const text = (await res.text()).trim();
+        const height = parseNumberish(text);
+        if (height > 0) return height;
+        try {
+          const json = JSON.parse(text) as unknown;
+          if (!json || typeof json !== 'object') continue;
+          const record = json as Record<string, unknown>;
+          const jsonHeight = parseNumberish(String(record.height ?? record.block_height ?? record.latest_height ?? ''));
+          if (jsonHeight > 0) return jsonHeight;
+        } catch {
+          // ignore
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    return 0;
+  },
 
   async getAuctionCount(): Promise<number> {
     try {
@@ -45,6 +87,34 @@ export const auctionService = {
       } catch {
         return text;
       }
+    } catch {
+      return null;
+    }
+  },
+
+  async getAuctionMeta(auctionIdKey: string): Promise<unknown> {
+    const url = backendUrl(`/api/auctions/${encodeURIComponent(auctionIdKey)}`);
+    if (!url) return null;
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async upsertAuctionMeta(payload: unknown): Promise<unknown> {
+    const url = backendUrl('/api/auctions');
+    if (!url) return null;
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) return null;
+      return await res.json();
     } catch {
       return null;
     }

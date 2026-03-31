@@ -11,7 +11,8 @@ import { TransactionStatusCard } from '@/components/transactions/TransactionStat
 import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { aleoService } from '@/services/aleo';
-import { createTransaction, buildCreateAuctionWithDurationParams, buildCreateDutchAuctionParams, awaitTransactionConfirmation, isTemporaryWalletTransactionId } from '@/utils/transaction';
+import { buildCreateAuctionWithDurationParams, buildCreateDutchAuctionParams } from '@veil/sdk';
+import { awaitTransactionConfirmation, createTransaction, isTemporaryWalletTransactionId } from '@/utils/transaction';
 import { Stepper } from '@/components/layout';
 import { useWalletSession } from '@/hooks/useWalletSession';
 import { useTransactionLifecycle } from '@/hooks/useTransactionLifecycle';
@@ -322,20 +323,16 @@ export default function CreateAuctionPage() {
           const rawText = typeof latestRawAuction === 'string' ? latestRawAuction : JSON.stringify(latestRawAuction ?? {});
           const deadlineMatch = rawText.match(/deadline\s*:\s*(\d+)u64/i);
           const originalDeadline = deadlineMatch ? Number(deadlineMatch[1]) : 0;
-          await fetch('/api/auctions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              auctionId: latestAuctionId,
-              name: formData.name.trim(),
-              description: formData.description.trim(),
-              imageUrl: formData.imagePreview ?? '',
-              strategy: formData.strategy,
-              tokenType: formData.tokenType,
-              creatorAddress: address ?? '',
-              originalDeadline,
-            }),
-          }).catch(() => undefined);
+          await auctionService.upsertAuctionMeta({
+            auctionId: latestAuctionId,
+            name: formData.name.trim(),
+            description: formData.description.trim(),
+            imageUrl: formData.imagePreview ?? '',
+            strategy: formData.strategy,
+            tokenType: formData.tokenType,
+            creatorAddress: address ?? '',
+            originalDeadline,
+          });
         }
         router.push('/auctions');
         router.refresh();

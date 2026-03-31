@@ -1,15 +1,9 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ToastContainer } from "@/components/ui/Toast";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
 
 export const metadata: Metadata = {
   title: "VeilProtocol - Voting & Auctions on Aleo",
@@ -38,7 +32,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased min-h-screen flex flex-col bg-background transition-colors duration-500`}>
+      <body className="font-sans antialiased min-h-screen flex flex-col bg-background transition-colors duration-500">
         <Providers>
           <div className="aurora-bg" aria-hidden />
 

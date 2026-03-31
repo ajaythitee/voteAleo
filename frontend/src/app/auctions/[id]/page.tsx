@@ -12,7 +12,6 @@ import { useToastStore } from '@/stores/toastStore';
 import { auctionService } from '@/services/auction';
 import { parseOnChainAuction, type ParsedAuction } from '@/services/auctionParser';
 import {
-  awaitTransactionConfirmation,
   buildBidDutchAleoParams,
   buildBidDutchUsdcxParams,
   buildBidEnglishAleoParams,
@@ -36,6 +35,9 @@ import {
   buildRevealBidUsdcxParams,
   buildResolveDisputeParams,
   buildSettleEnglishParams,
+} from '@veil/sdk';
+import {
+  awaitTransactionConfirmation,
   createTransaction,
   isTemporaryWalletTransactionId,
 } from '@/utils/transaction';
@@ -49,6 +51,7 @@ type AuctionInfo = {
   tokenType: number;
   bidCount: number;
   deadline: number;
+  createdAt: number;
 };
 
 const parseField = (raw: string, key: string) => {
@@ -65,6 +68,10 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
   const [secondHighest, setSecondHighest] = useState(0);
   const [winnerBidHash, setWinnerBidHash] = useState<string | null>(null);
   const [originalDeadline, setOriginalDeadline] = useState(0);
+  const [auctionEscrow, setAuctionEscrow] = useState(0);
+  const [disputeData, setDisputeData] = useState<unknown>(null);
+  const [dutchParams, setDutchParams] = useState<unknown>(null);
+  const [currentDutchPrice, setCurrentDutchPrice] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [bidAmount, setBidAmount] = useState('');
   const [reserveToFinalize, setReserveToFinalize] = useState('');
@@ -81,12 +88,16 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     const raw = await auctionService.getPublicAuction(resolvedId);
     if (raw == null) return;
     const rawText = typeof raw === 'string' ? raw : JSON.stringify(raw);
+    const modeValue = parseField(rawText, 'auction_mode');
+    const deadlineValue = parseField(rawText, 'deadline');
+    const createdAtValue = parseField(rawText, 'created_at');
     setAuctionInfo({
       status: parseField(rawText, 'status'),
-      mode: parseField(rawText, 'auction_mode'),
+      mode: modeValue,
       tokenType: parseField(rawText, 'token_type'),
       bidCount: parseField(rawText, 'bid_count'),
-      deadline: parseField(rawText, 'deadline'),
+      deadline: deadlineValue,
+      createdAt: createdAtValue,
     });
     setParsed(await parseOnChainAuction(raw, resolvedId));
     const highest = await auctionService.getHighestBid(resolvedId);
@@ -96,12 +107,30 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     }
     setSecondHighest(await auctionService.getSecondHighestBid(resolvedId));
     setWinnerBidHash(await auctionService.getWinningBidId(resolvedId));
-    try {
-      const metaRes = await fetch(`/api/auctions/${encodeURIComponent(resolvedId)}`, { cache: 'no-store' });
-      if (metaRes.ok) {
-        const payload = (await metaRes.json()) as { item?: { originalDeadline?: number } };
-        setOriginalDeadline(Number(payload.item?.originalDeadline || 0));
+    setAuctionEscrow(await auctionService.getAuctionEscrow(resolvedId));
+    setDisputeData(await auctionService.getDisputeData(resolvedId));
+    const dutch = await auctionService.getDutchParams(resolvedId);
+    setDutchParams(dutch);
+    if (modeValue === 3 && dutch != null) {
+      const dutchText = typeof dutch === 'string' ? dutch : JSON.stringify(dutch);
+      const startPrice = parseField(dutchText, 'start_price');
+      const endPrice = parseField(dutchText, 'end_price');
+      const total = Math.max(0, deadlineValue - createdAtValue);
+      const currentHeight = await auctionService.getLatestBlockHeight();
+      if (startPrice > 0 && total > 0 && currentHeight > 0) {
+        const elapsed = Math.min(total, Math.max(0, currentHeight - createdAtValue));
+        const delta = startPrice - endPrice;
+        const current = Math.max(endPrice, Math.floor(startPrice - (delta * elapsed) / total));
+        setCurrentDutchPrice(current);
+      } else {
+        setCurrentDutchPrice(null);
       }
+    } else {
+      setCurrentDutchPrice(null);
+    }
+    try {
+      const payload = (await auctionService.getAuctionMeta(resolvedId)) as { item?: { originalDeadline?: number } } | null;
+      setOriginalDeadline(Number(payload?.item?.originalDeadline || 0));
     } catch {
       setOriginalDeadline(0);
     }
@@ -205,6 +234,12 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
             <p className="text-white/70">Highest: <span className="text-emerald-300">{highestBid}</span></p>
             <p className="text-white/70">Second: <span className="text-emerald-300">{secondHighest}</span></p>
             <p className="text-white/70">Deadline: <span className="text-emerald-300">{auctionInfo?.deadline ?? 0}</span></p>
+            <p className="text-white/70">Escrow: <span className="text-emerald-300">{auctionEscrow}</span></p>
+            {isDutch ? (
+              <p className="text-white/70">Dutch price: <span className="text-emerald-300">{currentDutchPrice ?? '—'}</span></p>
+            ) : (
+              <div />
+            )}
           </div>
           {antiSnipeExtended && (
             <p className="mt-2 text-xs text-amber-300">
@@ -363,6 +398,11 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
             <GlassCard className="p-5">
               <h2 className="mb-3 text-lg font-medium text-white">Dispute Auction</h2>
               <div className="grid gap-3">
+                {disputeData ? (
+                  <p className="text-xs text-white/50 break-all">Existing dispute data: {typeof disputeData === 'string' ? disputeData : JSON.stringify(disputeData)}</p>
+                ) : (
+                  <p className="text-xs text-white/50">No dispute currently filed.</p>
+                )}
                 <GlassInput
                   placeholder="Reason hash (field)"
                   value={disputeReasonHash}
@@ -395,6 +435,9 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
             <GlassCard className="p-5">
               <h2 className="mb-3 text-lg font-medium text-white">Resolve Dispute (Admin)</h2>
               <div className="grid gap-3">
+                {disputeData ? (
+                  <p className="text-xs text-white/50 break-all">Dispute data: {typeof disputeData === 'string' ? disputeData : JSON.stringify(disputeData)}</p>
+                ) : null}
                 <label className="flex items-center gap-2 text-sm text-white/70">
                   <input
                     type="checkbox"

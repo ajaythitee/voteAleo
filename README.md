@@ -104,7 +104,7 @@ voteAleo/
 
   ```bash
   leo deploy \
-    --private-key "<YOUR_PRIVATE_KEY>" \
+    --private-key "APrivateKey1zkpFUTU9Dh2EZix1SSCU2C3AUB35Z5P5naS8TCiD5B7FXTa" \
     --network "testnet" \
     --endpoint "https://api.explorer.provable.com/v1" \
     --broadcast \

@@ -1,0 +1,15 @@
+export declare const TOKEN_ALEO: 1;
+export declare const TOKEN_USDCX: 2;
+export declare const TOKEN_USAD: 3;
+export declare const STATUS_ACTIVE: 1;
+export declare const STATUS_CLOSED: 2;
+export declare const STATUS_REVEALING: 3;
+export declare const STATUS_SETTLED: 4;
+export declare const STATUS_CANCELLED: 5;
+export declare const STATUS_FAILED: 6;
+export declare const STATUS_DISPUTED: 7;
+export declare const STATUS_EXPIRED: 8;
+export declare const MODE_FIRST_PRICE: 1;
+export declare const MODE_VICKREY: 2;
+export declare const MODE_DUTCH: 3;
+export declare const MODE_ENGLISH: 4;

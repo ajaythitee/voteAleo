@@ -1,83 +1,147 @@
 import credits.aleo;
-program privote_auction_5000.aleo;
+import merkle_tree.aleo;
+import test_usdcx_multisig_core.aleo;
+import test_usdcx_freezelist.aleo;
+import test_usdcx_stablecoin.aleo;
+import test_usad_multisig_core.aleo;
+import test_usad_freezelist.aleo;
+import test_usad_stablecoin.aleo;
+program verilpayu_auction_v5.aleo;
 
-struct item:
-    id as field;
-    offchain_data as [field; 4u32];
-
-struct auction:
-    starting_bid as u64;
-    name as field;
-    item as item;
-
-struct privacy_settings:
-    auction_privacy as field;
-    bid_types_accepted as field;
-
-record AuctionTicket:
+record SealedBid:
     owner as address.private;
-    auction as auction.private;
     auction_id as field.private;
-    settings as privacy_settings.private;
+    bid_amount as u128.private;
+    bid_nonce as field.private;
+    token_type as u8.private;
 
-record AuctionInvite:
+record EscrowReceipt:
     owner as address.private;
-    auction as auction.private;
-    auctioneer as address.private;
     auction_id as field.private;
-    settings as privacy_settings.private;
+    escrowed_amount as u128.private;
+    bid_nonce as field.private;
+    token_type as u8.private;
 
-struct bid:
-    amount as u64;
+record WinnerCertificate:
+    owner as address.private;
+    auction_id as field.private;
+    item_hash as field.private;
+    winning_amount as u128.private;
+    token_type as u8.private;
+    certificate_id as field.private;
+
+record SellerReceipt:
+    owner as address.private;
+    auction_id as field.private;
+    item_hash as field.private;
+    sale_amount as u128.private;
+    fee_paid as u128.private;
+    token_type as u8.private;
+
+record DisputeBond:
+    owner as address.private;
+    auction_id as field.private;
+    bond_amount as u128.private;
+
+struct AuctionData:
+    item_hash as field;
+    seller_hash as field;
+    category as u8;
+    token_type as u8;
+    auction_mode as u8;
+    status as u8;
+    deadline as u64;
+    reveal_deadline as u64;
+    bid_count as u64;
+    reserve_price_hash as field;
+    created_at as u64;
+    dispute_deadline as u64;
+
+struct AuctionSeed:
+    creator as address;
+    item_hash as field;
+    deadline as u64;
+    nonce as field;
+
+struct BidCommitment:
+    bidder as address;
     auction_id as field;
-    bid_public_key as group;
+    amount as u128;
+    nonce as field;
 
-record BidReceipt:
-    owner as address.private;
-    auction_id as field.private;
-    bid as bid.private;
-    bid_id as field.private;
+struct SettlementData:
+    winner_bid_hash as field;
+    final_price as u128;
+    fee_collected as u128;
+    settled_at as u64;
 
-record PrivateBid:
-    owner as address.private;
-    bid as bid.private;
-    bid_id as field.private;
+struct SettlementProof:
+    auction_id as field;
+    highest_bid as u128;
+    second_highest as u128;
+    winner_bid_hash as field;
+    settled_at as u64;
+
+struct PlatformConfig:
+    admin_hash as field;
+    fee_bps as u128;
+    dispute_bond_bps as u128;
+    paused as boolean;
+
+struct DutchConfig:
+    start_price as u128;
+    end_price as u128;
+
+struct DisputeData:
+    disputer_hash as field;
+    disputer_address as address;
+    bond_amount as u128;
+    reason_hash as field;
+    filed_at as u64;
 
 mapping auctions:
-    key as u64.public;
-    value as field.public;
-
-mapping bid_count:
     key as field.public;
-    value as u64.public;
+    value as AuctionData.public;
 
-mapping auction_public_keys:
+mapping bid_commitments:
     key as field.public;
-    value as group.public;
+    value as boolean.public;
 
-mapping winning_bids:
+mapping revealed_bids:
     key as field.public;
-    value as field.public;
-
-mapping public_auctions:
-    key as field.public;
-    value as auction.public;
-
-mapping auction_owners:
-    key as field.public;
-    value as address.public;
-
-mapping auction_privacy_settings:
-    key as field.public;
-    value as privacy_settings.public;
+    value as u128.public;
 
 mapping highest_bids:
     key as field.public;
-    value as u64.public;
+    value as u128.public;
 
-mapping redemptions:
+mapping second_highest_bids:
     key as field.public;
-    value as boolean.public;
+    value as u128.public;
+
+mapping auction_winners:
+    key as field.public;
+    value as field.public;
+
+mapping program_balance:
+    key as u8.public;
+    value as u128.public;
+
+mapping auction_escrow:
+    key as field.public;
+    value as u128.public;
+
+mapping platform_treasury:
+    key as u8.public;
+    value as u128.public;
+
+mapping settlements:
+    key as field.public;
+    value as SettlementData.public;
+
+mapping platform_config:
+    key as u8.public;
+    value as PlatformConfig.public;
 
 mapping auction_counter:
     key as u8.public;
@@ -87,322 +151,1446 @@ mapping public_auction_index:
     key as u64.public;
     value as field.public;
 
-mapping public_bids:
+mapping settlement_proofs:
     key as field.public;
-    value as bid.public;
+    value as field.public;
 
-mapping public_bid_owners:
+mapping payment_proofs:
     key as field.public;
-    value as address.public;
+    value as field.public;
 
-function create_private_auction:
-    input r0 as field.private;
-    input r1 as field.private;
-    input r2 as field.private;
-    input r3 as [field; 4u32].private;
-    input r4 as u64.private;
-    input r5 as scalar.private;
-    lt r0 3field into r6;
-    assert.eq r6 true;
-    mul r5 1540945439182663264862696551825005342995406165131907382295858612069623286213group into r7;
-    cast self.signer into r8 as group;
-    mul r5 r8 into r9;
-    cast 0field r0 into r10 as privacy_settings;
-    cast r1 r3 into r11 as item;
-    cast r4 r2 r11 into r12 as auction;
-    hash.psd2 r12 into r13 as scalar;
-    mul r13 r9 into r14;
-    cast r14 into r15 as field;
-    cast self.signer r12 r15 r10 into r16 as AuctionTicket.record;
-    async create_private_auction r15 r7 into r17;
-    output r16 as AuctionTicket.record;
-    output r17 as privote_auction_5000.aleo/create_private_auction.future;
+mapping dutch_params:
+    key as field.public;
+    value as DutchConfig.public;
 
-finalize create_private_auction:
+mapping disputes:
+    key as field.public;
+    value as DisputeData.public;
+
+mapping dispute_bonds:
+    key as field.public;
+    value as u128.public;
+
+function initialize_platform:
+    input r0 as address.private;
+    input r1 as u128.private;
+    input r2 as u128.private;
+    cast r0 into r3 as field;
+    hash.bhp256 r3 into r4 as field;
+    async initialize_platform r4 r1 r2 into r5;
+    output r5 as verilpayu_auction_v5.aleo/initialize_platform.future;
+
+finalize initialize_platform:
     input r0 as field.public;
-    input r1 as group.public;
-    contains auction_public_keys[r0] into r2;
-    not r2 into r3;
-    assert.eq r3 true;
-    set r1 into auction_public_keys[r0];
+    input r1 as u128.public;
+    input r2 as u128.public;
+    contains platform_config[0u8] into r3;
+    not r3 into r4;
+    assert.eq r4 true;
+    cast r0 r1 r2 false into r5 as PlatformConfig;
+    set r5 into platform_config[0u8];
 
-function create_public_auction:
+function create_auction:
     input r0 as field.private;
-    input r1 as field.private;
-    input r2 as field.private;
-    input r3 as [field; 4u32].private;
-    input r4 as u64.private;
-    input r5 as scalar.private;
-    input r6 as boolean.private;
-    lt r1 3field into r7;
-    assert.eq r7 true;
-    mul r5 1540945439182663264862696551825005342995406165131907382295858612069623286213group into r8;
-    cast self.signer into r9 as group;
-    mul r5 r9 into r10;
-    cast 1field r1 into r11 as privacy_settings;
-    cast r2 r3 into r12 as item;
-    cast r4 r0 r12 into r13 as auction;
-    hash.psd2 r13 into r14 as scalar;
-    mul r14 r10 into r15;
-    cast r15 into r16 as field;
-    cast self.signer r13 r16 r11 into r17 as AuctionTicket.record;
-    async create_public_auction r13 r16 r8 self.signer r11 into r18;
-    output r17 as AuctionTicket.record;
-    output r18 as privote_auction_5000.aleo/create_public_auction.future;
+    input r1 as u8.private;
+    input r2 as u128.private;
+    input r3 as u8.private;
+    input r4 as u8.private;
+    input r5 as field.private;
+    input r6 as u64.public;
+    cast self.caller r0 r6 r5 into r7 as AuctionSeed;
+    hash.bhp256 r7 into r8 as field;
+    cast r2 into r9 as field;
+    hash.bhp256 r9 into r10 as field;
+    cast self.caller into r11 as field;
+    hash.bhp256 r11 into r12 as field;
+    is.eq r3 1u8 into r13;
+    is.eq r3 2u8 into r14;
+    or r13 r14 into r15;
+    is.eq r3 4u8 into r16;
+    or r15 r16 into r17;
+    assert.eq r17 true;
+    is.eq r4 1u8 into r18;
+    is.eq r4 2u8 into r19;
+    or r18 r19 into r20;
+    is.eq r4 3u8 into r21;
+    or r20 r21 into r22;
+    assert.eq r22 true;
+    not r21 into r23;
+    or r13 r23 into r24;
+    assert.eq r24 true;
+    not r16 into r25;
+    or r20 r25 into r26;
+    assert.eq r26 true;
+    async create_auction r8 r0 r12 r1 r4 r3 r6 r10 into r27;
+    output r8 as field.private;
+    output r27 as verilpayu_auction_v5.aleo/create_auction.future;
 
-finalize create_public_auction:
-    input r0 as auction.public;
+finalize create_auction:
+    input r0 as field.public;
     input r1 as field.public;
-    input r2 as group.public;
-    input r3 as address.public;
-    input r4 as privacy_settings.public;
-    contains auction_public_keys[r1] into r5;
-    not r5 into r6;
+    input r2 as field.public;
+    input r3 as u8.public;
+    input r4 as u8.public;
+    input r5 as u8.public;
+    input r6 as u64.public;
+    input r7 as field.public;
+    contains auctions[r0] into r8;
+    not r8 into r9;
+    assert.eq r9 true;
+    cast block.height into r10 as u64;
+    add r10 240u64 into r11;
+    gt r6 r11 into r12;
+    assert.eq r12 true;
+    get platform_config[0u8] into r13;
+    not r13.paused into r14;
+    assert.eq r14 true;
+    cast r1 r2 r3 r4 r5 1u8 r6 0u64 0u64 r7 r10 0u64 into r15 as AuctionData;
+    set r15 into auctions[r0];
+    get.or_use auction_counter[0u8] 0u64 into r16;
+    add r16 1u64 into r17;
+    set r17 into auction_counter[0u8];
+    set r0 into public_auction_index[r17];
+
+function create_auction_with_duration:
+    input r0 as field.private;
+    input r1 as u8.private;
+    input r2 as u128.private;
+    input r3 as u8.private;
+    input r4 as u8.private;
+    input r5 as field.private;
+    input r6 as u64.public;
+    cast self.caller r0 r6 r5 into r7 as AuctionSeed;
+    hash.bhp256 r7 into r8 as field;
+    cast r2 into r9 as field;
+    hash.bhp256 r9 into r10 as field;
+    cast self.caller into r11 as field;
+    hash.bhp256 r11 into r12 as field;
+    is.eq r3 1u8 into r13;
+    is.eq r3 2u8 into r14;
+    or r13 r14 into r15;
+    is.eq r3 4u8 into r16;
+    or r15 r16 into r17;
+    assert.eq r17 true;
+    is.eq r4 1u8 into r18;
+    is.eq r4 2u8 into r19;
+    or r18 r19 into r20;
+    is.eq r4 3u8 into r21;
+    or r20 r21 into r22;
+    assert.eq r22 true;
+    not r21 into r23;
+    or r13 r23 into r24;
+    assert.eq r24 true;
+    not r16 into r25;
+    or r20 r25 into r26;
+    assert.eq r26 true;
+    async create_auction_with_duration r8 r0 r12 r1 r4 r3 r6 r10 into r27;
+    output r8 as field.private;
+    output r27 as verilpayu_auction_v5.aleo/create_auction_with_duration.future;
+
+finalize create_auction_with_duration:
+    input r0 as field.public;
+    input r1 as field.public;
+    input r2 as field.public;
+    input r3 as u8.public;
+    input r4 as u8.public;
+    input r5 as u8.public;
+    input r6 as u64.public;
+    input r7 as field.public;
+    cast block.height into r8 as u64;
+    add r8 r6 into r9;
+    gte r6 240u64 into r10;
+    assert.eq r10 true;
+    contains auctions[r0] into r11;
+    not r11 into r12;
+    assert.eq r12 true;
+    get platform_config[0u8] into r13;
+    not r13.paused into r14;
+    assert.eq r14 true;
+    cast r1 r2 r3 r4 r5 1u8 r9 0u64 0u64 r7 r8 0u64 into r15 as AuctionData;
+    set r15 into auctions[r0];
+    get.or_use auction_counter[0u8] 0u64 into r16;
+    add r16 1u64 into r17;
+    set r17 into auction_counter[0u8];
+    set r0 into public_auction_index[r17];
+
+function cancel_auction:
+    input r0 as field.private;
+    cast self.caller into r1 as field;
+    hash.bhp256 r1 into r2 as field;
+    async cancel_auction r0 r2 into r3;
+    output r3 as verilpayu_auction_v5.aleo/cancel_auction.future;
+
+finalize cancel_auction:
+    input r0 as field.public;
+    input r1 as field.public;
+    get auctions[r0] into r2;
+    assert.eq r2.seller_hash r1;
+    assert.eq r2.status 1u8;
+    assert.eq r2.bid_count 0u64;
+    cast r2.item_hash r2.seller_hash r2.category r2.token_type r2.auction_mode 5u8 r2.deadline r2.reveal_deadline r2.bid_count r2.reserve_price_hash r2.created_at r2.dispute_deadline into r3 as AuctionData;
+    set r3 into auctions[r0];
+
+function close_bidding:
+    input r0 as field.private;
+    async close_bidding r0 into r1;
+    output r1 as verilpayu_auction_v5.aleo/close_bidding.future;
+
+finalize close_bidding:
+    input r0 as field.public;
+    get auctions[r0] into r1;
+    assert.eq r1.status 1u8;
+    is.eq r1.auction_mode 1u8 into r2;
+    is.eq r1.auction_mode 2u8 into r3;
+    or r2 r3 into r4;
+    assert.eq r4 true;
+    cast block.height into r5 as u64;
+    gte r5 r1.deadline into r6;
     assert.eq r6 true;
-    is.neq r3 privote_auction_5000.aleo into r7;
+    is.eq r1.bid_count 0u64 into r7;
     branch.eq r7 false to end_then_0_0;
-    set r3 into auction_owners[r1];
+    cast r1.item_hash r1.seller_hash r1.category r1.token_type r1.auction_mode 8u8 r1.deadline r1.reveal_deadline r1.bid_count r1.reserve_price_hash r1.created_at r1.dispute_deadline into r8 as AuctionData;
+    set r8 into auctions[r0];
     branch.eq true true to end_otherwise_0_1;
     position end_then_0_0;
+    add r5 2880u64 into r9;
+    cast r1.item_hash r1.seller_hash r1.category r1.token_type r1.auction_mode 3u8 r1.deadline r9 r1.bid_count r1.reserve_price_hash r1.created_at r1.dispute_deadline into r10 as AuctionData;
+    set r10 into auctions[r0];
     position end_otherwise_0_1;
-    set r0 into public_auctions[r1];
-    set r4 into auction_privacy_settings[r1];
-    set r2 into auction_public_keys[r1];
-    get.or_use auction_counter[0u8] 0u64 into r8;
-    add r8 1u64 into r9;
-    set r9 into auction_counter[0u8];
-    set r1 into public_auction_index[r9];
 
-function publish_address:
-    input r0 as AuctionTicket.record;
-    assert.eq r0.settings.auction_privacy 0field;
-    async publish_address r0.auction_id self.signer into r1;
-    cast r0.owner r0.auction r0.auction_id r0.settings into r2 as AuctionTicket.record;
-    output r2 as AuctionTicket.record;
-    output r1 as privote_auction_5000.aleo/publish_address.future;
+function place_bid:
+    input r0 as field.private;
+    input r1 as u128.private;
+    input r2 as field.private;
+    input r3 as u8.private;
+    gte r1 1000u128 into r4;
+    assert.eq r4 true;
+    is.eq r3 1u8 into r5;
+    is.eq r3 2u8 into r6;
+    or r5 r6 into r7;
+    is.eq r3 3u8 into r8;
+    or r7 r8 into r9;
+    assert.eq r9 true;
+    cast self.signer r0 r1 r2 r3 into r10 as SealedBid.record;
+    cast self.caller r0 r1 r2 into r11 as BidCommitment;
+    hash.bhp256 r11 into r12 as field;
+    async place_bid r0 r12 r3 into r13;
+    output r10 as SealedBid.record;
+    output r13 as verilpayu_auction_v5.aleo/place_bid.future;
 
-finalize publish_address:
+finalize place_bid:
     input r0 as field.public;
-    input r1 as address.public;
-    contains auction_public_keys[r0] into r2;
-    assert.eq r2 true;
-    set r1 into auction_owners[r0];
+    input r1 as field.public;
+    input r2 as u8.public;
+    get auctions[r0] into r3;
+    assert.eq r3.status 1u8;
+    assert.eq r3.token_type r2;
+    is.eq r3.auction_mode 1u8 into r4;
+    is.eq r3.auction_mode 2u8 into r5;
+    or r4 r5 into r6;
+    assert.eq r6 true;
+    cast block.height into r7 as u64;
+    lte r7 r3.deadline into r8;
+    assert.eq r8 true;
+    contains bid_commitments[r1] into r9;
+    not r9 into r10;
+    assert.eq r10 true;
+    get platform_config[0u8] into r11;
+    not r11.paused into r12;
+    assert.eq r12 true;
+    set true into bid_commitments[r1];
+    add r3.bid_count 1u64 into r13;
+    cast r3.item_hash r3.seller_hash r3.category r3.token_type r3.auction_mode r3.status r3.deadline r3.reveal_deadline r13 r3.reserve_price_hash r3.created_at r3.dispute_deadline into r14 as AuctionData;
+    set r14 into auctions[r0];
 
-function publish_auction_data:
-    input r0 as AuctionTicket.record;
-    assert.eq r0.settings.auction_privacy 0field;
-    async publish_auction_data r0.auction_id r0.auction into r1;
-    cast r0.owner r0.auction r0.auction_id r0.settings into r2 as AuctionTicket.record;
-    output r2 as AuctionTicket.record;
-    output r1 as privote_auction_5000.aleo/publish_auction_data.future;
+function reveal_bid:
+    input r0 as SealedBid.record;
+    input r1 as credits.aleo/credits.record;
+    cast r0.owner r0.auction_id r0.bid_amount r0.bid_nonce into r2 as BidCommitment;
+    hash.bhp256 r2 into r3 as field;
+    cast r0.bid_amount into r4 as u64;
+    call credits.aleo/transfer_private_to_public r1 verilpayu_auction_v5.aleo r4 into r5 r6;
+    cast r0.owner r0.auction_id r0.bid_amount r0.bid_nonce 1u8 into r7 as EscrowReceipt.record;
+    async reveal_bid r6 r0.auction_id r3 r0.bid_amount into r8;
+    output r7 as EscrowReceipt.record;
+    output r5 as credits.aleo/credits.record;
+    output r8 as verilpayu_auction_v5.aleo/reveal_bid.future;
 
-finalize publish_auction_data:
-    input r0 as field.public;
-    input r1 as auction.public;
-    contains public_auctions[r0] into r2;
-    not r2 into r3;
-    assert.eq r3 true;
-    set r1 into public_auctions[r0];
-
-function invite_to_auction:
-    input r0 as AuctionTicket.record;
-    input r1 as address.private;
-    cast r1 r0.auction r0.owner r0.auction_id r0.settings into r2 as AuctionInvite.record;
-    cast r0.owner r0.auction r0.auction_id r0.settings into r3 as AuctionTicket.record;
-    output r2 as AuctionInvite.record;
-    output r3 as AuctionTicket.record;
-
-function select_winner_private:
-    input r0 as AuctionTicket.record;
-    input r1 as PrivateBid.record;
-    assert.neq r0.settings.bid_types_accepted 1field;
-    assert.eq r0.auction_id r1.bid.auction_id;
-    gte r1.bid.amount r0.auction.starting_bid into r2;
-    assert.eq r2 true;
-    async select_winner_private r1.bid.amount r1.bid.auction_id r1.bid_id into r3;
-    output r3 as privote_auction_5000.aleo/select_winner_private.future;
-
-finalize select_winner_private:
-    input r0 as u64.public;
+finalize reveal_bid:
+    input r0 as credits.aleo/transfer_private_to_public.future;
     input r1 as field.public;
     input r2 as field.public;
-    get.or_use highest_bids[r1] 0u64 into r3;
-    assert.eq r0 r3;
-    set r2 into winning_bids[r1];
-
-function select_winner_public:
-    input r0 as AuctionTicket.record;
-    input r1 as bid.private;
-    input r2 as field.private;
-    assert.neq r0.settings.bid_types_accepted 0field;
-    gte r1.amount r0.auction.starting_bid into r3;
-    assert.eq r3 true;
-    async select_winner_public r0.auction_id r2 r1 into r4;
-    output r4 as privote_auction_5000.aleo/select_winner_public.future;
-
-finalize select_winner_public:
-    input r0 as field.public;
-    input r1 as field.public;
-    input r2 as bid.public;
-    get public_bids[r1] into r3;
-    assert.eq r3 r2;
-    get.or_use highest_bids[r0] 0u64 into r4;
-    assert.eq r2.amount r4;
-    set r1 into winning_bids[r0];
-
-function bid_public:
-    input r0 as u64.private;
-    input r1 as field.private;
-    input r2 as scalar.private;
-    input r3 as boolean.private;
-    mul r2 1540945439182663264862696551825005342995406165131907382295858612069623286213group into r4;
-    cast r0 r1 r4 into r5 as bid;
-    cast self.signer into r6 as group;
-    mul r2 r6 into r7;
-    hash.psd2 r5 into r8 as scalar;
-    mul r8 r7 into r9;
-    cast r9 into r10 as field;
-    cast self.signer r1 r5 r10 into r11 as BidReceipt.record;
-    ternary r3 self.signer privote_auction_5000.aleo into r12;
-    async bid_public r5 r10 r12 into r13;
-    output r11 as BidReceipt.record;
-    output r13 as privote_auction_5000.aleo/bid_public.future;
-
-finalize bid_public:
-    input r0 as bid.public;
-    input r1 as field.public;
-    input r2 as address.public;
-    contains auction_public_keys[r0.auction_id] into r3;
-    assert.eq r3 true;
-    contains winning_bids[r0.auction_id] into r4;
-    not r4 into r5;
-    assert.eq r5 true;
-    contains public_bids[r1] into r6;
-    not r6 into r7;
+    input r3 as u128.public;
+    await r0;
+    get auctions[r1] into r4;
+    assert.eq r4.status 3u8;
+    cast block.height into r5 as u64;
+    lte r5 r4.reveal_deadline into r6;
+    assert.eq r6 true;
+    get bid_commitments[r2] into r7;
     assert.eq r7 true;
-    set r0 into public_bids[r1];
-    get.or_use bid_count[r0.auction_id] 0u64 into r8;
-    add r8 1u64 into r9;
-    set r9 into bid_count[r0.auction_id];
-    get.or_use highest_bids[r0.auction_id] 0u64 into r10;
-    gt r0.amount r10 into r11;
-    branch.eq r11 false to end_then_0_2;
-    set r0.amount into highest_bids[r0.auction_id];
+    contains revealed_bids[r2] into r8;
+    not r8 into r9;
+    assert.eq r9 true;
+    set r3 into revealed_bids[r2];
+    get.or_use auction_escrow[r1] 0u128 into r10;
+    add r10 r3 into r11;
+    set r11 into auction_escrow[r1];
+    get.or_use program_balance[0u8] 0u128 into r12;
+    add r12 r3 into r13;
+    set r13 into program_balance[0u8];
+    get.or_use highest_bids[r1] 0u128 into r14;
+    get.or_use second_highest_bids[r1] 0u128 into r15;
+    gt r3 r14 into r16;
+    branch.eq r16 false to end_then_0_2;
+    set r14 into second_highest_bids[r1];
+    set r3 into highest_bids[r1];
+    set r2 into auction_winners[r1];
     branch.eq true true to end_otherwise_0_3;
     position end_then_0_2;
+    gt r3 r15 into r17;
+    branch.eq r17 false to end_then_1_4;
+    set r3 into second_highest_bids[r1];
+    branch.eq true true to end_otherwise_1_5;
+    position end_then_1_4;
+    position end_otherwise_1_5;
     position end_otherwise_0_3;
-    is.neq r2 privote_auction_5000.aleo into r12;
-    branch.eq r12 false to end_then_0_4;
-    set r2 into public_bid_owners[r1];
-    branch.eq true true to end_otherwise_0_5;
-    position end_then_0_4;
-    position end_otherwise_0_5;
 
-function bid_private:
-    input r0 as u64.private;
-    input r1 as field.private;
-    input r2 as address.private;
-    input r3 as group.private;
-    input r4 as scalar.private;
-    mul r4 1540945439182663264862696551825005342995406165131907382295858612069623286213group into r5;
-    cast r0 r1 r5 into r6 as bid;
-    cast self.signer into r7 as group;
-    mul r4 r7 into r8;
-    hash.psd2 r6 into r9 as scalar;
-    mul r9 r8 into r10;
-    cast r10 into r11 as field;
-    cast self.signer r1 r6 r11 into r12 as BidReceipt.record;
-    cast r2 r6 r11 into r13 as PrivateBid.record;
-    async bid_private r0 r1 into r14;
-    output r12 as BidReceipt.record;
-    output r13 as PrivateBid.record;
-    output r14 as privote_auction_5000.aleo/bid_private.future;
+function reveal_bid_usdcx:
+    input r0 as SealedBid.record;
+    assert.eq r0.token_type 2u8;
+    cast r0.owner r0.auction_id r0.bid_amount r0.bid_nonce into r1 as BidCommitment;
+    hash.bhp256 r1 into r2 as field;
+    call test_usdcx_stablecoin.aleo/transfer_public_as_signer verilpayu_auction_v5.aleo r0.bid_amount into r3;
+    cast r0.owner r0.auction_id r0.bid_amount r0.bid_nonce 2u8 into r4 as EscrowReceipt.record;
+    async reveal_bid_usdcx r3 r0.auction_id r2 r0.bid_amount into r5;
+    output r4 as EscrowReceipt.record;
+    output r5 as verilpayu_auction_v5.aleo/reveal_bid_usdcx.future;
 
-finalize bid_private:
-    input r0 as u64.public;
+finalize reveal_bid_usdcx:
+    input r0 as test_usdcx_stablecoin.aleo/transfer_public_as_signer.future;
     input r1 as field.public;
-    contains auction_public_keys[r1] into r2;
-    assert.eq r2 true;
-    contains winning_bids[r1] into r3;
-    not r3 into r4;
-    assert.eq r4 true;
-    get.or_use bid_count[r1] 0u64 into r5;
-    add r5 1u64 into r6;
-    set r6 into bid_count[r1];
-    get.or_use highest_bids[r1] 0u64 into r7;
-    gt r0 r7 into r8;
-    branch.eq r8 false to end_then_0_6;
-    set r0 into highest_bids[r1];
+    input r2 as field.public;
+    input r3 as u128.public;
+    await r0;
+    get auctions[r1] into r4;
+    assert.eq r4.status 3u8;
+    assert.eq r4.token_type 2u8;
+    cast block.height into r5 as u64;
+    lte r5 r4.reveal_deadline into r6;
+    assert.eq r6 true;
+    get bid_commitments[r2] into r7;
+    assert.eq r7 true;
+    contains revealed_bids[r2] into r8;
+    not r8 into r9;
+    assert.eq r9 true;
+    set r3 into revealed_bids[r2];
+    get.or_use auction_escrow[r1] 0u128 into r10;
+    add r10 r3 into r11;
+    set r11 into auction_escrow[r1];
+    get.or_use program_balance[1u8] 0u128 into r12;
+    add r12 r3 into r13;
+    set r13 into program_balance[1u8];
+    get.or_use highest_bids[r1] 0u128 into r14;
+    get.or_use second_highest_bids[r1] 0u128 into r15;
+    gt r3 r14 into r16;
+    branch.eq r16 false to end_then_0_6;
+    set r14 into second_highest_bids[r1];
+    set r3 into highest_bids[r1];
+    set r2 into auction_winners[r1];
     branch.eq true true to end_otherwise_0_7;
     position end_then_0_6;
+    gt r3 r15 into r17;
+    branch.eq r17 false to end_then_1_8;
+    set r3 into second_highest_bids[r1];
+    branch.eq true true to end_otherwise_1_9;
+    position end_then_1_8;
+    position end_otherwise_1_9;
     position end_otherwise_0_7;
 
-function redeem_bid_public:
-    input r0 as address.private;
-    input r1 as BidReceipt.record;
-    call credits.aleo/transfer_public_as_signer r0 r1.bid.amount into r2;
-    async redeem_bid_public r0 r1.bid.auction_id r1.bid_id r2 into r3;
-    output r3 as privote_auction_5000.aleo/redeem_bid_public.future;
+function reveal_bid_usad:
+    input r0 as SealedBid.record;
+    assert.eq r0.token_type 3u8;
+    cast r0.owner r0.auction_id r0.bid_amount r0.bid_nonce into r1 as BidCommitment;
+    hash.bhp256 r1 into r2 as field;
+    call test_usad_stablecoin.aleo/transfer_public_as_signer verilpayu_auction_v5.aleo r0.bid_amount into r3;
+    cast r0.owner r0.auction_id r0.bid_amount r0.bid_nonce 3u8 into r4 as EscrowReceipt.record;
+    async reveal_bid_usad r3 r0.auction_id r2 r0.bid_amount into r5;
+    output r4 as EscrowReceipt.record;
+    output r5 as verilpayu_auction_v5.aleo/reveal_bid_usad.future;
 
-finalize redeem_bid_public:
-    input r0 as address.public;
+finalize reveal_bid_usad:
+    input r0 as test_usad_stablecoin.aleo/transfer_public_as_signer.future;
     input r1 as field.public;
     input r2 as field.public;
-    input r3 as credits.aleo/transfer_public_as_signer.future;
-    get auction_owners[r1] into r4;
-    assert.eq r4 r0;
-    get winning_bids[r1] into r5;
-    assert.eq r5 r2;
-    contains redemptions[r1] into r6;
-    not r6 into r7;
+    input r3 as u128.public;
+    await r0;
+    get auctions[r1] into r4;
+    assert.eq r4.status 3u8;
+    assert.eq r4.token_type 3u8;
+    cast block.height into r5 as u64;
+    lte r5 r4.reveal_deadline into r6;
+    assert.eq r6 true;
+    get bid_commitments[r2] into r7;
     assert.eq r7 true;
-    await r3;
-    set true into redemptions[r1];
+    contains revealed_bids[r2] into r8;
+    not r8 into r9;
+    assert.eq r9 true;
+    set r3 into revealed_bids[r2];
+    get.or_use auction_escrow[r1] 0u128 into r10;
+    add r10 r3 into r11;
+    set r11 into auction_escrow[r1];
+    get.or_use program_balance[2u8] 0u128 into r12;
+    add r12 r3 into r13;
+    set r13 into program_balance[2u8];
+    get.or_use highest_bids[r1] 0u128 into r14;
+    get.or_use second_highest_bids[r1] 0u128 into r15;
+    gt r3 r14 into r16;
+    branch.eq r16 false to end_then_0_10;
+    set r14 into second_highest_bids[r1];
+    set r3 into highest_bids[r1];
+    set r2 into auction_winners[r1];
+    branch.eq true true to end_otherwise_0_11;
+    position end_then_0_10;
+    gt r3 r15 into r17;
+    branch.eq r17 false to end_then_1_12;
+    set r3 into second_highest_bids[r1];
+    branch.eq true true to end_otherwise_1_13;
+    position end_then_1_12;
+    position end_otherwise_1_13;
+    position end_otherwise_0_11;
 
-function redeem_bid_private_to_public:
-    input r0 as address.private;
-    input r1 as BidReceipt.record;
-    input r2 as credits.aleo/credits.record;
-    gte r2.microcredits r1.bid.amount into r3;
-    assert.eq r3 true;
-    call credits.aleo/transfer_private_to_public r2 r0 r1.bid.amount into r4 r5;
-    async redeem_bid_private_to_public r0 r1.bid.auction_id r1.bid_id r5 into r6;
-    output r6 as privote_auction_5000.aleo/redeem_bid_private_to_public.future;
+function finalize_auction:
+    input r0 as field.private;
+    input r1 as u128.private;
+    cast self.caller into r2 as field;
+    hash.bhp256 r2 into r3 as field;
+    cast r1 into r4 as field;
+    hash.bhp256 r4 into r5 as field;
+    async finalize_auction r0 r3 r5 r1 into r6;
+    output r6 as verilpayu_auction_v5.aleo/finalize_auction.future;
 
-finalize redeem_bid_private_to_public:
-    input r0 as address.public;
-    input r1 as field.public;
-    input r2 as field.public;
-    input r3 as credits.aleo/transfer_private_to_public.future;
-    get auction_owners[r1] into r4;
-    assert.eq r4 r0;
-    get winning_bids[r1] into r5;
-    assert.eq r5 r2;
-    contains redemptions[r1] into r6;
-    not r6 into r7;
-    assert.eq r7 true;
-    await r3;
-    set true into redemptions[r1];
-
-function redeem_bid_private:
-    input r0 as AuctionInvite.record;
-    input r1 as BidReceipt.record;
-    input r2 as credits.aleo/credits.record;
-    gte r2.microcredits r1.bid.amount into r3;
-    assert.eq r3 true;
-    call credits.aleo/transfer_private r2 r0.auctioneer r1.bid.amount into r4 r5;
-    async redeem_bid_private r1.bid.auction_id r1.bid_id into r6;
-    output r6 as privote_auction_5000.aleo/redeem_bid_private.future;
-
-finalize redeem_bid_private:
+finalize finalize_auction:
     input r0 as field.public;
     input r1 as field.public;
-    get winning_bids[r0] into r2;
-    assert.eq r2 r1;
-    contains redemptions[r0] into r3;
-    not r3 into r4;
+    input r2 as field.public;
+    input r3 as u128.public;
+    get auctions[r0] into r4;
+    assert.eq r4.seller_hash r1;
+    assert.eq r4.status 3u8;
+    cast block.height into r5 as u64;
+    gt r5 r4.reveal_deadline into r6;
+    assert.eq r6 true;
+    assert.eq r2 r4.reserve_price_hash;
+    get.or_use highest_bids[r0] 0u128 into r7;
+    get.or_use auction_winners[r0] 0field into r8;
+    get.or_use second_highest_bids[r0] 0u128 into r9;
+    is.eq r4.auction_mode 2u8 into r10;
+    branch.eq r10 false to end_then_0_14;
+    is.eq r9 0u128 into r11;
+    branch.eq r11 false to end_then_1_16;
+    cast r4.item_hash r4.seller_hash r4.category r4.token_type r4.auction_mode 6u8 r4.deadline r4.reveal_deadline r4.bid_count r4.reserve_price_hash r4.created_at r4.dispute_deadline into r12 as AuctionData;
+    set r12 into auctions[r0];
+    branch.eq true true to end_otherwise_1_17;
+    position end_then_1_16;
+    gte r7 r3 into r13;
+    branch.eq r13 false to end_then_2_18;
+    cast r4.item_hash r4.seller_hash r4.category r4.token_type r4.auction_mode 4u8 r4.deadline r4.reveal_deadline r4.bid_count r4.reserve_price_hash r4.created_at 0u64 into r14 as AuctionData;
+    set r14 into auctions[r0];
+    cast r0 r7 r9 r8 r5 into r15 as SettlementProof;
+    hash.bhp256 r15 into r16 as field;
+    set r16 into settlement_proofs[r0];
+    branch.eq true true to end_otherwise_2_19;
+    position end_then_2_18;
+    cast r4.item_hash r4.seller_hash r4.category r4.token_type r4.auction_mode 6u8 r4.deadline r4.reveal_deadline r4.bid_count r4.reserve_price_hash r4.created_at 0u64 into r17 as AuctionData;
+    set r17 into auctions[r0];
+    position end_otherwise_2_19;
+    position end_otherwise_1_17;
+    branch.eq true true to end_otherwise_0_15;
+    position end_then_0_14;
+    gte r7 r3 into r18;
+    gt r7 0u128 into r19;
+    and r18 r19 into r20;
+    branch.eq r20 false to end_then_1_20;
+    cast r4.item_hash r4.seller_hash r4.category r4.token_type r4.auction_mode 4u8 r4.deadline r4.reveal_deadline r4.bid_count r4.reserve_price_hash r4.created_at 0u64 into r21 as AuctionData;
+    set r21 into auctions[r0];
+    cast r0 r7 r9 r8 r5 into r22 as SettlementProof;
+    hash.bhp256 r22 into r23 as field;
+    set r23 into settlement_proofs[r0];
+    branch.eq true true to end_otherwise_1_21;
+    position end_then_1_20;
+    cast r4.item_hash r4.seller_hash r4.category r4.token_type r4.auction_mode 6u8 r4.deadline r4.reveal_deadline r4.bid_count r4.reserve_price_hash r4.created_at r4.dispute_deadline into r24 as AuctionData;
+    set r24 into auctions[r0];
+    position end_otherwise_1_21;
+    position end_otherwise_0_15;
+
+function claim_win:
+    input r0 as EscrowReceipt.record;
+    input r1 as address.private;
+    input r2 as field.private;
+    assert.eq r0.token_type 1u8;
+    cast r0.owner r0.auction_id r0.escrowed_amount r0.bid_nonce into r3 as BidCommitment;
+    hash.bhp256 r3 into r4 as field;
+    mul r0.escrowed_amount 100u128 into r5;
+    div r5 10000u128 into r6;
+    sub r0.escrowed_amount r6 into r7;
+    cast r7 into r8 as u64;
+    call credits.aleo/transfer_public_to_private r1 r8 into r9 r10;
+    hash.bhp256 r0.bid_nonce into r11 as scalar;
+    cast r0.escrowed_amount into r12 as field;
+    commit.bhp256 r12 r11 into r13 as field;
+    cast self.signer r0.auction_id r2 r0.escrowed_amount 1u8 r4 into r14 as WinnerCertificate.record;
+    cast r1 r0.auction_id r2 r7 r6 1u8 into r15 as SellerReceipt.record;
+    async claim_win r10 r0.auction_id r4 r0.escrowed_amount r6 r2 r13 into r16;
+    output r14 as WinnerCertificate.record;
+    output r15 as SellerReceipt.record;
+    output r9 as credits.aleo/credits.record;
+    output r16 as verilpayu_auction_v5.aleo/claim_win.future;
+
+finalize claim_win:
+    input r0 as credits.aleo/transfer_public_to_private.future;
+    input r1 as field.public;
+    input r2 as field.public;
+    input r3 as u128.public;
+    input r4 as u128.public;
+    input r5 as field.public;
+    input r6 as field.public;
+    await r0;
+    get auctions[r1] into r7;
+    assert.eq r7.status 4u8;
+    is.eq r7.auction_mode 2u8 into r8;
+    is.eq r7.auction_mode 3u8 into r9;
+    or r8 r9 into r10;
+    branch.eq r10 false to end_then_0_22;
+    get highest_bids[r1] into r11;
+    get second_highest_bids[r1] into r12;
+    assert.eq r11 r12;
+    branch.eq true true to end_otherwise_0_23;
+    position end_then_0_22;
+    position end_otherwise_0_23;
+    get auction_winners[r1] into r13;
+    assert.eq r2 r13;
+    get revealed_bids[r2] into r14;
+    assert.eq r14 r3;
+    assert.eq r5 r7.item_hash;
+    contains settlements[r1] into r15;
+    not r15 into r16;
+    assert.eq r16 true;
+    cast block.height into r17 as u64;
+    cast r2 r3 r4 r17 into r18 as SettlementData;
+    set r18 into settlements[r1];
+    set r6 into payment_proofs[r1];
+    get.or_use platform_treasury[0u8] 0u128 into r19;
+    add r19 r4 into r20;
+    set r20 into platform_treasury[0u8];
+    get program_balance[0u8] into r21;
+    sub r21 r3 into r22;
+    set r22 into program_balance[0u8];
+    get auction_escrow[r1] into r23;
+    sub r23 r3 into r24;
+    set r24 into auction_escrow[r1];
+
+function claim_win_usdcx:
+    input r0 as EscrowReceipt.record;
+    input r1 as address.private;
+    input r2 as field.private;
+    assert.eq r0.token_type 2u8;
+    cast r0.owner r0.auction_id r0.escrowed_amount r0.bid_nonce into r3 as BidCommitment;
+    hash.bhp256 r3 into r4 as field;
+    mul r0.escrowed_amount 100u128 into r5;
+    div r5 10000u128 into r6;
+    sub r0.escrowed_amount r6 into r7;
+    call test_usdcx_stablecoin.aleo/transfer_public r1 r7 into r8;
+    hash.bhp256 r0.bid_nonce into r9 as scalar;
+    cast r0.escrowed_amount into r10 as field;
+    commit.bhp256 r10 r9 into r11 as field;
+    cast self.signer r0.auction_id r2 r0.escrowed_amount 2u8 r4 into r12 as WinnerCertificate.record;
+    cast r1 r0.auction_id r2 r7 r6 2u8 into r13 as SellerReceipt.record;
+    async claim_win_usdcx r8 r0.auction_id r4 r0.escrowed_amount r6 r2 r11 into r14;
+    output r12 as WinnerCertificate.record;
+    output r13 as SellerReceipt.record;
+    output r14 as verilpayu_auction_v5.aleo/claim_win_usdcx.future;
+
+finalize claim_win_usdcx:
+    input r0 as test_usdcx_stablecoin.aleo/transfer_public.future;
+    input r1 as field.public;
+    input r2 as field.public;
+    input r3 as u128.public;
+    input r4 as u128.public;
+    input r5 as field.public;
+    input r6 as field.public;
+    await r0;
+    get auctions[r1] into r7;
+    assert.eq r7.status 4u8;
+    assert.eq r7.token_type 2u8;
+    is.eq r7.auction_mode 2u8 into r8;
+    is.eq r7.auction_mode 3u8 into r9;
+    or r8 r9 into r10;
+    branch.eq r10 false to end_then_0_24;
+    get highest_bids[r1] into r11;
+    get second_highest_bids[r1] into r12;
+    assert.eq r11 r12;
+    branch.eq true true to end_otherwise_0_25;
+    position end_then_0_24;
+    position end_otherwise_0_25;
+    get auction_winners[r1] into r13;
+    assert.eq r2 r13;
+    get revealed_bids[r2] into r14;
+    assert.eq r14 r3;
+    assert.eq r5 r7.item_hash;
+    contains settlements[r1] into r15;
+    not r15 into r16;
+    assert.eq r16 true;
+    cast block.height into r17 as u64;
+    cast r2 r3 r4 r17 into r18 as SettlementData;
+    set r18 into settlements[r1];
+    set r6 into payment_proofs[r1];
+    get.or_use platform_treasury[1u8] 0u128 into r19;
+    add r19 r4 into r20;
+    set r20 into platform_treasury[1u8];
+    get program_balance[1u8] into r21;
+    sub r21 r3 into r22;
+    set r22 into program_balance[1u8];
+    get auction_escrow[r1] into r23;
+    sub r23 r3 into r24;
+    set r24 into auction_escrow[r1];
+
+function claim_win_usad:
+    input r0 as EscrowReceipt.record;
+    input r1 as address.private;
+    input r2 as field.private;
+    assert.eq r0.token_type 3u8;
+    cast r0.owner r0.auction_id r0.escrowed_amount r0.bid_nonce into r3 as BidCommitment;
+    hash.bhp256 r3 into r4 as field;
+    mul r0.escrowed_amount 100u128 into r5;
+    div r5 10000u128 into r6;
+    sub r0.escrowed_amount r6 into r7;
+    call test_usad_stablecoin.aleo/transfer_public r1 r7 into r8;
+    hash.bhp256 r0.bid_nonce into r9 as scalar;
+    cast r0.escrowed_amount into r10 as field;
+    commit.bhp256 r10 r9 into r11 as field;
+    cast self.signer r0.auction_id r2 r0.escrowed_amount 3u8 r4 into r12 as WinnerCertificate.record;
+    cast r1 r0.auction_id r2 r7 r6 3u8 into r13 as SellerReceipt.record;
+    async claim_win_usad r8 r0.auction_id r4 r0.escrowed_amount r6 r2 r11 into r14;
+    output r12 as WinnerCertificate.record;
+    output r13 as SellerReceipt.record;
+    output r14 as verilpayu_auction_v5.aleo/claim_win_usad.future;
+
+finalize claim_win_usad:
+    input r0 as test_usad_stablecoin.aleo/transfer_public.future;
+    input r1 as field.public;
+    input r2 as field.public;
+    input r3 as u128.public;
+    input r4 as u128.public;
+    input r5 as field.public;
+    input r6 as field.public;
+    await r0;
+    get auctions[r1] into r7;
+    assert.eq r7.status 4u8;
+    assert.eq r7.token_type 3u8;
+    is.eq r7.auction_mode 2u8 into r8;
+    is.eq r7.auction_mode 3u8 into r9;
+    or r8 r9 into r10;
+    branch.eq r10 false to end_then_0_26;
+    get highest_bids[r1] into r11;
+    get second_highest_bids[r1] into r12;
+    assert.eq r11 r12;
+    branch.eq true true to end_otherwise_0_27;
+    position end_then_0_26;
+    position end_otherwise_0_27;
+    get auction_winners[r1] into r13;
+    assert.eq r2 r13;
+    get revealed_bids[r2] into r14;
+    assert.eq r14 r3;
+    assert.eq r5 r7.item_hash;
+    contains settlements[r1] into r15;
+    not r15 into r16;
+    assert.eq r16 true;
+    cast block.height into r17 as u64;
+    cast r2 r3 r4 r17 into r18 as SettlementData;
+    set r18 into settlements[r1];
+    set r6 into payment_proofs[r1];
+    get.or_use platform_treasury[2u8] 0u128 into r19;
+    add r19 r4 into r20;
+    set r20 into platform_treasury[2u8];
+    get program_balance[2u8] into r21;
+    sub r21 r3 into r22;
+    set r22 into program_balance[2u8];
+    get auction_escrow[r1] into r23;
+    sub r23 r3 into r24;
+    set r24 into auction_escrow[r1];
+
+function claim_win_vickrey:
+    input r0 as EscrowReceipt.record;
+    input r1 as address.private;
+    input r2 as field.private;
+    input r3 as u128.private;
+    assert.eq r0.token_type 1u8;
+    gt r0.escrowed_amount r3 into r4;
     assert.eq r4 true;
-    set true into redemptions[r0];
+    gt r3 0u128 into r5;
+    assert.eq r5 true;
+    cast r0.owner r0.auction_id r0.escrowed_amount r0.bid_nonce into r6 as BidCommitment;
+    hash.bhp256 r6 into r7 as field;
+    mul r3 100u128 into r8;
+    div r8 10000u128 into r9;
+    sub r3 r9 into r10;
+    sub r0.escrowed_amount r3 into r11;
+    cast r10 into r12 as u64;
+    cast r11 into r13 as u64;
+    call credits.aleo/transfer_public_to_private r1 r12 into r14 r15;
+    call credits.aleo/transfer_public_to_private r0.owner r13 into r16 r17;
+    hash.bhp256 r0.bid_nonce into r18 as scalar;
+    cast r3 into r19 as field;
+    commit.bhp256 r19 r18 into r20 as field;
+    cast self.signer r0.auction_id r2 r3 1u8 r7 into r21 as WinnerCertificate.record;
+    cast r1 r0.auction_id r2 r10 r9 1u8 into r22 as SellerReceipt.record;
+    async claim_win_vickrey r15 r17 r0.auction_id r7 r0.escrowed_amount r3 r9 r2 r20 into r23;
+    output r21 as WinnerCertificate.record;
+    output r22 as SellerReceipt.record;
+    output r14 as credits.aleo/credits.record;
+    output r16 as credits.aleo/credits.record;
+    output r23 as verilpayu_auction_v5.aleo/claim_win_vickrey.future;
+
+finalize claim_win_vickrey:
+    input r0 as credits.aleo/transfer_public_to_private.future;
+    input r1 as credits.aleo/transfer_public_to_private.future;
+    input r2 as field.public;
+    input r3 as field.public;
+    input r4 as u128.public;
+    input r5 as u128.public;
+    input r6 as u128.public;
+    input r7 as field.public;
+    input r8 as field.public;
+    await r0;
+    await r1;
+    get auctions[r2] into r9;
+    assert.eq r9.status 4u8;
+    is.eq r9.auction_mode 2u8 into r10;
+    is.eq r9.auction_mode 3u8 into r11;
+    or r10 r11 into r12;
+    assert.eq r12 true;
+    get second_highest_bids[r2] into r13;
+    assert.eq r5 r13;
+    get auction_winners[r2] into r14;
+    assert.eq r3 r14;
+    get revealed_bids[r3] into r15;
+    assert.eq r15 r4;
+    assert.eq r7 r9.item_hash;
+    contains settlements[r2] into r16;
+    not r16 into r17;
+    assert.eq r17 true;
+    cast block.height into r18 as u64;
+    cast r3 r5 r6 r18 into r19 as SettlementData;
+    set r19 into settlements[r2];
+    set r8 into payment_proofs[r2];
+    get.or_use platform_treasury[0u8] 0u128 into r20;
+    add r20 r6 into r21;
+    set r21 into platform_treasury[0u8];
+    get program_balance[0u8] into r22;
+    sub r22 r4 into r23;
+    set r23 into program_balance[0u8];
+    get auction_escrow[r2] into r24;
+    sub r24 r4 into r25;
+    set r25 into auction_escrow[r2];
+
+function claim_win_vickrey_usdcx:
+    input r0 as EscrowReceipt.record;
+    input r1 as address.private;
+    input r2 as field.private;
+    input r3 as u128.private;
+    assert.eq r0.token_type 2u8;
+    gt r0.escrowed_amount r3 into r4;
+    assert.eq r4 true;
+    gt r3 0u128 into r5;
+    assert.eq r5 true;
+    cast r0.owner r0.auction_id r0.escrowed_amount r0.bid_nonce into r6 as BidCommitment;
+    hash.bhp256 r6 into r7 as field;
+    mul r3 100u128 into r8;
+    div r8 10000u128 into r9;
+    sub r3 r9 into r10;
+    sub r0.escrowed_amount r3 into r11;
+    call test_usdcx_stablecoin.aleo/transfer_public r1 r10 into r12;
+    call test_usdcx_stablecoin.aleo/transfer_public r0.owner r11 into r13;
+    hash.bhp256 r0.bid_nonce into r14 as scalar;
+    cast r3 into r15 as field;
+    commit.bhp256 r15 r14 into r16 as field;
+    cast self.signer r0.auction_id r2 r3 2u8 r7 into r17 as WinnerCertificate.record;
+    cast r1 r0.auction_id r2 r10 r9 2u8 into r18 as SellerReceipt.record;
+    async claim_win_vickrey_usdcx r12 r13 r0.auction_id r7 r0.escrowed_amount r3 r9 r2 r16 into r19;
+    output r17 as WinnerCertificate.record;
+    output r18 as SellerReceipt.record;
+    output r19 as verilpayu_auction_v5.aleo/claim_win_vickrey_usdcx.future;
+
+finalize claim_win_vickrey_usdcx:
+    input r0 as test_usdcx_stablecoin.aleo/transfer_public.future;
+    input r1 as test_usdcx_stablecoin.aleo/transfer_public.future;
+    input r2 as field.public;
+    input r3 as field.public;
+    input r4 as u128.public;
+    input r5 as u128.public;
+    input r6 as u128.public;
+    input r7 as field.public;
+    input r8 as field.public;
+    await r0;
+    await r1;
+    get auctions[r2] into r9;
+    assert.eq r9.status 4u8;
+    is.eq r9.auction_mode 2u8 into r10;
+    is.eq r9.auction_mode 3u8 into r11;
+    or r10 r11 into r12;
+    assert.eq r12 true;
+    assert.eq r9.token_type 2u8;
+    get second_highest_bids[r2] into r13;
+    assert.eq r5 r13;
+    get auction_winners[r2] into r14;
+    assert.eq r3 r14;
+    get revealed_bids[r3] into r15;
+    assert.eq r15 r4;
+    assert.eq r7 r9.item_hash;
+    contains settlements[r2] into r16;
+    not r16 into r17;
+    assert.eq r17 true;
+    cast block.height into r18 as u64;
+    cast r3 r5 r6 r18 into r19 as SettlementData;
+    set r19 into settlements[r2];
+    set r8 into payment_proofs[r2];
+    get.or_use platform_treasury[1u8] 0u128 into r20;
+    add r20 r6 into r21;
+    set r21 into platform_treasury[1u8];
+    get program_balance[1u8] into r22;
+    sub r22 r4 into r23;
+    set r23 into program_balance[1u8];
+    get auction_escrow[r2] into r24;
+    sub r24 r4 into r25;
+    set r25 into auction_escrow[r2];
+
+function claim_refund:
+    input r0 as EscrowReceipt.record;
+    assert.eq r0.token_type 1u8;
+    cast r0.escrowed_amount into r1 as u64;
+    call credits.aleo/transfer_public_to_private self.caller r1 into r2 r3;
+    cast self.caller r0.auction_id r0.escrowed_amount r0.bid_nonce into r4 as BidCommitment;
+    hash.bhp256 r4 into r5 as field;
+    async claim_refund r3 r0.auction_id r5 r0.escrowed_amount 1u8 into r6;
+    output r2 as credits.aleo/credits.record;
+    output r6 as verilpayu_auction_v5.aleo/claim_refund.future;
+
+finalize claim_refund:
+    input r0 as credits.aleo/transfer_public_to_private.future;
+    input r1 as field.public;
+    input r2 as field.public;
+    input r3 as u128.public;
+    input r4 as u8.public;
+    await r0;
+    get auctions[r1] into r5;
+    is.eq r5.status 4u8 into r6;
+    is.eq r5.status 6u8 into r7;
+    or r6 r7 into r8;
+    is.eq r5.status 5u8 into r9;
+    or r8 r9 into r10;
+    is.eq r5.status 8u8 into r11;
+    or r10 r11 into r12;
+    assert.eq r12 true;
+    get.or_use auction_winners[r1] 0field into r13;
+    assert.neq r2 r13;
+    get.or_use auction_escrow[r1] 0u128 into r14;
+    gt r14 r3 into r15;
+    sub r14 r3 into r16;
+    ternary r15 r16 0u128 into r17;
+    set r17 into auction_escrow[r1];
+    is.eq r4 1u8 into r18;
+    is.eq r4 2u8 into r19;
+    ternary r19 1u8 2u8 into r20;
+    ternary r18 0u8 r20 into r21;
+    get.or_use program_balance[r21] 0u128 into r22;
+    gt r22 r3 into r23;
+    sub r22 r3 into r24;
+    ternary r23 r24 0u128 into r25;
+    set r25 into program_balance[r21];
+
+function claim_refund_usdcx:
+    input r0 as EscrowReceipt.record;
+    assert.eq r0.token_type 2u8;
+    cast self.caller r0.auction_id r0.escrowed_amount r0.bid_nonce into r1 as BidCommitment;
+    hash.bhp256 r1 into r2 as field;
+    call test_usdcx_stablecoin.aleo/transfer_public self.caller r0.escrowed_amount into r3;
+    async claim_refund_usdcx r3 r0.auction_id r2 r0.escrowed_amount into r4;
+    output r4 as verilpayu_auction_v5.aleo/claim_refund_usdcx.future;
+
+finalize claim_refund_usdcx:
+    input r0 as test_usdcx_stablecoin.aleo/transfer_public.future;
+    input r1 as field.public;
+    input r2 as field.public;
+    input r3 as u128.public;
+    await r0;
+    get auctions[r1] into r4;
+    is.eq r4.status 4u8 into r5;
+    is.eq r4.status 6u8 into r6;
+    or r5 r6 into r7;
+    is.eq r4.status 5u8 into r8;
+    or r7 r8 into r9;
+    is.eq r4.status 8u8 into r10;
+    or r9 r10 into r11;
+    assert.eq r11 true;
+    assert.eq r4.token_type 2u8;
+    get.or_use auction_winners[r1] 0field into r12;
+    assert.neq r2 r12;
+    get.or_use auction_escrow[r1] 0u128 into r13;
+    gt r13 r3 into r14;
+    sub r13 r3 into r15;
+    ternary r14 r15 0u128 into r16;
+    set r16 into auction_escrow[r1];
+    get.or_use program_balance[1u8] 0u128 into r17;
+    gt r17 r3 into r18;
+    sub r17 r3 into r19;
+    ternary r18 r19 0u128 into r20;
+    set r20 into program_balance[1u8];
+
+function claim_refund_usad:
+    input r0 as EscrowReceipt.record;
+    assert.eq r0.token_type 3u8;
+    cast self.caller r0.auction_id r0.escrowed_amount r0.bid_nonce into r1 as BidCommitment;
+    hash.bhp256 r1 into r2 as field;
+    call test_usad_stablecoin.aleo/transfer_public self.caller r0.escrowed_amount into r3;
+    async claim_refund_usad r3 r0.auction_id r2 r0.escrowed_amount into r4;
+    output r4 as verilpayu_auction_v5.aleo/claim_refund_usad.future;
+
+finalize claim_refund_usad:
+    input r0 as test_usad_stablecoin.aleo/transfer_public.future;
+    input r1 as field.public;
+    input r2 as field.public;
+    input r3 as u128.public;
+    await r0;
+    get auctions[r1] into r4;
+    is.eq r4.status 4u8 into r5;
+    is.eq r4.status 6u8 into r6;
+    or r5 r6 into r7;
+    is.eq r4.status 5u8 into r8;
+    or r7 r8 into r9;
+    is.eq r4.status 8u8 into r10;
+    or r9 r10 into r11;
+    assert.eq r11 true;
+    assert.eq r4.token_type 3u8;
+    get.or_use auction_winners[r1] 0field into r12;
+    assert.neq r2 r12;
+    get auction_escrow[r1] into r13;
+    sub r13 r3 into r14;
+    set r14 into auction_escrow[r1];
+    get program_balance[2u8] into r15;
+    sub r15 r3 into r16;
+    set r16 into program_balance[2u8];
+
+function prove_won_auction:
+    input r0 as WinnerCertificate.record;
+    input r1 as field.public;
+    assert.eq r0.auction_id r1;
+    cast r0.owner r0.auction_id r0.item_hash r0.winning_amount r0.token_type r0.certificate_id into r2 as WinnerCertificate.record;
+    output r2 as WinnerCertificate.record;
+    output true as boolean.private;
+
+function create_dutch_auction:
+    input r0 as field.private;
+    input r1 as u8.private;
+    input r2 as u128.private;
+    input r3 as u128.private;
+    input r4 as u8.private;
+    input r5 as field.private;
+    input r6 as u64.public;
+    gt r2 r3 into r7;
+    assert.eq r7 true;
+    gte r3 1000u128 into r8;
+    assert.eq r8 true;
+    is.eq r4 1u8 into r9;
+    is.eq r4 2u8 into r10;
+    or r9 r10 into r11;
+    assert.eq r11 true;
+    cast self.caller r0 r6 r5 into r12 as AuctionSeed;
+    hash.bhp256 r12 into r13 as field;
+    cast r3 into r14 as field;
+    hash.bhp256 r14 into r15 as field;
+    cast self.caller into r16 as field;
+    hash.bhp256 r16 into r17 as field;
+    async create_dutch_auction r13 r0 r17 r1 r4 r6 r15 r2 r3 into r18;
+    output r13 as field.private;
+    output r18 as verilpayu_auction_v5.aleo/create_dutch_auction.future;
+
+finalize create_dutch_auction:
+    input r0 as field.public;
+    input r1 as field.public;
+    input r2 as field.public;
+    input r3 as u8.public;
+    input r4 as u8.public;
+    input r5 as u64.public;
+    input r6 as field.public;
+    input r7 as u128.public;
+    input r8 as u128.public;
+    contains auctions[r0] into r9;
+    not r9 into r10;
+    assert.eq r10 true;
+    cast block.height into r11 as u64;
+    add r11 240u64 into r12;
+    gt r5 r12 into r13;
+    assert.eq r13 true;
+    get platform_config[0u8] into r14;
+    not r14.paused into r15;
+    assert.eq r15 true;
+    cast r1 r2 r3 r4 3u8 1u8 r5 0u64 0u64 r6 r11 0u64 into r16 as AuctionData;
+    set r16 into auctions[r0];
+    get.or_use auction_counter[0u8] 0u64 into r17;
+    add r17 1u64 into r18;
+    set r18 into auction_counter[0u8];
+    set r0 into public_auction_index[r18];
+    cast r7 r8 into r19 as DutchConfig;
+    set r19 into dutch_params[r0];
+
+function bid_dutch:
+    input r0 as field.private;
+    input r1 as u128.private;
+    input r2 as field.private;
+    input r3 as credits.aleo/credits.record;
+    gte r1 1000u128 into r4;
+    assert.eq r4 true;
+    cast self.caller r0 r1 r2 into r5 as BidCommitment;
+    hash.bhp256 r5 into r6 as field;
+    cast r1 into r7 as u64;
+    call credits.aleo/transfer_private_to_public r3 verilpayu_auction_v5.aleo r7 into r8 r9;
+    cast self.signer r0 r1 r2 1u8 into r10 as EscrowReceipt.record;
+    async bid_dutch r9 r0 r6 r1 into r11;
+    output r10 as EscrowReceipt.record;
+    output r8 as credits.aleo/credits.record;
+    output r11 as verilpayu_auction_v5.aleo/bid_dutch.future;
+
+finalize bid_dutch:
+    input r0 as credits.aleo/transfer_private_to_public.future;
+    input r1 as field.public;
+    input r2 as field.public;
+    input r3 as u128.public;
+    await r0;
+    get auctions[r1] into r4;
+    assert.eq r4.status 1u8;
+    assert.eq r4.auction_mode 3u8;
+    assert.eq r4.token_type 1u8;
+    cast block.height into r5 as u64;
+    lte r5 r4.deadline into r6;
+    assert.eq r6 true;
+    get platform_config[0u8] into r7;
+    not r7.paused into r8;
+    assert.eq r8 true;
+    get dutch_params[r1] into r9;
+    sub r5 r4.created_at into r10;
+    cast r10 into r11 as u128;
+    sub r4.deadline r4.created_at into r12;
+    cast r12 into r13 as u128;
+    sub r9.start_price r9.end_price into r14;
+    mul r14 r11 into r15;
+    div r15 r13 into r16;
+    sub r9.start_price r16 into r17;
+    gte r3 r17 into r18;
+    assert.eq r18 true;
+    set true into bid_commitments[r2];
+    set r3 into revealed_bids[r2];
+    set r3 into highest_bids[r1];
+    set r17 into second_highest_bids[r1];
+    set r2 into auction_winners[r1];
+    get.or_use auction_escrow[r1] 0u128 into r19;
+    add r19 r3 into r20;
+    set r20 into auction_escrow[r1];
+    get.or_use program_balance[0u8] 0u128 into r21;
+    add r21 r3 into r22;
+    set r22 into program_balance[0u8];
+    cast r4.item_hash r4.seller_hash r4.category r4.token_type r4.auction_mode 4u8 r4.deadline 0u64 1u64 r4.reserve_price_hash r4.created_at 0u64 into r23 as AuctionData;
+    set r23 into auctions[r1];
+    cast r1 r3 r17 r2 r5 into r24 as SettlementProof;
+    hash.bhp256 r24 into r25 as field;
+    set r25 into settlement_proofs[r1];
+
+function bid_dutch_usdcx:
+    input r0 as field.private;
+    input r1 as u128.private;
+    input r2 as field.private;
+    gte r1 1000u128 into r3;
+    assert.eq r3 true;
+    cast self.caller r0 r1 r2 into r4 as BidCommitment;
+    hash.bhp256 r4 into r5 as field;
+    call test_usdcx_stablecoin.aleo/transfer_public_as_signer verilpayu_auction_v5.aleo r1 into r6;
+    cast self.signer r0 r1 r2 2u8 into r7 as EscrowReceipt.record;
+    async bid_dutch_usdcx r6 r0 r5 r1 into r8;
+    output r7 as EscrowReceipt.record;
+    output r8 as verilpayu_auction_v5.aleo/bid_dutch_usdcx.future;
+
+finalize bid_dutch_usdcx:
+    input r0 as test_usdcx_stablecoin.aleo/transfer_public_as_signer.future;
+    input r1 as field.public;
+    input r2 as field.public;
+    input r3 as u128.public;
+    await r0;
+    get auctions[r1] into r4;
+    assert.eq r4.status 1u8;
+    assert.eq r4.auction_mode 3u8;
+    assert.eq r4.token_type 2u8;
+    cast block.height into r5 as u64;
+    lte r5 r4.deadline into r6;
+    assert.eq r6 true;
+    get platform_config[0u8] into r7;
+    not r7.paused into r8;
+    assert.eq r8 true;
+    get dutch_params[r1] into r9;
+    sub r5 r4.created_at into r10;
+    cast r10 into r11 as u128;
+    sub r4.deadline r4.created_at into r12;
+    cast r12 into r13 as u128;
+    sub r9.start_price r9.end_price into r14;
+    mul r14 r11 into r15;
+    div r15 r13 into r16;
+    sub r9.start_price r16 into r17;
+    gte r3 r17 into r18;
+    assert.eq r18 true;
+    contains bid_commitments[r2] into r19;
+    not r19 into r20;
+    assert.eq r20 true;
+    set true into bid_commitments[r2];
+    set r3 into revealed_bids[r2];
+    set r3 into highest_bids[r1];
+    set r17 into second_highest_bids[r1];
+    set r2 into auction_winners[r1];
+    get.or_use auction_escrow[r1] 0u128 into r21;
+    add r21 r3 into r22;
+    set r22 into auction_escrow[r1];
+    get.or_use program_balance[1u8] 0u128 into r23;
+    add r23 r3 into r24;
+    set r24 into program_balance[1u8];
+    cast r4.item_hash r4.seller_hash r4.category r4.token_type r4.auction_mode 4u8 r4.deadline 0u64 1u64 r4.reserve_price_hash r4.created_at 0u64 into r25 as AuctionData;
+    set r25 into auctions[r1];
+    cast r1 r3 r17 r2 r5 into r26 as SettlementProof;
+    hash.bhp256 r26 into r27 as field;
+    set r27 into settlement_proofs[r1];
+
+function bid_english:
+    input r0 as field.private;
+    input r1 as u128.private;
+    input r2 as field.private;
+    input r3 as credits.aleo/credits.record;
+    gte r1 1000u128 into r4;
+    assert.eq r4 true;
+    cast self.caller r0 r1 r2 into r5 as BidCommitment;
+    hash.bhp256 r5 into r6 as field;
+    cast r1 into r7 as u64;
+    call credits.aleo/transfer_private_to_public r3 verilpayu_auction_v5.aleo r7 into r8 r9;
+    cast self.signer r0 r1 r2 1u8 into r10 as EscrowReceipt.record;
+    async bid_english r9 r0 r6 r1 into r11;
+    output r10 as EscrowReceipt.record;
+    output r8 as credits.aleo/credits.record;
+    output r11 as verilpayu_auction_v5.aleo/bid_english.future;
+
+finalize bid_english:
+    input r0 as credits.aleo/transfer_private_to_public.future;
+    input r1 as field.public;
+    input r2 as field.public;
+    input r3 as u128.public;
+    await r0;
+    get auctions[r1] into r4;
+    assert.eq r4.status 1u8;
+    assert.eq r4.auction_mode 4u8;
+    assert.eq r4.token_type 1u8;
+    cast block.height into r5 as u64;
+    lte r5 r4.deadline into r6;
+    assert.eq r6 true;
+    get platform_config[0u8] into r7;
+    not r7.paused into r8;
+    assert.eq r8 true;
+    contains bid_commitments[r2] into r9;
+    not r9 into r10;
+    assert.eq r10 true;
+    set true into bid_commitments[r2];
+    get.or_use highest_bids[r1] 0u128 into r11;
+    gt r11 0u128 into r12;
+    branch.eq r12 false to end_then_0_28;
+    mul r11 500u128 into r13;
+    div r13 10000u128 into r14;
+    add r11 r14 into r15;
+    gte r3 r15 into r16;
+    assert.eq r16 true;
+    branch.eq true true to end_otherwise_0_29;
+    position end_then_0_28;
+    position end_otherwise_0_29;
+    set r3 into revealed_bids[r2];
+    gt r3 r11 into r17;
+    branch.eq r17 false to end_then_0_30;
+    set r11 into second_highest_bids[r1];
+    set r3 into highest_bids[r1];
+    set r2 into auction_winners[r1];
+    branch.eq true true to end_otherwise_0_31;
+    position end_then_0_30;
+    position end_otherwise_0_31;
+    get.or_use auction_escrow[r1] 0u128 into r18;
+    add r18 r3 into r19;
+    set r19 into auction_escrow[r1];
+    get.or_use program_balance[0u8] 0u128 into r20;
+    add r20 r3 into r21;
+    set r21 into program_balance[0u8];
+    gt r4.deadline 40u64 into r22;
+    sub r4.deadline 40u64 into r23;
+    ternary r22 r23 0u64 into r24;
+    gt r5 r24 into r25;
+    add r4.deadline 40u64 into r26;
+    ternary r25 r26 r4.deadline into r27;
+    add r4.bid_count 1u64 into r28;
+    cast r4.item_hash r4.seller_hash r4.category r4.token_type r4.auction_mode r4.status r27 r4.reveal_deadline r28 r4.reserve_price_hash r4.created_at r4.dispute_deadline into r29 as AuctionData;
+    set r29 into auctions[r1];
+
+function bid_english_usdcx:
+    input r0 as field.private;
+    input r1 as u128.private;
+    input r2 as field.private;
+    gte r1 1000u128 into r3;
+    assert.eq r3 true;
+    cast self.caller r0 r1 r2 into r4 as BidCommitment;
+    hash.bhp256 r4 into r5 as field;
+    call test_usdcx_stablecoin.aleo/transfer_public_as_signer verilpayu_auction_v5.aleo r1 into r6;
+    cast self.signer r0 r1 r2 2u8 into r7 as EscrowReceipt.record;
+    async bid_english_usdcx r6 r0 r5 r1 into r8;
+    output r7 as EscrowReceipt.record;
+    output r8 as verilpayu_auction_v5.aleo/bid_english_usdcx.future;
+
+finalize bid_english_usdcx:
+    input r0 as test_usdcx_stablecoin.aleo/transfer_public_as_signer.future;
+    input r1 as field.public;
+    input r2 as field.public;
+    input r3 as u128.public;
+    await r0;
+    get auctions[r1] into r4;
+    assert.eq r4.status 1u8;
+    assert.eq r4.auction_mode 4u8;
+    assert.eq r4.token_type 2u8;
+    cast block.height into r5 as u64;
+    lte r5 r4.deadline into r6;
+    assert.eq r6 true;
+    get platform_config[0u8] into r7;
+    not r7.paused into r8;
+    assert.eq r8 true;
+    contains bid_commitments[r2] into r9;
+    not r9 into r10;
+    assert.eq r10 true;
+    set true into bid_commitments[r2];
+    get.or_use highest_bids[r1] 0u128 into r11;
+    gt r11 0u128 into r12;
+    branch.eq r12 false to end_then_0_32;
+    mul r11 500u128 into r13;
+    div r13 10000u128 into r14;
+    add r11 r14 into r15;
+    gte r3 r15 into r16;
+    assert.eq r16 true;
+    branch.eq true true to end_otherwise_0_33;
+    position end_then_0_32;
+    position end_otherwise_0_33;
+    set r3 into revealed_bids[r2];
+    gt r3 r11 into r17;
+    branch.eq r17 false to end_then_0_34;
+    set r11 into second_highest_bids[r1];
+    set r3 into highest_bids[r1];
+    set r2 into auction_winners[r1];
+    branch.eq true true to end_otherwise_0_35;
+    position end_then_0_34;
+    position end_otherwise_0_35;
+    get.or_use auction_escrow[r1] 0u128 into r18;
+    add r18 r3 into r19;
+    set r19 into auction_escrow[r1];
+    get.or_use program_balance[1u8] 0u128 into r20;
+    add r20 r3 into r21;
+    set r21 into program_balance[1u8];
+    gt r4.deadline 40u64 into r22;
+    sub r4.deadline 40u64 into r23;
+    ternary r22 r23 0u64 into r24;
+    gt r5 r24 into r25;
+    add r4.deadline 40u64 into r26;
+    ternary r25 r26 r4.deadline into r27;
+    add r4.bid_count 1u64 into r28;
+    cast r4.item_hash r4.seller_hash r4.category r4.token_type r4.auction_mode r4.status r27 r4.reveal_deadline r28 r4.reserve_price_hash r4.created_at r4.dispute_deadline into r29 as AuctionData;
+    set r29 into auctions[r1];
+
+function settle_english:
+    input r0 as field.private;
+    input r1 as u128.private;
+    cast self.caller into r2 as field;
+    hash.bhp256 r2 into r3 as field;
+    cast r1 into r4 as field;
+    hash.bhp256 r4 into r5 as field;
+    async settle_english r0 r3 r5 r1 into r6;
+    output r6 as verilpayu_auction_v5.aleo/settle_english.future;
+
+finalize settle_english:
+    input r0 as field.public;
+    input r1 as field.public;
+    input r2 as field.public;
+    input r3 as u128.public;
+    get auctions[r0] into r4;
+    assert.eq r4.seller_hash r1;
+    assert.eq r4.status 1u8;
+    assert.eq r4.auction_mode 4u8;
+    cast block.height into r5 as u64;
+    gt r5 r4.deadline into r6;
+    assert.eq r6 true;
+    assert.eq r2 r4.reserve_price_hash;
+    get.or_use highest_bids[r0] 0u128 into r7;
+    get.or_use auction_winners[r0] 0field into r8;
+    gte r7 r3 into r9;
+    gt r7 0u128 into r10;
+    and r9 r10 into r11;
+    branch.eq r11 false to end_then_0_36;
+    cast r4.item_hash r4.seller_hash r4.category r4.token_type r4.auction_mode 4u8 r4.deadline 0u64 r4.bid_count r4.reserve_price_hash r4.created_at 0u64 into r12 as AuctionData;
+    set r12 into auctions[r0];
+    get.or_use second_highest_bids[r0] 0u128 into r13;
+    cast r0 r7 r13 r8 r5 into r14 as SettlementProof;
+    hash.bhp256 r14 into r15 as field;
+    set r15 into settlement_proofs[r0];
+    branch.eq true true to end_otherwise_0_37;
+    position end_then_0_36;
+    cast r4.item_hash r4.seller_hash r4.category r4.token_type r4.auction_mode 6u8 r4.deadline 0u64 r4.bid_count r4.reserve_price_hash r4.created_at 0u64 into r16 as AuctionData;
+    set r16 into auctions[r0];
+    position end_otherwise_0_37;
+
+function dispute_auction:
+    input r0 as field.private;
+    input r1 as credits.aleo/credits.record;
+    input r2 as field.private;
+    input r3 as u128.private;
+    gte r3 1000u128 into r4;
+    assert.eq r4 true;
+    cast self.caller into r5 as field;
+    hash.bhp256 r5 into r6 as field;
+    cast r3 into r7 as u64;
+    call credits.aleo/transfer_private_to_public r1 verilpayu_auction_v5.aleo r7 into r8 r9;
+    cast self.signer r0 r3 into r10 as DisputeBond.record;
+    async dispute_auction r9 r0 r6 self.caller r2 r3 into r11;
+    output r10 as DisputeBond.record;
+    output r8 as credits.aleo/credits.record;
+    output r11 as verilpayu_auction_v5.aleo/dispute_auction.future;
+
+finalize dispute_auction:
+    input r0 as credits.aleo/transfer_private_to_public.future;
+    input r1 as field.public;
+    input r2 as field.public;
+    input r3 as address.public;
+    input r4 as field.public;
+    input r5 as u128.public;
+    await r0;
+    get auctions[r1] into r6;
+    assert.eq r6.status 4u8;
+    get settlements[r1] into r7;
+    cast block.height into r8 as u64;
+    add r7.settled_at 100u64 into r9;
+    lte r8 r9 into r10;
+    assert.eq r10 true;
+    contains disputes[r1] into r11;
+    not r11 into r12;
+    assert.eq r12 true;
+    get highest_bids[r1] into r13;
+    mul r13 1000u128 into r14;
+    div r14 10000u128 into r15;
+    gte r5 r15 into r16;
+    assert.eq r16 true;
+    cast r2 r3 r5 r4 r8 into r17 as DisputeData;
+    set r17 into disputes[r1];
+    set r5 into dispute_bonds[r1];
+    get.or_use program_balance[0u8] 0u128 into r18;
+    add r18 r5 into r19;
+    set r19 into program_balance[0u8];
+    add r8 100u64 into r20;
+    cast r6.item_hash r6.seller_hash r6.category r6.token_type r6.auction_mode 7u8 r6.deadline r6.reveal_deadline r6.bid_count r6.reserve_price_hash r6.created_at r20 into r21 as AuctionData;
+    set r21 into auctions[r1];
+
+function resolve_dispute:
+    input r0 as field.private;
+    input r1 as boolean.private;
+    cast self.caller into r2 as field;
+    hash.bhp256 r2 into r3 as field;
+    async resolve_dispute r0 r3 r1 into r4;
+    output r4 as verilpayu_auction_v5.aleo/resolve_dispute.future;
+
+finalize resolve_dispute:
+    input r0 as field.public;
+    input r1 as field.public;
+    input r2 as boolean.public;
+    get platform_config[0u8] into r3;
+    assert.eq r1 r3.admin_hash;
+    get auctions[r0] into r4;
+    assert.eq r4.status 7u8;
+    get disputes[r0] into r5;
+    get dispute_bonds[r0] into r6;
+    assert.eq r5.bond_amount r6;
+    branch.eq r2 false to end_then_0_38;
+    cast r4.item_hash r4.seller_hash r4.category r4.token_type r4.auction_mode 6u8 r4.deadline r4.reveal_deadline r4.bid_count r4.reserve_price_hash r4.created_at r4.dispute_deadline into r7 as AuctionData;
+    set r7 into auctions[r0];
+    get program_balance[0u8] into r8;
+    sub r8 r6 into r9;
+    set r9 into program_balance[0u8];
+    branch.eq true true to end_otherwise_0_39;
+    position end_then_0_38;
+    cast r4.item_hash r4.seller_hash r4.category r4.token_type r4.auction_mode 4u8 r4.deadline r4.reveal_deadline r4.bid_count r4.reserve_price_hash r4.created_at r4.dispute_deadline into r10 as AuctionData;
+    set r10 into auctions[r0];
+    get.or_use platform_treasury[0u8] 0u128 into r11;
+    add r11 r6 into r12;
+    set r12 into platform_treasury[0u8];
+    get program_balance[0u8] into r13;
+    sub r13 r6 into r14;
+    set r14 into program_balance[0u8];
+    position end_otherwise_0_39;
+    set 0u128 into dispute_bonds[r0];
+
+function admin_emergency:
+    input r0 as u8.private;
+    input r1 as field.private;
+    cast self.caller into r2 as field;
+    hash.bhp256 r2 into r3 as field;
+    async admin_emergency r0 r1 r3 into r4;
+    output r4 as verilpayu_auction_v5.aleo/admin_emergency.future;
+
+finalize admin_emergency:
+    input r0 as u8.public;
+    input r1 as field.public;
+    input r2 as field.public;
+    is.eq r0 1u8 into r3;
+    branch.eq r3 false to end_then_0_40;
+    get auctions[r1] into r4;
+    assert.eq r4.status 3u8;
+    cast block.height into r5 as u64;
+    add r4.reveal_deadline 100u64 into r6;
+    gt r5 r6 into r7;
+    assert.eq r7 true;
+    cast r4.item_hash r4.seller_hash r4.category r4.token_type r4.auction_mode 6u8 r4.deadline r4.reveal_deadline r4.bid_count r4.reserve_price_hash r4.created_at 0u64 into r8 as AuctionData;
+    set r8 into auctions[r1];
+    branch.eq true true to end_otherwise_0_41;
+    position end_then_0_40;
+    get platform_config[0u8] into r9;
+    assert.eq r2 r9.admin_hash;
+    not r9.paused into r10;
+    cast r9.admin_hash r9.fee_bps r9.dispute_bond_bps r10 into r11 as PlatformConfig;
+    set r11 into platform_config[0u8];
+    position end_otherwise_0_41;
+
+function withdraw_fees:
+    input r0 as u64.private;
+    cast self.caller into r1 as field;
+    hash.bhp256 r1 into r2 as field;
+    call credits.aleo/transfer_public_to_private self.caller r0 into r3 r4;
+    cast r0 into r5 as u128;
+    async withdraw_fees r4 r2 r5 into r6;
+    output r3 as credits.aleo/credits.record;
+    output r6 as verilpayu_auction_v5.aleo/withdraw_fees.future;
+
+finalize withdraw_fees:
+    input r0 as credits.aleo/transfer_public_to_private.future;
+    input r1 as field.public;
+    input r2 as u128.public;
+    await r0;
+    get platform_config[0u8] into r3;
+    assert.eq r1 r3.admin_hash;
+    get platform_treasury[0u8] into r4;
+    lte r2 r4 into r5;
+    assert.eq r5 true;
+    sub r4 r2 into r6;
+    set r6 into platform_treasury[0u8];
 
 constructor:
     assert.eq edition 0u16;

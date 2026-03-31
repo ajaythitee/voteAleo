@@ -22,9 +22,16 @@
         "name": "next"
       }
     ],
+    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@veil/sdk": [
+        "../sdk/dist/index.js"
+      ],
+      "@veil/sdk/*": [
+        "../sdk/dist/*"
       ]
     }
   },

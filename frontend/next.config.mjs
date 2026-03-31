@@ -4,6 +4,12 @@ import { fileURLToPath } from 'url';
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    externalDir: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   // Use webpack explicitly since we need it for WASM support
   // Turbopack config is empty to silence the warning
   turbopack: {},

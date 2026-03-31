@@ -1,0 +1,15 @@
+export const TOKEN_ALEO = 1;
+export const TOKEN_USDCX = 2;
+export const TOKEN_USAD = 3;
+export const STATUS_ACTIVE = 1;
+export const STATUS_CLOSED = 2;
+export const STATUS_REVEALING = 3;
+export const STATUS_SETTLED = 4;
+export const STATUS_CANCELLED = 5;
+export const STATUS_FAILED = 6;
+export const STATUS_DISPUTED = 7;
+export const STATUS_EXPIRED = 8;
+export const MODE_FIRST_PRICE = 1;
+export const MODE_VICKREY = 2;
+export const MODE_DUTCH = 3;
+export const MODE_ENGLISH = 4;

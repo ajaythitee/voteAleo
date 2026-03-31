@@ -34,7 +34,7 @@ export default function MyAuctionsPage() {
       const withOwners = await Promise.all(
         items.map(async (a) => ({
           ...a,
-          owner: await auctionService.getAuctionOwner(a.auctionId),
+          owner: ((await auctionService.getAuctionMeta(a.auctionId)) as { item?: { creatorAddress?: string } } | null)?.item?.creatorAddress ?? null,
           parsed: await parseOnChainAuction(a.data, a.auctionId),
         }))
       );

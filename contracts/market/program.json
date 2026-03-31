@@ -1,0 +1,26 @@
+{
+  "program": "obscura_market_v1.aleo",
+  "version": "0.1.0",
+  "description": "Marketplace extensions for Obscura: fixed-price sales, RFQ reverse auctions, token sales, royalty claims, provenance, timelocked results, and reputation proofs",
+  "license": "MIT",
+  "dependencies": [
+    {
+      "name": "credits.aleo",
+      "location": "network",
+      "network": "testnet",
+      "path": null
+    },
+    {
+      "name": "test_usdcx_stablecoin.aleo",
+      "location": "network",
+      "network": "testnet",
+      "path": null
+    },
+    {
+      "name": "test_usad_stablecoin.aleo",
+      "location": "network",
+      "network": "testnet",
+      "path": null
+    }
+  ]
+}

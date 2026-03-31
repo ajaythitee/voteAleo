@@ -323,12 +323,11 @@ program verilpayu_auction_v5.aleo {
         private auction_nonce: field,
         public duration_blocks: u64
     ) -> (field, Future) {
-        let current_height: u64 = block.height as u64;
-        let computed_deadline: u64 = current_height + duration_blocks;
         let seed: AuctionSeed = AuctionSeed {
             creator: self.caller,
             item_hash: item_hash,
-            deadline: computed_deadline,
+            // Use duration as part of seed; actual deadline is derived in finalize.
+            deadline: duration_blocks,
             nonce: auction_nonce,
         };
         let auction_id: field = BHP256::hash_to_field(seed);
@@ -348,10 +347,48 @@ program verilpayu_auction_v5.aleo {
             assert(token_type == TOKEN_ALEO || token_type == TOKEN_USDCX);
         }
 
-        return (auction_id, finalize_create_auction(
+        return (auction_id, finalize_create_auction_dur(
             auction_id, item_hash, seller_hash, category,
-            token_type, auction_mode, computed_deadline, reserve_hash
+            token_type, auction_mode, duration_blocks, reserve_hash
         ));
+    }
+
+    async function finalize_create_auction_dur(
+        auction_id: field,
+        item_hash: field,
+        seller_hash: field,
+        category: u8,
+        token_type: u8,
+        auction_mode: u8,
+        duration_blocks: u64,
+        reserve_hash: field
+    ) {
+        let current_height: u64 = block.height as u64;
+        let computed_deadline: u64 = current_height + duration_blocks;
+        assert(duration_blocks >= MIN_AUCTION_DURATION);
+        let exists: bool = auctions.contains(auction_id);
+        assert(!exists);
+
+        let cfg: PlatformConfig = platform_config.get(0u8);
+        assert(!cfg.paused);
+
+        auctions.set(auction_id, AuctionData {
+            item_hash: item_hash,
+            seller_hash: seller_hash,
+            category: category,
+            token_type: token_type,
+            auction_mode: auction_mode,
+            status: STATUS_ACTIVE,
+            deadline: computed_deadline,
+            reveal_deadline: 0u64,
+            bid_count: 0u64,
+            reserve_price_hash: reserve_hash,
+            created_at: current_height,
+            dispute_deadline: 0u64,
+        });
+        let c: u64 = auction_counter.get_or_use(0u8, 0u64);
+        auction_counter.set(0u8, c + 1u64);
+        public_auction_index.set(c + 1u64, auction_id);
     }
 
     async function finalize_create_auction(
@@ -496,7 +533,7 @@ program verilpayu_auction_v5.aleo {
         assert(token_type == TOKEN_ALEO || token_type == TOKEN_USDCX || token_type == TOKEN_USAD);
 
         let sealed: SealedBid = SealedBid {
-            owner: self.caller,
+            owner: self.signer,
             auction_id: auction_id,
             bid_amount: bid_amount,
             bid_nonce: bid_nonce,
@@ -958,7 +995,7 @@ program verilpayu_auction_v5.aleo {
         let payment_commitment: field = BHP256::commit_to_field(amount_field, nonce_scalar);
 
         let cert: WinnerCertificate = WinnerCertificate {
-            owner: self.caller,
+            owner: self.signer,
             auction_id: receipt.auction_id,
             item_hash: item_hash,
             winning_amount: receipt.escrowed_amount,
@@ -1060,7 +1097,7 @@ program verilpayu_auction_v5.aleo {
         let payment_commitment: field = BHP256::commit_to_field(amount_field, nonce_scalar);
 
         let cert: WinnerCertificate = WinnerCertificate {
-            owner: self.caller,
+            owner: self.signer,
             auction_id: receipt.auction_id,
             item_hash: item_hash,
             winning_amount: receipt.escrowed_amount,
@@ -1163,7 +1200,7 @@ program verilpayu_auction_v5.aleo {
         let payment_commitment: field = BHP256::commit_to_field(amount_field, nonce_scalar);
 
         let cert: WinnerCertificate = WinnerCertificate {
-            owner: self.caller,
+            owner: self.signer,
             auction_id: receipt.auction_id,
             item_hash: item_hash,
             winning_amount: receipt.escrowed_amount,
@@ -1282,7 +1319,7 @@ program verilpayu_auction_v5.aleo {
         let payment_commitment: field = BHP256::commit_to_field(payment_field, nonce_scalar);
 
         let cert: WinnerCertificate = WinnerCertificate {
-            owner: self.caller,
+            owner: self.signer,
             auction_id: receipt.auction_id,
             item_hash: item_hash,
             winning_amount: claimed_second_price,
@@ -1398,7 +1435,7 @@ program verilpayu_auction_v5.aleo {
         let payment_commitment: field = BHP256::commit_to_field(payment_field, nonce_scalar);
 
         let cert: WinnerCertificate = WinnerCertificate {
-            owner: self.caller,
+            owner: self.signer,
             auction_id: receipt.auction_id,
             item_hash: item_hash,
             winning_amount: claimed_second_price,
@@ -1767,7 +1804,7 @@ program verilpayu_auction_v5.aleo {
             );
 
         let receipt: EscrowReceipt = EscrowReceipt {
-            owner: self.caller,
+            owner: self.signer,
             auction_id: auction_id,
             escrowed_amount: bid_amount,
             bid_nonce: bid_nonce,
@@ -1872,7 +1909,7 @@ program verilpayu_auction_v5.aleo {
         );
 
         let receipt: EscrowReceipt = EscrowReceipt {
-            owner: self.caller,
+            owner: self.signer,
             auction_id: auction_id,
             escrowed_amount: bid_amount,
             bid_nonce: bid_nonce,
@@ -1983,7 +2020,7 @@ program verilpayu_auction_v5.aleo {
             );
 
         let receipt: EscrowReceipt = EscrowReceipt {
-            owner: self.caller,
+            owner: self.signer,
             auction_id: auction_id,
             escrowed_amount: bid_amount,
             bid_nonce: bid_nonce,
@@ -2088,7 +2125,7 @@ program verilpayu_auction_v5.aleo {
         );
 
         let receipt: EscrowReceipt = EscrowReceipt {
-            owner: self.caller,
+            owner: self.signer,
             auction_id: auction_id,
             escrowed_amount: bid_amount,
             bid_nonce: bid_nonce,
@@ -2273,7 +2310,7 @@ program verilpayu_auction_v5.aleo {
             );
 
         let bond_record: DisputeBond = DisputeBond {
-            owner: self.caller,
+            owner: self.signer,
             auction_id: auction_id,
             bond_amount: bond_amount,
         };
@@ -2343,36 +2380,19 @@ program verilpayu_auction_v5.aleo {
     async transition resolve_dispute(
         private auction_id: field,
         private upheld: bool
-    ) -> (credits.aleo/credits, Future) {
+    ) -> Future {
         let admin_field: field = self.caller as field;
         let admin_hash: field = BHP256::hash_to_field(admin_field);
-
-        let dispute: DisputeData = disputes.get(auction_id);
-        let bond_amount: u128 = dispute_bonds.get(auction_id);
-        let bond_u64: u64 = bond_amount as u64;
-
-        let target: address = upheld ? dispute.disputer_address : self.caller;
-        let payout: u64 = upheld ? bond_u64 : 1u64;
-
-        let (credits_out, transfer_future): (credits.aleo/credits, Future) =
-            credits.aleo/transfer_public_to_private(
-                target,
-                payout
-            );
-
-        return (credits_out, finalize_resolve_dispute(
-            transfer_future, auction_id, admin_hash, upheld
-        ));
+        return finalize_resolve_dispute(
+            auction_id, admin_hash, upheld
+        );
     }
 
     async function finalize_resolve_dispute(
-        f0: Future,
         auction_id: field,
         admin_hash: field,
         upheld: bool
     ) {
-        f0.await();
-
         let cfg: PlatformConfig = platform_config.get(0u8);
         assert_eq(admin_hash, cfg.admin_hash);
 

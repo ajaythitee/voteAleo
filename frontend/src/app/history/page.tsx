@@ -127,7 +127,8 @@ export default function HistoryPage() {
       const items = await auctionService.listPublicAuctions();
       const enriched: AuctionHistoryItem[] = await Promise.all(
         items.slice(0, 80).map(async (a) => {
-          const owner = await auctionService.getAuctionOwner(a.auctionId);
+          const meta = (await auctionService.getAuctionMeta(a.auctionId)) as { item?: { creatorAddress?: string } } | null;
+          const owner = meta?.item?.creatorAddress ?? null;
           const parsed = await parseOnChainAuction(a.data, a.auctionId);
           return { auctionId: a.auctionId, index: a.index, owner, parsed };
         })
