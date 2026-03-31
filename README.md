@@ -1,138 +1,177 @@
-## VeilProtocol
+# :sunglasses: Veil Protocol (voteAleo)
 
 [![Aleo Testnet](https://img.shields.io/badge/network-aleo%20testnet-6f42c1)](https://developer.aleo.org/)
 [![Contracts](https://img.shields.io/badge/contracts-leo-blue)](./contracts)
-[![Frontend](https://img.shields.io/badge/frontend-next.js%2014-black)](./frontend)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Frontend](https://img.shields.io/badge/frontend-next.js-black)](./frontend)
 
-Privacy‑preserving governance & marketplace on the Aleo blockchain:
+Privacy-preserving **Voting + Auctions + Marketplace** on Aleo.
 
-- **Private voting** (anonymous ballots, anti‑double‑voting, hidden tallies until end)
-- **First‑price sealed‑bid auctions** (private / public / mixed bids)
-- **Next.js frontend** with wallet support for transactions
+- :ballot_box_with_ballot: **Vote**: create campaigns, cast votes, prevent double-voting, verify participation
+- :lock: **Auction**: sealed-bid + English/Dutch strategies, dispute + cancel flows, selective disclosure proofs
+- :shopping_cart: **Market**: fixed-price listings + RFQs + royalties (Leo contract)
+- :brain: **Backend**: Express + MongoDB metadata + indexer mirroring on-chain state
+- :robot: **Monitoring bot**: polls auctions and triggers automation where possible
+- :jigsaw: **SDK**: shared TypeScript utilities used by the frontend and bot
 
----
-
-## Project layoutg
-
-- **`contracts/vote`** – Leo program `vote_privacy_8000.aleo`
-  - **Features**
-    - On‑chain campaign creation with IPFS metadata (title, description, options)
-    - Anonymous voting using hashed voter identifiers
-    - Per‑campaign anti‑double‑voting (`has_voted` mapping)
-    - Bounded options (2–4) with on‑chain tallies (up to 4 choices)
-    - Campaign lifecycle: create → vote → end (creator‑only)
-    - Simple proof of participation (`verify_vote_participation`)
-- **`contracts/auction`** – Leo program `privote_auction_5000.aleo`
-  - **Features**
-    - First‑price sealed‑bid auction
-    - **Privacy modes**: private, public, or mixed bids
-    - Private invites (`AuctionInvite`) for whitelisted bidders
-    - Public auction registry + owner mapping for frontend discovery
-    - Mappings for bids, highest bid, winning bid, and redemptions
-    - Multiple redemption flows (public, private‑to‑public, fully private) via `credits.aleo`
-- **`frontend`** – Next.js 14 app (TypeScript, Tailwind)
-  - Campaign creation & voting UI
-  - Wallet-based transactions (users pay fees)
-  - Auction listing via on‑chain mappings (using `auctionService`)
+See `ARCHITECTURE.MD` for the system diagram and component breakdown.
 
 ---
 
-## Core features
-
-- **Privacy‑preserving voting**
-  - Voters interact with campaigns identified by IPFS metadata CIDs.
-  - Votes are recorded as private records; public tallies are stored on‑chain per option.
-  - Double‑voting is prevented via a hashed `(campaign_id + voter_hash)` key.
-
-- **Wallet-based transactions**
-  - Users connect their Aleo wallet (Leo Wallet or Puzzle Wallet)
-  - Users pay transaction fees directly from their wallet balance
-  - All transactions require wallet connection and sufficient credits
-
-- **Auctions for governance assets**
-  - Auctioneer can create **private** or **public** auctions.
-  - Bidders can place public or private bids depending on privacy settings.
-  - Finalization transitions select the winning bid and support multiple redemption styles using `credits.aleo`.
-
-- **Config‑driven program IDs**
-  - Program IDs are **never hardcoded in the frontend**.
-  - All IDs come from environment variables (`.env` / `.env.local`).
-
----
-
-## Folder structure (high level)
+## :file_folder: Repo layout
 
 ```text
-voteAleo/
-  contracts/
-    vote/          # Voting Leo program (vote_privacy_8000.aleo)
-    auction/       # Auction Leo program (privote_auction_5000.aleo)
-  frontend/        # Next.js app (UI + wallet integration)
-  README.md        # Project overview (this file)
+contracts/
+  vote/             # Voting contract (Leo)
+  auction/           # Auction contract (Leo)
+  market/            # Marketplace contract (Leo)
+frontend/            # Next.js app (UI)
+backend/             # Express + MongoDB + on-chain indexer
+monitoring-bot/      # Node/TS monitoring + automation loop
+sdk/                 # @veil/sdk (pure TypeScript)
+_reference/          # Reference implementations (do not deploy from here)
 ```
 
 ---
 
-## Prerequisites
+## :white_check_mark: Quickstart (local)
 
-- **Node.js** (for the frontend)
-- **Leo CLI 3.4.0+** (for building/deploying the Leo contracts)  
-  See: `https://developer.aleo.org/leo/installation`
-- A funded Aleo **testnet** account (for contract deployment)
+### 1) Backend (metadata + indexer)
 
----
+```bash
+cd backend
+# copy backend/.env.example -> backend/.env and fill values
+npm install
+npm run build
+npm run start
+```
 
-## Basic commands
+Key endpoints:
+- `GET /api/health`
+- `GET /api/auctions?page=&limit=&status=`
+- `POST /api/auctions` (create/update metadata)
+- `GET /api/auctions/:id`
+- `PUT /api/auctions/:id`
+- `POST /api/auctions/:id/bids`
+- `GET /api/auctions/:id/bids`
 
-- **Run frontend in dev mode**
+Indexer:
+- runs every **30s**
+- reads on-chain mappings (`auction_counter`, `public_auction_index`, `auctions`)
+- upserts parsed `status`, `mode`, `token_type`, `bid_count`, `deadline` into MongoDB
 
-  ```bash
-  cd frontend
-  npm install
-  npm run dev
-  ```
+### 2) Frontend
 
-- **Build a contract (example: vote)**
+```bash
+cd frontend
+# copy frontend/.env.example -> frontend/.env.local and fill values
+npm install
+npm run dev
+```
 
-  ```bash
-  cd contracts/vote
-  leo build
-  ```
-
-- **Deploy a contract (example: vote, testnet)**
-
-  ```bash
-  leo deploy \
-    --private-key "APrivateKey1zkpFUTU9Dh2EZix1SSCU2C3AUB35Z5P5naS8TCiD5B7FXTa" \
-    --network "testnet" \
-    --endpoint "https://api.explorer.provable.com/v1" \
-    --broadcast \
-    --yes
-  ```
-
----
-
-## Roadmap / plans
-
-- **Phase 1 (current)**
-  - Core voting flows (create, vote, end)
-  - Basic auction flows (create, bid, finalize, redeem)
-  - Wallet-based transactions
-  - Basic campaign list & auction list UI
-
-- **Phase 2**
-  - Richer frontend for auctions (bid history, winner view)
-  - Governance dashboards (per‑campaign stats, charts)
-  - Better error reporting and transaction handling
-
-- **Phase 3**
-  - Role‑based governance (admins, proposers, voters)
-  - Composable campaigns (multiple rounds, quorum rules)
-  - Advanced privacy options and analytics
+Frontend data sources:
+- on-chain state: read directly from Aleo RPC mappings
+- off-chain metadata: read/write via the backend (`NEXT_PUBLIC_BACKEND_URL`)
 
 ---
 
-## License
+## :scroll: Environment variables
 
-MIT
+### Frontend (`frontend/.env.local`)
+- `NEXT_PUBLIC_ALEO_NETWORK`
+- `NEXT_PUBLIC_ALEO_RPC_URL`
+- `NEXT_PUBLIC_VOTING_PROGRAM_ID`
+- `NEXT_PUBLIC_AUCTION_PROGRAM_ID`
+- `NEXT_PUBLIC_BACKEND_URL`
+- `NEXT_PUBLIC_PINATA_JWT` (optional)
+- `NEXT_PUBLIC_PINATA_GATEWAY` (optional)
+
+### Backend (`backend/.env`)
+- `MONGODB_URI`
+- `PORT`
+- `ALEO_RPC_URL`
+- `AUCTION_PROGRAM_ID`
+- `NETWORK`
+- `PINATA_JWT` (optional)
+
+### Monitoring bot (`monitoring-bot/.env`)
+- `BOT_PRIVATE_KEY`
+- `AUCTION_PROGRAM_ID`
+- `ALEO_RPC_URL`
+- `NETWORK`
+- `BACKEND_URL`
+
+---
+
+## :ballot_box_with_ballot: Voting contract (`contracts/vote`)
+
+Capabilities:
+- create campaigns (metadata references)
+- cast votes
+- prevent double-voting via on-chain mappings
+- verify participation (proof of vote)
+
+Build:
+```bash
+cd contracts/vote
+leo build
+```
+
+---
+
+## :lock: Auction contract (`contracts/auction`)
+
+Capabilities:
+- create auctions (including `create_auction_with_duration`)
+- bid / reveal / close / finalize
+- cancel auction (only when ACTIVE and `bid_count == 0`)
+- dispute auction + admin resolution
+- prove a win using a `WinnerCertificate` without revealing the bid amount (`prove_won_auction`)
+- withdraw platform fees for ALEO and USDCx treasuries
+
+Build:
+```bash
+cd contracts/auction
+leo build
+```
+
+### :warning: Deploy troubleshooting (Aleo consensus upgrades)
+
+If you see errors similar to:
+- `expected ... verifying keys after ConsensusVersion::V14`
+
+Try:
+- upgrade Leo CLI to a version compatible with the current network consensus
+- run a clean rebuild (`leo clean` if available, then `leo build`)
+- redeploy with the upgraded toolchain
+
+---
+
+## :shopping_cart: Marketplace contract (`contracts/market`)
+
+Build:
+```bash
+cd contracts/market
+leo build
+```
+
+---
+
+## :robot: Monitoring bot (`monitoring-bot/`)
+
+Runs every **60s**:
+- fetches latest block height
+- reads active auctions from backend (`/api/auctions?status=active`)
+- for sealed / vickrey style auctions: submits `close_bidding` when `height > deadline`
+- for dutch auctions: logs current price
+- dispute checks: alerts when `height > dispute_deadline`
+
+Note: English auctions typically require private inputs (e.g. reserve price), so the bot may not be able to auto-settle them without additional off-chain configuration.
+
+---
+
+## :jigsaw: SDK (`sdk/`)
+
+`@veil/sdk` is a pure TypeScript package shared by:
+- frontend (transaction builders, parser helpers)
+- monitoring bot (shared constants + parsing)
+
