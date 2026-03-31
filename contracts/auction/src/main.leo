@@ -304,7 +304,7 @@ program verilpayu_auction_v5.aleo {
             assert_eq(auction_mode, MODE_FIRST_PRICE);
         }
         if (auction_mode == MODE_ENGLISH) {
-            assert(token_type == TOKEN_ALEO || token_type == TOKEN_USDCX);
+        assert(token_type == TOKEN_ALEO || token_type == TOKEN_USDCX);
         }
 
         return (auction_id, finalize_create_auction(
@@ -2495,9 +2495,9 @@ program verilpayu_auction_v5.aleo {
 
         let (credits_out, transfer_future): (credits.aleo/credits, Future) =
             credits.aleo/transfer_public_to_private(
-                self.caller,
-                amount
-            );
+            self.caller,
+            amount
+        );
 
         return (credits_out, finalize_withdraw_fees(
             transfer_future, admin_hash, amount as u128
@@ -2517,41 +2517,6 @@ program verilpayu_auction_v5.aleo {
         let treasury: u128 = platform_treasury.get(0u8);
         assert(amount <= treasury);
         platform_treasury.set(0u8, treasury - amount);
-    }
-
-    // ########################################################################
-    //              T29: WITHDRAW FEES — USDCx (admin only)
-    // ########################################################################
-
-    async transition withdraw_fees_usdcx(
-        private amount: u128
-    ) -> Future {
-        let admin_field: field = self.caller as field;
-        let admin_hash: field = BHP256::hash_to_field(admin_field);
-
-        let transfer_future: Future = test_usdcx_stablecoin.aleo/transfer_public(
-            self.caller,
-            amount
-        );
-
-        return finalize_withdraw_fees_usdcx(
-            transfer_future, admin_hash, amount
-        );
-    }
-
-    async function finalize_withdraw_fees_usdcx(
-        f0: Future,
-        admin_hash: field,
-        amount: u128
-    ) {
-        f0.await();
-
-        let cfg: PlatformConfig = platform_config.get(0u8);
-        assert_eq(admin_hash, cfg.admin_hash);
-
-        let treasury: u128 = platform_treasury.get(1u8);
-        assert(amount <= treasury);
-        platform_treasury.set(1u8, treasury - amount);
     }
 
 }

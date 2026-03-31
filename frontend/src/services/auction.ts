@@ -6,10 +6,6 @@ function rpcUrl(path: string): string {
   return `${RPC_URL}/${NETWORK}/program/${AUCTION_PROGRAM_ID}/mapping/${path}`;
 }
 
-function rpcBaseUrl(): string {
-  return `${RPC_URL}/${NETWORK}`;
-}
-
 function parseNumberish(raw: string): number {
   const match = raw.match(/(\d+)/);
   return match ? Number(match[1]) : 0;
@@ -17,39 +13,6 @@ function parseNumberish(raw: string): number {
 
 export const auctionService = {
   getProgramId: (): string => AUCTION_PROGRAM_ID,
-
-  async getLatestBlockHeight(): Promise<number> {
-    const base = rpcBaseUrl();
-    const candidates = [
-      `${base}/block/height/latest`,
-      `${base}/latest/height`,
-      `${base}/block/latest/height`,
-      `${base}/block/latest`,
-    ];
-
-    for (const url of candidates) {
-      try {
-        const res = await fetch(url, { cache: 'no-store' });
-        if (!res.ok) continue;
-        const text = (await res.text()).trim();
-        const height = parseNumberish(text);
-        if (height > 0) return height;
-        try {
-          const json = JSON.parse(text) as unknown;
-          if (!json || typeof json !== 'object') continue;
-          const record = json as Record<string, unknown>;
-          const jsonHeight = parseNumberish(String(record.height ?? record.block_height ?? record.latest_height ?? ''));
-          if (jsonHeight > 0) return jsonHeight;
-        } catch {
-          // ignore
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    return 0;
-  },
 
   async getAuctionCount(): Promise<number> {
     try {
@@ -145,43 +108,6 @@ export const auctionService = {
   async getAuctionSettlement(auctionIdKey: string): Promise<string | null> {
     try {
       const res = await fetch(rpcUrl(`settlements/${encodeURIComponent(auctionIdKey)}`));
-      if (!res.ok) return null;
-      return (await res.text()).trim() || null;
-    } catch {
-      return null;
-    }
-  },
-
-  async getAuctionEscrow(auctionIdKey: string): Promise<number> {
-    try {
-      const res = await fetch(rpcUrl(`auction_escrow/${encodeURIComponent(auctionIdKey)}`));
-      if (!res.ok) return 0;
-      return parseNumberish(await res.text());
-    } catch {
-      return 0;
-    }
-  },
-
-  async getPlatformTreasury(tokenType: number): Promise<number> {
-    const normalized =
-      tokenType >= 1 && tokenType <= 3
-        ? tokenType - 1
-        : tokenType >= 0 && tokenType <= 2
-          ? tokenType
-          : tokenType;
-
-    try {
-      const res = await fetch(rpcUrl(`platform_treasury/${normalized}u8`));
-      if (!res.ok) return 0;
-      return parseNumberish(await res.text());
-    } catch {
-      return 0;
-    }
-  },
-
-  async getDisputeStatus(auctionIdKey: string): Promise<string | null> {
-    try {
-      const res = await fetch(rpcUrl(`disputes/${encodeURIComponent(auctionIdKey)}`));
       if (!res.ok) return null;
       return (await res.text()).trim() || null;
     } catch {

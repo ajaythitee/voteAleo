@@ -6,7 +6,6 @@ import { ArrowLeft, CheckCircle, Gavel, Loader2 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassInput } from '@/components/ui/GlassInput';
-import { Modal } from '@/components/ui/Modal';
 import { TransactionStatusCard } from '@/components/transactions/TransactionStatusCard';
 import { useWalletSession } from '@/hooks/useWalletSession';
 import { useToastStore } from '@/stores/toastStore';
@@ -18,7 +17,6 @@ import {
   buildBidDutchUsdcxParams,
   buildBidEnglishAleoParams,
   buildBidEnglishUsdcxParams,
-  buildCancelAuctionParams,
   buildClaimRefundAleoParams,
   buildClaimRefundUsadParams,
   buildClaimRefundUsdcxParams,
@@ -26,16 +24,14 @@ import {
   buildClaimWinUsadParams,
   buildClaimWinUsdcxParams,
   buildClaimWinVickreyAleoParams,
+  buildClaimWinVickreyUsadParams,
   buildClaimWinVickreyUsdcxParams,
   buildCloseBiddingParams,
-  buildDisputeAuctionParams,
   buildFinalizeAuctionParams,
   buildPlaceBidParams,
-  buildProveWonAuctionParams,
   buildRevealBidAleoParams,
   buildRevealBidUsadParams,
   buildRevealBidUsdcxParams,
-  buildResolveDisputeParams,
   buildSettleEnglishParams,
   createTransaction,
   isTemporaryWalletTransactionId,
@@ -43,8 +39,6 @@ import {
 import { useTransactionLifecycle } from '@/hooks/useTransactionLifecycle';
 import { PrivacyMonitor } from '@/components/auction/PrivacyMonitor';
 import { PrivacyScore } from '@/components/auction/PrivacyScore';
-
-const DISPUTE_WINDOW_BLOCKS = 100;
 
 type AuctionInfo = {
   status: number;
@@ -68,36 +62,23 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
   const [secondHighest, setSecondHighest] = useState(0);
   const [winnerBidHash, setWinnerBidHash] = useState<string | null>(null);
   const [originalDeadline, setOriginalDeadline] = useState(0);
-  const [sellerMetaAddress, setSellerMetaAddress] = useState<string | null>(null);
-  const [currentHeight, setCurrentHeight] = useState(0);
-  const [settledAt, setSettledAt] = useState(0);
-  const [auctionEscrow, setAuctionEscrow] = useState(0);
-  const [platformTreasury, setPlatformTreasury] = useState(0);
-  const [disputeRaw, setDisputeRaw] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [bidAmount, setBidAmount] = useState('');
   const [reserveToFinalize, setReserveToFinalize] = useState('');
   const [sellerAddress, setSellerAddress] = useState('');
   const [itemHash, setItemHash] = useState('');
-  const [disputeReasonHash, setDisputeReasonHash] = useState('');
-  const [disputeBondAmount, setDisputeBondAmount] = useState('');
-  const [adminDisputeValid, setAdminDisputeValid] = useState(false);
-  const [adminDisputerAddress, setAdminDisputerAddress] = useState('');
-  const [adminBondAmount, setAdminBondAmount] = useState('');
-  const [proveOpen, setProveOpen] = useState(false);
   const tx = useTransactionLifecycle();
   const { success, error: showError } = useToastStore();
-  const { walletName, executeTransaction, connect, transactionStatus, address: walletAddress } = useWalletSession();
+  const { walletName, executeTransaction, connect, transactionStatus } = useWalletSession();
 
   const refresh = async (resolvedId: string) => {
     const raw = await auctionService.getPublicAuction(resolvedId);
     if (raw == null) return;
     const rawText = typeof raw === 'string' ? raw : JSON.stringify(raw);
-    const tokenTypeValue = parseField(rawText, 'token_type');
     setAuctionInfo({
       status: parseField(rawText, 'status'),
       mode: parseField(rawText, 'auction_mode'),
-      tokenType: tokenTypeValue,
+      tokenType: parseField(rawText, 'token_type'),
       bidCount: parseField(rawText, 'bid_count'),
       deadline: parseField(rawText, 'deadline'),
     });
@@ -105,22 +86,14 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     setHighestBid(await auctionService.getHighestBid(resolvedId));
     setSecondHighest(await auctionService.getSecondHighestBid(resolvedId));
     setWinnerBidHash(await auctionService.getWinningBidId(resolvedId));
-    const settlementRaw = await auctionService.getAuctionSettlement(resolvedId);
-    setSettledAt(settlementRaw ? parseField(settlementRaw, 'settled_at') : 0);
-    setAuctionEscrow(await auctionService.getAuctionEscrow(resolvedId));
-    setPlatformTreasury(await auctionService.getPlatformTreasury(tokenTypeValue));
-    setDisputeRaw(await auctionService.getDisputeStatus(resolvedId));
-    setCurrentHeight(await auctionService.getLatestBlockHeight());
     try {
       const metaRes = await fetch(`/api/auctions/${encodeURIComponent(resolvedId)}`, { cache: 'no-store' });
       if (metaRes.ok) {
-        const payload = (await metaRes.json()) as { item?: { originalDeadline?: number; creatorAddress?: string } };
+        const payload = (await metaRes.json()) as { item?: { originalDeadline?: number } };
         setOriginalDeadline(Number(payload.item?.originalDeadline || 0));
-        setSellerMetaAddress(payload.item?.creatorAddress ? String(payload.item.creatorAddress) : null);
       }
     } catch {
       setOriginalDeadline(0);
-      setSellerMetaAddress(null);
     }
   };
 
@@ -191,23 +164,10 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
   const status = auctionInfo?.status ?? 0;
   const statusLabel =
     status === 1 ? 'ACTIVE' :
-    status === 2 ? 'CLOSED' :
     status === 3 ? 'REVEALING' :
     status === 4 ? 'SETTLED' :
-    status === 5 ? 'CANCELLED' :
     status === 6 ? 'FAILED' :
-    status === 7 ? 'DISPUTED' :
     status === 8 ? 'EXPIRED' : `STATUS_${status}`;
-
-  const isSeller =
-    !!walletAddress &&
-    !!sellerMetaAddress &&
-    walletAddress.toLowerCase() === sellerMetaAddress.toLowerCase();
-  const canCancel = isSeller && status === 1 && (auctionInfo?.bidCount ?? 0) === 0;
-
-  const recommendedBond = Math.ceil((highestBid || 0) * 0.1);
-  const disputeWindowEnd = settledAt > 0 ? settledAt + DISPUTE_WINDOW_BLOCKS : 0;
-  const withinDisputeWindow = status === 4 && settledAt > 0 && currentHeight > 0 && currentHeight <= disputeWindowEnd;
 
   return (
     <div className="min-h-screen pb-16">
@@ -222,25 +182,15 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
             <PrivacyScore strategy={parsed?.strategy} tokenType={parsed?.tokenType} />
           </div>
           <p className="mt-2 text-sm text-white/60">{parsed?.description || 'On-chain privacy auction.'}</p>
-            <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-              <p className="text-white/70">Status: <span className="text-emerald-300">{statusLabel}</span></p>
-              <p className="text-white/70">Mode: <span className="text-emerald-300">{mode}</span></p>
-              <p className="text-white/70">Token: <span className="text-emerald-300">{tokenType}</span></p>
-              <p className="text-white/70">Bids: <span className="text-emerald-300">{auctionInfo?.bidCount ?? 0}</span></p>
-              <p className="text-white/70">Highest: <span className="text-emerald-300">{highestBid}</span></p>
-              <p className="text-white/70">Second: <span className="text-emerald-300">{secondHighest}</span></p>
-              <p className="text-white/70">Deadline: <span className="text-emerald-300">{auctionInfo?.deadline ?? 0}</span></p>
-              <p className="text-white/70">Escrow: <span className="text-emerald-300">{auctionEscrow}</span></p>
-              <p className="text-white/70">Treasury (fees): <span className="text-emerald-300">{platformTreasury}</span></p>
-              <p className="text-white/70">Dispute: <span className="text-emerald-300">{disputeRaw ? 'FILED' : 'None'}</span></p>
-              {disputeRaw ? (
-                <p className="text-white/70">
-                  Bond: <span className="text-emerald-300">{parseField(disputeRaw, 'bond_amount')}</span>
-                </p>
-              ) : (
-                <div />
-              )}
-            </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+            <p className="text-white/70">Status: <span className="text-emerald-300">{statusLabel}</span></p>
+            <p className="text-white/70">Mode: <span className="text-emerald-300">{mode}</span></p>
+            <p className="text-white/70">Token: <span className="text-emerald-300">{tokenType}</span></p>
+            <p className="text-white/70">Bids: <span className="text-emerald-300">{auctionInfo?.bidCount ?? 0}</span></p>
+            <p className="text-white/70">Highest: <span className="text-emerald-300">{highestBid}</span></p>
+            <p className="text-white/70">Second: <span className="text-emerald-300">{secondHighest}</span></p>
+            <p className="text-white/70">Deadline: <span className="text-emerald-300">{auctionInfo?.deadline ?? 0}</span></p>
+          </div>
           {antiSnipeExtended && (
             <p className="mt-2 text-xs text-amber-300">
               Anti-snipe extension detected: deadline moved from {originalDeadline} to {auctionInfo?.deadline}.
@@ -248,17 +198,6 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
           )}
           <p className="mt-3 break-all text-xs text-white/50">Auction ID: {auctionId}</p>
           {winnerBidHash && <p className="mt-2 break-all text-xs text-white/50">Winner hash: {winnerBidHash}</p>}
-          {settledAt > 0 && (
-            <p className="mt-2 text-xs text-white/50">
-              Settled at block {settledAt}
-              {currentHeight > 0 ? ` (current: ${currentHeight})` : ''}
-            </p>
-          )}
-          <div className="mt-4 flex flex-wrap gap-2">
-            <GlassButton variant="secondary" onClick={() => setProveOpen(true)}>
-              Prove authenticity
-            </GlassButton>
-          </div>
         </GlassCard>
 
         <div className="mb-6">
@@ -271,16 +210,6 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
         />
 
         <div className="mt-6 grid gap-4">
-          {canCancel && (
-            <GlassCard className="p-5">
-              <h2 className="mb-3 text-lg font-medium text-white">Seller actions</h2>
-              <p className="mb-3 text-xs text-white/50">Only visible to the seller when ACTIVE and there are no bids.</p>
-              <GlassButton variant="secondary" onClick={() => run('Cancel auction', () => buildCancelAuctionParams([auctionId]))}>
-                Cancel auction
-              </GlassButton>
-            </GlassCard>
-          )}
-
           <GlassCard className="p-5">
             <h2 className="mb-3 text-lg font-medium text-white">
               1) {isDutch ? 'Dutch instant purchase bid' : isEnglish ? 'English ascending bid' : 'Place sealed bid'}
@@ -374,6 +303,8 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
                       if (mode === 'vickrey' && secondHighest > 0) {
                         return tokenType === 'usdcx'
                           ? buildClaimWinVickreyUsdcxParams([sellerAddress, itemHash, `${secondHighest}u128`])
+                          : tokenType === 'usad'
+                            ? buildClaimWinVickreyUsadParams([sellerAddress, itemHash, `${secondHighest}u128`])
                           : buildClaimWinVickreyAleoParams([sellerAddress, itemHash, `${secondHighest}u128`]);
                       }
                       return tokenType === 'usdcx'
@@ -404,109 +335,8 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
               <p className="text-xs text-white/50">Wallet prompts for your `EscrowReceipt` record during claim transitions.</p>
             </div>
           </GlassCard>
-
-          {withinDisputeWindow && (
-            <GlassCard className="p-5">
-              <h2 className="mb-3 text-lg font-medium text-white">Dispute Auction</h2>
-              <p className="mb-3 text-xs text-white/50">
-                Available while SETTLED and within {DISPUTE_WINDOW_BLOCKS} blocks of settlement (ends at {disputeWindowEnd}).
-              </p>
-              <div className="grid gap-3">
-                <GlassInput
-                  placeholder="Reason hash (field)"
-                  value={disputeReasonHash}
-                  onChange={(e) => setDisputeReasonHash(e.target.value)}
-                />
-                <GlassInput
-                  type="number"
-                  placeholder={`Bond amount (u128) — recommended: ${recommendedBond}`}
-                  value={disputeBondAmount}
-                  onChange={(e) => setDisputeBondAmount(e.target.value)}
-                />
-                <GlassButton
-                  onClick={() => {
-                    if (!disputeReasonHash.trim()) {
-                      showError('Missing reason hash', 'Enter a `field` reason hash before disputing.');
-                      return;
-                    }
-                    const bondAmountValue =
-                      disputeBondAmount.trim() === ''
-                        ? recommendedBond
-                        : Math.max(0, Math.floor(Number(disputeBondAmount || 0)));
-                    run('Dispute auction', () =>
-                      buildDisputeAuctionParams([auctionId, `${bondAmountValue}u128`, disputeReasonHash.trim()])
-                    );
-                  }}
-                >
-                  Dispute auction
-                </GlassButton>
-                <p className="text-xs text-white/50">Wallet prompts for a `credits.aleo/credits` record for the bond payment.</p>
-              </div>
-            </GlassCard>
-          )}
-
-          {status === 7 && (
-            <GlassCard className="p-5">
-              <h2 className="mb-3 text-lg font-medium text-white">Admin: Resolve Dispute</h2>
-              <p className="mb-3 text-xs text-white/50">Admin-only action. The contract will reject non-admin callers.</p>
-              <div className="grid gap-3">
-                <label className="flex items-center gap-2 text-sm text-white/70">
-                  <input
-                    type="checkbox"
-                    checked={adminDisputeValid}
-                    onChange={(e) => setAdminDisputeValid(e.target.checked)}
-                    className="h-4 w-4"
-                  />
-                  Dispute is valid
-                </label>
-                <GlassInput
-                  placeholder="Disputer address (aleo1...)"
-                  value={adminDisputerAddress}
-                  onChange={(e) => setAdminDisputerAddress(e.target.value)}
-                />
-                <GlassInput
-                  type="number"
-                  placeholder="Bond amount (u128)"
-                  value={adminBondAmount}
-                  onChange={(e) => setAdminBondAmount(e.target.value)}
-                />
-                <GlassButton
-                  onClick={() =>
-                    run('Resolve dispute', () =>
-                      buildResolveDisputeParams([
-                        auctionId,
-                        adminDisputeValid ? 'true' : 'false',
-                        adminDisputerAddress,
-                        `${Math.max(0, Math.floor(Number(adminBondAmount || 0)))}u128`,
-                      ])
-                    )
-                  }
-                >
-                  Resolve dispute
-                </GlassButton>
-              </div>
-            </GlassCard>
-          )}
         </div>
       </div>
-
-      <Modal isOpen={proveOpen} onClose={() => setProveOpen(false)} title="Prove Authenticity" size="md">
-        <div className="grid gap-4">
-          <p className="text-sm text-white/70">
-            Prove you won this auction on-chain without revealing your bid amount. Your wallet will prompt for your
-            <span className="text-white"> WinnerCertificate</span> record.
-          </p>
-          <GlassInput value={auctionId} placeholder="Auction ID" disabled />
-          <GlassButton
-            onClick={async () => {
-              setProveOpen(false);
-              await run('Prove authenticity', () => buildProveWonAuctionParams([auctionId]));
-            }}
-          >
-            Prove on-chain
-          </GlassButton>
-        </div>
-      </Modal>
     </div>
   );
 }
