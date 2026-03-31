@@ -41,17 +41,19 @@ export async function GET(
 
   try {
     const encoded = encodeURIComponent(auctionId);
-    const [bidCountRaw, highestBidRaw, winningBidRaw, redeemedRaw] = await Promise.all([
-      readMapping(`bid_count/${encoded}`),
+    const [auctionRaw, secondBidRaw, highestBidRaw, winningBidRaw, settlementRaw] = await Promise.all([
+      readMapping(`auctions/${encoded}`),
+      readMapping(`second_highest_bids/${encoded}`),
       readMapping(`highest_bids/${encoded}`),
-      readMapping(`winning_bids/${encoded}`),
-      readMapping(`redemptions/${encoded}`),
+      readMapping(`auction_winners/${encoded}`),
+      readMapping(`settlements/${encoded}`),
     ]);
 
-    const bidCount = Number(bidCountRaw?.match(/(\d+)/)?.[1] ?? '0');
+    const bidCount = Number(auctionRaw?.match(/bid_count\s*:\s*(\d+)/i)?.[1] ?? '0');
     const highestBid = Number(highestBidRaw?.match(/(\d+)/)?.[1] ?? '0');
+    const secondHighestBid = Number(secondBidRaw?.match(/(\d+)/)?.[1] ?? '0');
     const winningBidId = winningBidRaw?.trim() || null;
-    const isRedeemed = redeemedRaw?.trim().toLowerCase() === 'true';
+    const isSettled = !!settlementRaw;
 
     return NextResponse.json({
       bids: [],
@@ -61,9 +63,10 @@ export async function GET(
         auctionId,
         bidCount,
         highestBid,
+        secondHighestBid,
         winningBidId,
-        isRedeemed,
-        note: 'Public bid history is not fully indexed yet. This endpoint returns a chain-backed summary only, and creators still need the winning public bid ID from the bidder record.',
+        isSettled,
+        note: 'Public bid history is not fully indexed yet. This endpoint returns a chain-backed summary for the Veil auction mappings.',
       },
     });
   } catch (error) {

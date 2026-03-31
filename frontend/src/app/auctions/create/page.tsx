@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Gavel, ArrowLeft, Loader2, AlertCircle, Upload, X, CheckCircle } from 'lucide-react';
+import { Gavel, ArrowLeft, AlertCircle, Upload, X, CheckCircle } from 'lucide-react';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
 import { GlassInput, GlassTextarea } from '@/components/ui/GlassInput';
@@ -11,8 +11,7 @@ import { TransactionStatusCard } from '@/components/transactions/TransactionStat
 import { useWalletStore } from '@/stores/walletStore';
 import { useToastStore } from '@/stores/toastStore';
 import { aleoService } from '@/services/aleo';
-import { pinataService } from '@/services/pinata';
-import { createTransaction, buildCreatePublicAuctionParams, awaitTransactionConfirmation, isTemporaryWalletTransactionId } from '@/utils/transaction';
+import { createTransaction, buildCreateAuctionWithDurationParams, buildCreateDutchAuctionParams, awaitTransactionConfirmation, isTemporaryWalletTransactionId } from '@/utils/transaction';
 import { Stepper } from '@/components/layout';
 import { useWalletSession } from '@/hooks/useWalletSession';
 import { useTransactionLifecycle } from '@/hooks/useTransactionLifecycle';
@@ -38,7 +37,9 @@ export default function CreateAuctionPage() {
     imagePreview: string | null;
     itemId: string;
     startingBid: string;
-    bidType: '0' | '1' | '2';
+    dutchEndBid: string;
+    strategy: 'first_price' | 'vickrey' | 'dutch' | 'english';
+    tokenType: 'aleo' | 'usdcx' | 'usad';
     revealCreator: boolean;
   }>({
     name: '',
@@ -47,16 +48,18 @@ export default function CreateAuctionPage() {
     imagePreview: null,
     itemId: '',
     startingBid: '',
-    bidType: '2',
+    dutchEndBid: '',
+    strategy: 'first_price',
+    tokenType: 'aleo',
     revealCreator: true,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const transaction = useTransactionLifecycle();
 
-  const { address, executeTransaction, wallet, connected, walletName, walletType, connect, transactionStatus } = useWalletSession();
+  const { address, executeTransaction, connected, walletName, walletType, connect, transactionStatus } = useWalletSession();
   const { isConnected, address: storeAddress } = useWalletStore();
-  const { success, error: showError, info } = useToastStore();
+  const { success, error: showError } = useToastStore();
   const walletConnected = !!(connected || isConnected || address || storeAddress);
   const featureAvailability = getFeatureAvailability();
   const walletCapabilities = getWalletCapabilities(walletType);
@@ -142,9 +145,28 @@ export default function CreateAuctionPage() {
     if (!formData.name.trim()) newErrors.name = 'Auction name is required';
     if (!formData.description.trim()) newErrors.description = 'Description is required';
     const startBid = Math.floor(Number(formData.startingBid));
-    if (!Number.isFinite(startBid) || startBid < 0) newErrors.startingBid = 'Enter a valid starting bid (credits)';
+    if (!Number.isFinite(startBid) || startBid < 0) newErrors.startingBid = 'Enter a valid starting bid';
+    if (formData.strategy === 'dutch') {
+      const endBid = Math.floor(Number(formData.dutchEndBid));
+      if (!Number.isFinite(endBid) || endBid < 0) newErrors.dutchEndBid = 'Enter a valid Dutch end price';
+      if (Number.isFinite(startBid) && Number.isFinite(endBid) && startBid <= endBid) {
+        newErrors.dutchEndBid = 'Dutch end price must be lower than starting price';
+      }
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const deriveModeFromStrategy = (strategy: 'first_price' | 'vickrey' | 'dutch' | 'english'): number => {
+    switch (strategy) {
+      case 'vickrey':
+        return 2;
+      case 'first_price':
+      case 'dutch':
+      case 'english':
+      default:
+        return 1;
+    }
   };
 
   const waitForAuctionVisibility = async (previousCount: number) => {
@@ -206,59 +228,43 @@ export default function CreateAuctionPage() {
       showError('Wallet required', 'Connect a wallet to create an auction.');
       return;
     }
-    if (formData.bidType !== '1' && privateWalletWarning) {
+    const mode = deriveModeFromStrategy(formData.strategy);
+    if (formData.strategy !== 'dutch' && formData.strategy !== 'english' && privateWalletWarning) {
       showError('Shield recommended', privateWalletWarning);
       return;
     }
 
     setIsSubmitting(true);
-    transaction.setPreparing('Preparing auction transaction', 'Uploading metadata and validating the auction privacy configuration.');
+    transaction.setPreparing('Preparing auction transaction', 'Building auction request and validating strategy/token compatibility.');
     try {
       requireFeatureEnv('auctions', 'Auction creation is not configured. Add NEXT_PUBLIC_AUCTION_PROGRAM_ID before deploying.');
-      requireFeatureEnv('pinata', 'Auction metadata uploads are disabled because NEXT_PUBLIC_PINATA_JWT is missing.');
-
-      // Upload image + metadata to IPFS
-      let imageCid = '';
-      if (formData.image) {
-        const imageResult = await pinataService.uploadFile(formData.image);
-        imageCid = imageResult.cid;
-      }
-
-      const metadata = {
-        name: formData.name.trim(),
-        description: formData.description.trim(),
-        creator: address,
-        createdAt: new Date().toISOString(),
-        imageCid,
-        itemId: formData.itemId.trim(),
-        startingBid: Math.floor(Number(formData.startingBid)),
-        bidType: formData.bidType,
-      } satisfies Record<string, unknown>;
-
-      const metadataResult = await pinataService.uploadJSON(metadata, {
-        name: `auction-${Date.now()}.json`,
-        type: 'auction-metadata',
-      });
       const previousAuctionCount = await auctionService.getAuctionCount();
-      const { part1, part2 } = aleoService.encodeCidToFields(metadataResult.cid);
-
-      const auctionNameField = aleoService.encodeStringToSingleField(formData.name.trim());
-      const itemIdClean = formData.itemId.trim() || '0';
-      const itemIdField = itemIdClean.match(/^\d+$/) ? `${itemIdClean}field` : aleoService.encodeStringToSingleField(itemIdClean);
-      const offchainFields = [part1, part2, '0field', '0field'];
-      // Leo expects the [field; 4] as a single array argument, not 4 separate field inputs
-      const offchainArray = `[${offchainFields.join(', ')}]`;
-      const nonce = Math.floor(Math.random() * 1e15) + 1;
-      const inputs = [
-        auctionNameField,
-        `${formData.bidType}field`,
-        itemIdField,
-        offchainArray,
-        `${Math.floor(Number(formData.startingBid))}u64`,
-        `${nonce}scalar`,
-        formData.revealCreator ? 'true' : 'false',
-      ];
-      const params = buildCreatePublicAuctionParams(inputs);
+      const itemHash = aleoService.encodeStringToSingleField(`${formData.name.trim().slice(0, 18)}_${Date.now().toString().slice(-6)}`);
+      const reserve = Math.max(1000, Math.floor(Number(formData.startingBid)));
+      const tokenType = formData.tokenType === 'usdcx' ? 2 : formData.tokenType === 'usad' ? 3 : 1;
+      const nonce = aleoService.encodeStringToSingleField(`${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+      const durationBlocks = 2880; // ~12 hours at ~15s blocks
+      const category = '4u8';
+      const params =
+        formData.strategy === 'dutch'
+          ? buildCreateDutchAuctionParams([
+              itemHash,
+              category,
+              `${reserve}u128`,
+              `${Math.max(1000, Math.floor(Number(formData.dutchEndBid || 0)))}u128`,
+              `${tokenType === 3 ? 2 : tokenType}u8`,
+              nonce,
+              `${durationBlocks}u64`,
+            ])
+          : buildCreateAuctionWithDurationParams([
+              itemHash,
+              category,
+              `${reserve}u128`,
+              `${mode}u8`,
+              `${tokenType}u8`,
+              nonce,
+              `${durationBlocks}u64`,
+            ]);
       const result = await createTransaction(params, executeTransaction, walletName, {
         recoverConnection: connect,
       });
@@ -308,6 +314,28 @@ export default function CreateAuctionPage() {
               : 'The transaction did not become visible on-chain, so the auction was not created.'
           );
           return;
+        }
+        const latestCount = await auctionService.getAuctionCount();
+        const latestAuctionId = latestCount > 0 ? await auctionService.getPublicAuctionIdByIndex(latestCount) : null;
+        if (latestAuctionId) {
+          const latestRawAuction = await auctionService.getPublicAuction(latestAuctionId);
+          const rawText = typeof latestRawAuction === 'string' ? latestRawAuction : JSON.stringify(latestRawAuction ?? {});
+          const deadlineMatch = rawText.match(/deadline\s*:\s*(\d+)u64/i);
+          const originalDeadline = deadlineMatch ? Number(deadlineMatch[1]) : 0;
+          await fetch('/api/auctions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              auctionId: latestAuctionId,
+              name: formData.name.trim(),
+              description: formData.description.trim(),
+              imageUrl: formData.imagePreview ?? '',
+              strategy: formData.strategy,
+              tokenType: formData.tokenType,
+              creatorAddress: address ?? '',
+              originalDeadline,
+            }),
+          }).catch(() => undefined);
         }
         router.push('/auctions');
         router.refresh();
@@ -363,9 +391,9 @@ export default function CreateAuctionPage() {
             <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">Public + private</span>
             <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">Shield ready</span>
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Launch an auction that feels premium, not placeholder</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">Launch an Obscura-style auction flow</h1>
           <p className="text-white/72 text-sm max-w-2xl">
-            Configure the item, starting bid, and privacy mode for your first-price sealed-bid auction on Aleo, with private-record flows covered for Shield users.
+            Choose the auction strategy (first-price, vickrey, dutch, or english) and token path (ALEO, USDCx, or USAD), then publish with wallet-backed settlement.
           </p>
         </div>
 
@@ -490,7 +518,7 @@ export default function CreateAuctionPage() {
               />
 
               <GlassInput
-                label="Starting bid (credits)"
+                label={formData.strategy === 'dutch' ? 'Dutch start price' : 'Starting / reserve bid'}
                 type="number"
                 min={0}
                 placeholder="0"
@@ -499,19 +527,49 @@ export default function CreateAuctionPage() {
                 error={errors.startingBid}
               />
 
+              {formData.strategy === 'dutch' && (
+                <GlassInput
+                  label="Dutch end price"
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  value={formData.dutchEndBid}
+                  onChange={(e) => handleInputChange('dutchEndBid', e.target.value)}
+                  error={errors.dutchEndBid}
+                />
+              )}
+
+              {formData.strategy === 'english' && (
+                <p className="text-xs text-white/50">English auctions enforce a 5% minimum increment on-chain.</p>
+              )}
+
               <div>
-                <label className="block text-sm font-medium text-white/70 mb-2">Bid types accepted</label>
+                <label className="block text-sm font-medium text-white/70 mb-2">Auction strategy</label>
                 <select
-                  value={formData.bidType}
-                  onChange={(e) => handleInputChange('bidType', e.target.value as '0' | '1' | '2')}
+                  value={formData.strategy}
+                  onChange={(e) => handleInputChange('strategy', e.target.value as 'first_price' | 'vickrey' | 'dutch' | 'english')}
                   className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all [&>option]:bg-gray-900 [&>option]:text-white"
                 >
-                  <option value="0" className="bg-gray-900 text-white">Private bids only</option>
-                  <option value="1" className="bg-gray-900 text-white">Public bids only</option>
-                  <option value="2" className="bg-gray-900 text-white">Public and private (mixed)</option>
+                  <option value="first_price" className="bg-gray-900 text-white">First-price sealed bid</option>
+                  <option value="vickrey" className="bg-gray-900 text-white">Vickrey (second-price)</option>
+                  <option value="dutch" className="bg-gray-900 text-white">Dutch (descending)</option>
+                  <option value="english" className="bg-gray-900 text-white">English (ascending)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-white/70 mb-2">Settlement token</label>
+                <select
+                  value={formData.tokenType}
+                  onChange={(e) => handleInputChange('tokenType', e.target.value as 'aleo' | 'usdcx' | 'usad')}
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 transition-all [&>option]:bg-gray-900 [&>option]:text-white"
+                >
+                  <option value="aleo" className="bg-gray-900 text-white">ALEO credits</option>
+                  <option value="usdcx" className="bg-gray-900 text-white">USDCx stablecoin</option>
+                  <option value="usad" className="bg-gray-900 text-white">USAD stablecoin</option>
                 </select>
                 <p className="mt-2 text-xs text-white/50">
-                  Shield Wallet is recommended for private and mixed auctions because those flows rely on Aleo records.
+                  Strategy and token are now captured in metadata for Obscura-style auction UX. Current on-chain flow remains compatible with your deployed auction program.
                 </p>
               </div>
 

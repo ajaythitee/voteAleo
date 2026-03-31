@@ -1,11 +1,23 @@
 {
-  "program": "privote_auction_5000.aleo",
-  "version": "1.0.0",
-  "description": "VeilProtocol Auction - First-price sealed-bid auction (private/public bids) on Aleo blockchain",
+  "program": "verilpayu_auction_v5.aleo",
+  "version": "0.2.0",
+  "description": "Veil Protocol multi-format private auction system with ALEO, USDCx, and USAD support",
   "license": "MIT",
   "dependencies": [
     {
       "name": "credits.aleo",
+      "location": "network",
+      "network": "testnet",
+      "path": null
+    },
+    {
+      "name": "test_usdcx_stablecoin.aleo",
+      "location": "network",
+      "network": "testnet",
+      "path": null
+    },
+    {
+      "name": "test_usad_stablecoin.aleo",
       "location": "network",
       "network": "testnet",
       "path": null

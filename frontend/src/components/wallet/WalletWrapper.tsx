@@ -13,9 +13,23 @@ import { DecryptPermission } from '@provablehq/aleo-wallet-adaptor-core';
 import '@provablehq/aleo-wallet-adaptor-react-ui/dist/styles.css';
 
 // Program IDs for VeilProtocol (Voting + Auctions)
-const VOTING_PROGRAM_ID = process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID as string;
-const AUCTION_PROGRAM_ID = process.env.NEXT_PUBLIC_AUCTION_PROGRAM_ID as string;
-const PROGRAM_IDS = [VOTING_PROGRAM_ID, AUCTION_PROGRAM_ID, 'credits.aleo'];
+function normalizeProgramId(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+
+  // Wallet adapters expect canonical Aleo program IDs.
+  if (!/^[a-z0-9_]+\.(aleo)$/i.test(trimmed)) {
+    return null;
+  }
+
+  return trimmed;
+}
+
+const PROGRAM_IDS = [
+  normalizeProgramId(process.env.NEXT_PUBLIC_VOTING_PROGRAM_ID),
+  normalizeProgramId(process.env.NEXT_PUBLIC_AUCTION_PROGRAM_ID),
+  'credits.aleo',
+].filter((programId): programId is string => !!programId);
 const APP_NAME = 'VeilProtocol';
 
 interface WalletWrapperProps {
@@ -73,13 +87,21 @@ export function WalletWrapper({ children }: WalletWrapperProps) {
     console.error('Wallet error:', error);
   }, []);
 
+  const providerConfig = useMemo(() => {
+    if (PROGRAM_IDS.length === 0) {
+      return {};
+    }
+
+    return { programs: PROGRAM_IDS };
+  }, []);
+
   return (
     <AleoWalletProvider
       wallets={wallets}
       autoConnect
       network={Network.TESTNET}
       decryptPermission={DecryptPermission.AutoDecrypt}
-      programs={PROGRAM_IDS}
+      {...providerConfig}
       onError={onError}
     >
       <WalletModalProvider>

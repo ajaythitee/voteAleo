@@ -14,6 +14,7 @@ import { auctionService } from '@/services/auction';
 import { parseOnChainAuction, type ParsedAuction } from '@/services/auctionParser';
 import { pinataService } from '@/services/pinata';
 import { PageShell, EmptyState } from '@/components/layout';
+import { PrivacyScore } from '@/components/auction/PrivacyScore';
 
 type AuctionRow = { auctionId: string; index: number; data: unknown };
 
@@ -53,8 +54,8 @@ export default function AuctionsPage() {
 
   return (
     <PageShell
-      title="Public auctions"
-      description="First-price sealed-bid auctions on Aleo. Place public or private bids."
+      title="Obscura auctions"
+      description="Privacy-first auctions on Aleo with first-price/vickrey modes and ALEO or USDCx settlement."
       actions={
         <>
           <GlassButton
@@ -118,11 +119,14 @@ export default function AuctionsPage() {
                         <Badge variant="active">Open</Badge>
                       </div>
                       <h3 className="text-lg font-semibold text-white mb-2 line-clamp-2">{name}</h3>
+                      <div className="mb-2">
+                        <PrivacyScore strategy={parsed?.strategy} tokenType={parsed?.tokenType} />
+                      </div>
                       <p className="text-sm text-white/60 mb-3 line-clamp-2 flex-1">
                         {parsed?.description ?? ''}
                       </p>
                       <p className="text-sm text-white/60 mb-4">
-                        Starting bid: <span className="text-emerald-400">{startingBid} credits</span>
+                        Bid floor: <span className="text-emerald-400">{startingBid || 0}</span>
                       </p>
                       <div className="mt-auto flex items-center text-emerald-400 text-sm">
                         <span>View &amp; place bid</span>

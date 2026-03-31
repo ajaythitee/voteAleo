@@ -1,5 +1,3 @@
-// Auction service for VeilProtocol Auction contract – program ID must be provided via NEXT_PUBLIC_AUCTION_PROGRAM_ID
-
 const AUCTION_PROGRAM_ID = process.env.NEXT_PUBLIC_AUCTION_PROGRAM_ID as string;
 const RPC_URL = process.env.NEXT_PUBLIC_ALEO_RPC_URL || 'https://api.explorer.provable.com/v1';
 const NETWORK = process.env.NEXT_PUBLIC_ALEO_NETWORK || 'testnet';
@@ -8,90 +6,75 @@ function rpcUrl(path: string): string {
   return `${RPC_URL}/${NETWORK}/program/${AUCTION_PROGRAM_ID}/mapping/${path}`;
 }
 
+function rpcBaseUrl(): string {
+  return `${RPC_URL}/${NETWORK}`;
+}
+
+function parseNumberish(raw: string): number {
+  const match = raw.match(/(\d+)/);
+  return match ? Number(match[1]) : 0;
+}
+
 export const auctionService = {
   getProgramId: (): string => AUCTION_PROGRAM_ID,
 
-  /** Get number of public auctions created (1-based index count) */
+  async getLatestBlockHeight(): Promise<number> {
+    const base = rpcBaseUrl();
+    const candidates = [
+      `${base}/block/height/latest`,
+      `${base}/latest/height`,
+      `${base}/block/latest/height`,
+      `${base}/block/latest`,
+    ];
+
+    for (const url of candidates) {
+      try {
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) continue;
+        const text = (await res.text()).trim();
+        const height = parseNumberish(text);
+        if (height > 0) return height;
+        try {
+          const json = JSON.parse(text) as unknown;
+          if (!json || typeof json !== 'object') continue;
+          const record = json as Record<string, unknown>;
+          const jsonHeight = parseNumberish(String(record.height ?? record.block_height ?? record.latest_height ?? ''));
+          if (jsonHeight > 0) return jsonHeight;
+        } catch {
+          // ignore
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    return 0;
+  },
+
   async getAuctionCount(): Promise<number> {
     try {
       const res = await fetch(rpcUrl('auction_counter/0u8'));
       if (!res.ok) return 0;
-      const text = await res.text();
-      // RPC typically returns a simple string like "1u64"
-      const match = text.match(/(\d+)/);
-      if (!match) return 0;
-      const value = Number(match[1]);
-      if (!Number.isFinite(value) || value < 0) return 0;
-      return Math.min(value, 100);
+      return Math.min(parseNumberish(await res.text()), 500);
     } catch {
       return 0;
     }
   },
 
-  /** Get public auction ID (field) by index (1-based) */
   async getPublicAuctionIdByIndex(index: number): Promise<string | null> {
     try {
       const res = await fetch(rpcUrl(`public_auction_index/${index}u64`));
       if (!res.ok) return null;
-      const data = await res.json().catch(async () => (await res.text())?.trim());
-      if (typeof data === 'string') return data || null;
-      return data != null ? String(data) : null;
+      const raw = (await res.text()).trim();
+      return raw || null;
     } catch {
       return null;
     }
   },
 
-  /** Get auction owner address for a public auction (if set) */
-  async getAuctionOwner(auctionIdKey: string): Promise<string | null> {
-    try {
-      const keyEncoded = encodeURIComponent(auctionIdKey);
-      const res = await fetch(rpcUrl(`auction_owners/${keyEncoded}`));
-      if (!res.ok) return null;
-      const data = await res.json().catch(() => null);
-      return data != null ? String(data) : null;
-    } catch {
-      return null;
-    }
-  },
-
-  async getAuctionPublicKey(auctionIdKey: string): Promise<string | null> {
-    try {
-      const keyEncoded = encodeURIComponent(auctionIdKey);
-      const res = await fetch(rpcUrl(`auction_public_keys/${keyEncoded}`));
-      if (!res.ok) return null;
-      const data = await res.json().catch(async () => (await res.text())?.trim());
-      return data != null ? String(data) : null;
-    } catch {
-      return null;
-    }
-  },
-
-  async getAuctionPrivacySettings(
-    auctionIdKey: string
-  ): Promise<{ auctionPrivacy: number; bidTypesAccepted: number } | null> {
-    try {
-      const keyEncoded = encodeURIComponent(auctionIdKey);
-      const res = await fetch(rpcUrl(`auction_privacy_settings/${keyEncoded}`));
-      if (!res.ok) return null;
-      const raw = await res.text();
-      const auctionPrivacyMatch = raw.match(/auction_privacy\s*:\s*(\d+)/i);
-      const bidTypesMatch = raw.match(/bid_types_accepted\s*:\s*(\d+)/i);
-      return {
-        auctionPrivacy: auctionPrivacyMatch ? Number(auctionPrivacyMatch[1]) : 1,
-        bidTypesAccepted: bidTypesMatch ? Number(bidTypesMatch[1]) : 1,
-      };
-    } catch {
-      return null;
-    }
-  },
-
-  /** Get public auction data by auction_id (field key).
-   * Prefer raw text to handle RPC returning struct-as-string (like campaigns).
-   */
   async getPublicAuction(auctionIdKey: string): Promise<unknown> {
     try {
-      const keyEncoded = encodeURIComponent(auctionIdKey);
-      const res = await fetch(rpcUrl(`public_auctions/${keyEncoded}`));
+      const res = await fetch(rpcUrl(`auctions/${encodeURIComponent(auctionIdKey)}`));
       if (!res.ok) return null;
       const text = await res.text();
       try {
@@ -104,103 +87,122 @@ export const auctionService = {
     }
   },
 
-  /** Get bid count for an auction */
+  async getAuctionOwner(auctionIdKey: string): Promise<string | null> {
+    try {
+      const res = await fetch(`/api/auctions/${encodeURIComponent(auctionIdKey)}`, { cache: 'no-store' });
+      if (!res.ok) return null;
+      const payload = (await res.json()) as { item?: { creatorAddress?: string } };
+      return payload.item?.creatorAddress ?? null;
+    } catch {
+      return null;
+    }
+  },
+
   async getBidCount(auctionIdKey: string): Promise<number> {
     try {
-      const keyEncoded = encodeURIComponent(auctionIdKey);
-      const res = await fetch(rpcUrl(`bid_count/${keyEncoded}`));
-      if (!res.ok) return 0;
-      const text = await res.text();
-      const match = text.match(/(\d+)/);
+      const auction = await this.getPublicAuction(auctionIdKey);
+      if (typeof auction !== 'string') {
+        return parseNumberish(JSON.stringify(auction));
+      }
+      const match = auction.match(/bid_count\s*:\s*(\d+)u64/i);
       return match ? Number(match[1]) : 0;
     } catch {
       return 0;
     }
   },
 
-  /** Get highest bid amount for an auction */
   async getHighestBid(auctionIdKey: string): Promise<number> {
     try {
-      const keyEncoded = encodeURIComponent(auctionIdKey);
-      const res = await fetch(rpcUrl(`highest_bids/${keyEncoded}`));
+      const res = await fetch(rpcUrl(`highest_bids/${encodeURIComponent(auctionIdKey)}`));
       if (!res.ok) return 0;
-      const text = await res.text();
-      const match = text.match(/(\d+)/);
-      return match ? Number(match[1]) : 0;
+      return parseNumberish(await res.text());
     } catch {
       return 0;
     }
   },
 
-  /** Get winning bid id (if auction ended) */
+  async getSecondHighestBid(auctionIdKey: string): Promise<number> {
+    try {
+      const res = await fetch(rpcUrl(`second_highest_bids/${encodeURIComponent(auctionIdKey)}`));
+      if (!res.ok) return 0;
+      return parseNumberish(await res.text());
+    } catch {
+      return 0;
+    }
+  },
+
   async getWinningBidId(auctionIdKey: string): Promise<string | null> {
     try {
-      const keyEncoded = encodeURIComponent(auctionIdKey);
-      const res = await fetch(rpcUrl(`winning_bids/${keyEncoded}`));
+      const res = await fetch(rpcUrl(`auction_winners/${encodeURIComponent(auctionIdKey)}`));
       if (!res.ok) return null;
-      const data = await res.json().catch(async () => (await res.text())?.trim());
-      return data != null && String(data).length > 0 ? String(data) : null;
+      const raw = (await res.text()).trim();
+      return raw || null;
     } catch {
       return null;
     }
   },
 
-  async isRedeemed(auctionIdKey: string): Promise<boolean> {
+  async getAuctionSettlement(auctionIdKey: string): Promise<string | null> {
     try {
-      const keyEncoded = encodeURIComponent(auctionIdKey);
-      const res = await fetch(rpcUrl(`redemptions/${keyEncoded}`));
-      if (!res.ok) return false;
-      const data = await res.json().catch(async () => (await res.text())?.trim());
-      return String(data).toLowerCase() === 'true';
-    } catch {
-      return false;
-    }
-  },
-
-  async getPublicBidOwner(bidIdKey: string): Promise<string | null> {
-    try {
-      const keyEncoded = encodeURIComponent(bidIdKey);
-      const res = await fetch(rpcUrl(`public_bid_owners/${keyEncoded}`));
+      const res = await fetch(rpcUrl(`settlements/${encodeURIComponent(auctionIdKey)}`));
       if (!res.ok) return null;
-      const data = await res.json().catch(async () => (await res.text())?.trim());
-      return data != null ? String(data) : null;
+      return (await res.text()).trim() || null;
     } catch {
       return null;
     }
   },
 
-  /** Get a single public bid by bid_id */
-  async getPublicBid(
-    bidIdKey: string
-  ): Promise<{ amount: number; auction_id: string; bid_public_key?: string } | null> {
+  async getAuctionEscrow(auctionIdKey: string): Promise<number> {
     try {
-      const keyEncoded = encodeURIComponent(bidIdKey);
-      const res = await fetch(rpcUrl(`public_bids/${keyEncoded}`));
+      const res = await fetch(rpcUrl(`auction_escrow/${encodeURIComponent(auctionIdKey)}`));
+      if (!res.ok) return 0;
+      return parseNumberish(await res.text());
+    } catch {
+      return 0;
+    }
+  },
+
+  async getPlatformTreasury(tokenType: number): Promise<number> {
+    const normalized =
+      tokenType >= 1 && tokenType <= 3
+        ? tokenType - 1
+        : tokenType >= 0 && tokenType <= 2
+          ? tokenType
+          : tokenType;
+
+    try {
+      const res = await fetch(rpcUrl(`platform_treasury/${normalized}u8`));
+      if (!res.ok) return 0;
+      return parseNumberish(await res.text());
+    } catch {
+      return 0;
+    }
+  },
+
+  async getDisputeStatus(auctionIdKey: string): Promise<string | null> {
+    try {
+      const res = await fetch(rpcUrl(`disputes/${encodeURIComponent(auctionIdKey)}`));
       if (!res.ok) return null;
-      const raw = await res.json().catch(() => res.text());
-      if (!raw || typeof raw !== 'object') return null;
-      const d = raw as any;
-      const amount =
-        typeof d.amount === 'number' ? d.amount : parseInt(String(d.amount || 0).replace(/\D/g, ''), 10) || 0;
-      const auction_id = d.auction_id != null ? String(d.auction_id) : '';
-      const bid_public_key = d.bid_public_key != null ? String(d.bid_public_key) : undefined;
-      return { amount, auction_id, bid_public_key };
+      return (await res.text()).trim() || null;
     } catch {
       return null;
     }
   },
 
-  /** List all public auctions (index 1..count) */
   async listPublicAuctions(): Promise<{ auctionId: string; index: number; data: unknown }[]> {
     const count = await this.getAuctionCount();
-    const list: { auctionId: string; index: number; data: unknown }[] = [];
+    const ids: string[] = [];
     for (let i = 1; i <= count; i++) {
       const auctionId = await this.getPublicAuctionIdByIndex(i);
-      if (!auctionId) continue;
-      const data = await this.getPublicAuction(auctionId);
-      if (data != null) list.push({ auctionId, index: i, data });
+      if (auctionId) ids.push(auctionId);
     }
-    return list.reverse(); // newest first
+    const list: { auctionId: string; index: number; data: unknown }[] = [];
+    for (let i = 0; i < ids.length; i++) {
+      const auctionId = ids[i];
+      const data = await this.getPublicAuction(auctionId);
+      if (data != null) list.push({ auctionId, index: i + 1, data });
+    }
+    return list;
   },
 
   getExplorerUrl(programId?: string): string {

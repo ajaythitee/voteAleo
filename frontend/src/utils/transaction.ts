@@ -219,6 +219,256 @@ export function buildCreatePublicAuctionParams(inputs: string[]): TransactionPar
   };
 }
 
+export function buildCreateAuctionWithDurationParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'create_auction_with_duration',
+    inputs,
+    fee: 700000,
+    privateFee: false,
+  };
+}
+
+export function buildCreateDutchAuctionParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'create_dutch_auction',
+    inputs,
+    fee: 700000,
+    privateFee: false,
+  };
+}
+
+export function buildPlaceBidParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'place_bid',
+    inputs,
+    fee: 300000,
+    privateFee: false,
+  };
+}
+
+export function buildBidDutchAleoParams(inputs: string[] = []): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'bid_dutch',
+    inputs,
+    fee: 500000,
+    privateFee: false,
+  };
+}
+
+export function buildBidDutchUsdcxParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'bid_dutch_usdcx',
+    inputs,
+    fee: 500000,
+    privateFee: false,
+  };
+}
+
+export function buildBidEnglishAleoParams(inputs: string[] = []): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'bid_english',
+    inputs,
+    fee: 500000,
+    privateFee: false,
+  };
+}
+
+export function buildBidEnglishUsdcxParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'bid_english_usdcx',
+    inputs,
+    fee: 500000,
+    privateFee: false,
+  };
+}
+
+export function buildRevealBidAleoParams(inputs: string[] = []): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'reveal_bid',
+    inputs,
+    fee: 500000,
+    privateFee: false,
+  };
+}
+
+export function buildRevealBidUsdcxParams(inputs: string[] = []): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'reveal_bid_usdcx',
+    inputs,
+    fee: 500000,
+    privateFee: false,
+  };
+}
+
+export function buildRevealBidUsadParams(inputs: string[] = []): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'reveal_bid_usad',
+    inputs,
+    fee: 500000,
+    privateFee: false,
+  };
+}
+
+export function buildCloseBiddingParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'close_bidding',
+    inputs,
+    fee: 250000,
+    privateFee: false,
+  };
+}
+
+export function buildFinalizeAuctionParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'finalize_auction',
+    inputs,
+    fee: 400000,
+    privateFee: false,
+  };
+}
+
+export function buildCancelAuctionParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'cancel_auction',
+    inputs,
+    fee: 300000,
+    privateFee: false,
+  };
+}
+
+export function buildSettleEnglishParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'settle_english',
+    inputs,
+    fee: 400000,
+    privateFee: false,
+  };
+}
+
+export function buildClaimWinAleoParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'claim_win',
+    inputs,
+    fee: 500000,
+    privateFee: false,
+  };
+}
+
+export function buildClaimWinUsdcxParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'claim_win_usdcx',
+    inputs,
+    fee: 500000,
+    privateFee: false,
+  };
+}
+
+export function buildClaimWinUsadParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'claim_win_usad',
+    inputs,
+    fee: 500000,
+    privateFee: false,
+  };
+}
+
+export function buildClaimWinVickreyAleoParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'claim_win_vickrey',
+    inputs,
+    fee: 600000,
+    privateFee: false,
+  };
+}
+
+export function buildClaimWinVickreyUsdcxParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'claim_win_vickrey_usdcx',
+    inputs,
+    fee: 600000,
+    privateFee: false,
+  };
+}
+
+export function buildClaimRefundAleoParams(inputs: string[] = []): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'claim_refund',
+    inputs,
+    fee: 300000,
+    privateFee: false,
+  };
+}
+
+export function buildClaimRefundUsdcxParams(inputs: string[] = []): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'claim_refund_usdcx',
+    inputs,
+    fee: 300000,
+    privateFee: false,
+  };
+}
+
+export function buildClaimRefundUsadParams(inputs: string[] = []): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'claim_refund_usad',
+    inputs,
+    fee: 300000,
+    privateFee: false,
+  };
+}
+
+export function buildDisputeAuctionParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'dispute_auction',
+    inputs,
+    fee: 700000,
+    privateFee: false,
+  };
+}
+
+export function buildResolveDisputeParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'resolve_dispute',
+    inputs,
+    fee: 700000,
+    privateFee: false,
+  };
+}
+
+export function buildProveWonAuctionParams(inputs: string[]): TransactionParams {
+  return {
+    programId: AUCTION_PROGRAM_ID,
+    functionId: 'prove_won_auction',
+    inputs,
+    fee: 250000,
+    privateFee: false,
+  };
+}
+
 /**
  * Build params for bid_public.
  * inputs: [amount, auction_id, nonce, publish_bidder_address]
