@@ -17,6 +17,7 @@ import {
   buildBidDutchUsdcxParams,
   buildBidEnglishAleoParams,
   buildBidEnglishUsdcxParams,
+  buildCancelAuctionParams,
   buildClaimRefundAleoParams,
   buildClaimRefundUsadParams,
   buildClaimRefundUsdcxParams,
@@ -24,14 +25,16 @@ import {
   buildClaimWinUsadParams,
   buildClaimWinUsdcxParams,
   buildClaimWinVickreyAleoParams,
-  buildClaimWinVickreyUsadParams,
   buildClaimWinVickreyUsdcxParams,
   buildCloseBiddingParams,
+  buildDisputeAuctionParams,
   buildFinalizeAuctionParams,
   buildPlaceBidParams,
+  buildProveWonAuctionParams,
   buildRevealBidAleoParams,
   buildRevealBidUsadParams,
   buildRevealBidUsdcxParams,
+  buildResolveDisputeParams,
   buildSettleEnglishParams,
   createTransaction,
   isTemporaryWalletTransactionId,
@@ -67,6 +70,9 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
   const [reserveToFinalize, setReserveToFinalize] = useState('');
   const [sellerAddress, setSellerAddress] = useState('');
   const [itemHash, setItemHash] = useState('');
+  const [disputeReasonHash, setDisputeReasonHash] = useState('');
+  const [disputeBondAmount, setDisputeBondAmount] = useState('');
+  const [resolveUpheld, setResolveUpheld] = useState(false);
   const tx = useTransactionLifecycle();
   const { success, error: showError } = useToastStore();
   const { walletName, executeTransaction, connect, transactionStatus } = useWalletSession();
@@ -83,7 +89,11 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
       deadline: parseField(rawText, 'deadline'),
     });
     setParsed(await parseOnChainAuction(raw, resolvedId));
-    setHighestBid(await auctionService.getHighestBid(resolvedId));
+    const highest = await auctionService.getHighestBid(resolvedId);
+    setHighestBid(highest);
+    if (!disputeBondAmount.trim() && highest > 0) {
+      setDisputeBondAmount(String(Math.ceil(highest * 0.1)));
+    }
     setSecondHighest(await auctionService.getSecondHighestBid(resolvedId));
     setWinnerBidHash(await auctionService.getWinningBidId(resolvedId));
     try {
@@ -169,6 +179,11 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
     status === 6 ? 'FAILED' :
     status === 8 ? 'EXPIRED' : `STATUS_${status}`;
 
+  const canCancel = status === 1 && (auctionInfo?.bidCount ?? 0) === 0;
+  const canDispute = status === 4;
+  const canProveWon = status === 4;
+  const canResolveDispute = status === 7;
+
   return (
     <div className="min-h-screen pb-16">
       <div className="mx-auto max-w-3xl px-4 py-8">
@@ -210,6 +225,16 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
         />
 
         <div className="mt-6 grid gap-4">
+          {canCancel && (
+            <GlassCard className="p-5">
+              <h2 className="mb-3 text-lg font-medium text-white">Cancel Auction</h2>
+              <p className="mb-3 text-xs text-white/50">Only the seller can successfully cancel; others will be rejected on-chain.</p>
+              <GlassButton variant="secondary" onClick={() => run('Cancel Auction', () => buildCancelAuctionParams([auctionId]))}>
+                Cancel Auction
+              </GlassButton>
+            </GlassCard>
+          )}
+
           <GlassCard className="p-5">
             <h2 className="mb-3 text-lg font-medium text-white">
               1) {isDutch ? 'Dutch instant purchase bid' : isEnglish ? 'English ascending bid' : 'Place sealed bid'}
@@ -303,8 +328,6 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
                       if (mode === 'vickrey' && secondHighest > 0) {
                         return tokenType === 'usdcx'
                           ? buildClaimWinVickreyUsdcxParams([sellerAddress, itemHash, `${secondHighest}u128`])
-                          : tokenType === 'usad'
-                            ? buildClaimWinVickreyUsadParams([sellerAddress, itemHash, `${secondHighest}u128`])
                           : buildClaimWinVickreyAleoParams([sellerAddress, itemHash, `${secondHighest}u128`]);
                       }
                       return tokenType === 'usdcx'
@@ -335,6 +358,70 @@ export default function AuctionDetailPage({ params }: { params: Promise<{ id: st
               <p className="text-xs text-white/50">Wallet prompts for your `EscrowReceipt` record during claim transitions.</p>
             </div>
           </GlassCard>
+
+          {canDispute && (
+            <GlassCard className="p-5">
+              <h2 className="mb-3 text-lg font-medium text-white">Dispute Auction</h2>
+              <div className="grid gap-3">
+                <GlassInput
+                  placeholder="Reason hash (field)"
+                  value={disputeReasonHash}
+                  onChange={(e) => setDisputeReasonHash(e.target.value)}
+                />
+                <GlassInput
+                  type="number"
+                  placeholder="Bond amount (10% of highest bid)"
+                  value={disputeBondAmount}
+                  onChange={(e) => setDisputeBondAmount(e.target.value)}
+                />
+                <GlassButton
+                  onClick={() => {
+                    if (!disputeReasonHash.trim()) {
+                      showError('Missing reason hash', 'Enter a reason hash (field).');
+                      return;
+                    }
+                    const bond = Math.max(0, Math.floor(Number(disputeBondAmount || 0)));
+                    run('Dispute Auction', () => buildDisputeAuctionParams([auctionId, disputeReasonHash.trim(), `${bond}u128`]));
+                  }}
+                >
+                  Dispute Auction
+                </GlassButton>
+                <p className="text-xs text-white/50">Wallet prompts for a `credits.aleo/credits` record to pay the bond.</p>
+              </div>
+            </GlassCard>
+          )}
+
+          {canResolveDispute && (
+            <GlassCard className="p-5">
+              <h2 className="mb-3 text-lg font-medium text-white">Resolve Dispute (Admin)</h2>
+              <div className="grid gap-3">
+                <label className="flex items-center gap-2 text-sm text-white/70">
+                  <input
+                    type="checkbox"
+                    checked={resolveUpheld}
+                    onChange={(e) => setResolveUpheld(e.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  Uphold dispute
+                </label>
+                <GlassButton
+                  onClick={() => run('Resolve Dispute', () => buildResolveDisputeParams([auctionId, resolveUpheld ? 'true' : 'false']))}
+                >
+                  Resolve Dispute
+                </GlassButton>
+              </div>
+            </GlassCard>
+          )}
+
+          {canProveWon && (
+            <GlassCard className="p-5">
+              <h2 className="mb-3 text-lg font-medium text-white">Prove You Won</h2>
+              <p className="mb-3 text-xs text-white/50">Your wallet will present your `WinnerCertificate` record. This proves you won without revealing the bid amount.</p>
+              <GlassButton onClick={() => run('Prove You Won', () => buildProveWonAuctionParams([auctionId]))}>
+                Prove You Won
+              </GlassButton>
+            </GlassCard>
+          )}
         </div>
       </div>
     </div>

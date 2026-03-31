@@ -207,6 +207,7 @@ program verilpayu_auction_v5.aleo {
     // DisputeData: records who disputed an auction and their bond.
     struct DisputeData {
         disputer_hash: field,
+        disputer_address: address,
         bond_amount: u128,
         reason_hash: field,
         filed_at: u64,
@@ -2254,13 +2255,14 @@ program verilpayu_auction_v5.aleo {
     async transition dispute_auction(
         private auction_id: field,
         private bond_credits: credits.aleo/credits,
-        private bond_amount: u128,
-        private reason_hash: field
+        private reason_hash: field,
+        private bond_amount: u128
     ) -> (DisputeBond, credits.aleo/credits, Future) {
         assert(bond_amount >= MIN_BID_AMOUNT);
 
         let disputer_field: field = self.caller as field;
         let disputer_hash: field = BHP256::hash_to_field(disputer_field);
+        let disputer_address: address = self.caller;
 
         let bond_u64: u64 = bond_amount as u64;
         let (change, transfer_future): (credits.aleo/credits, Future) =
@@ -2277,7 +2279,7 @@ program verilpayu_auction_v5.aleo {
         };
 
         return (bond_record, change, finalize_dispute_auction(
-            transfer_future, auction_id, disputer_hash, bond_amount, reason_hash
+            transfer_future, auction_id, disputer_hash, disputer_address, reason_hash, bond_amount
         ));
     }
 
@@ -2285,8 +2287,9 @@ program verilpayu_auction_v5.aleo {
         f0: Future,
         auction_id: field,
         disputer_hash: field,
-        bond_amount: u128,
-        reason_hash: field
+        disputer_address: address,
+        reason_hash: field,
+        bond_amount: u128
     ) {
         f0.await();
 
@@ -2306,6 +2309,7 @@ program verilpayu_auction_v5.aleo {
 
         disputes.set(auction_id, DisputeData {
             disputer_hash: disputer_hash,
+            disputer_address: disputer_address,
             bond_amount: bond_amount,
             reason_hash: reason_hash,
             filed_at: current_height,
@@ -2338,20 +2342,17 @@ program verilpayu_auction_v5.aleo {
 
     async transition resolve_dispute(
         private auction_id: field,
-        private dispute_valid: bool,
-        private disputer_address: address,
-        private bond_amount: u128
+        private upheld: bool
     ) -> (credits.aleo/credits, Future) {
         let admin_field: field = self.caller as field;
         let admin_hash: field = BHP256::hash_to_field(admin_field);
 
-        let disputer_field: field = disputer_address as field;
-        let disputer_hash: field = BHP256::hash_to_field(disputer_field);
-
+        let dispute: DisputeData = disputes.get(auction_id);
+        let bond_amount: u128 = dispute_bonds.get(auction_id);
         let bond_u64: u64 = bond_amount as u64;
 
-        let target: address = dispute_valid ? disputer_address : self.caller;
-        let payout: u64 = dispute_valid ? bond_u64 : 1u64;
+        let target: address = upheld ? dispute.disputer_address : self.caller;
+        let payout: u64 = upheld ? bond_u64 : 1u64;
 
         let (credits_out, transfer_future): (credits.aleo/credits, Future) =
             credits.aleo/transfer_public_to_private(
@@ -2360,8 +2361,7 @@ program verilpayu_auction_v5.aleo {
             );
 
         return (credits_out, finalize_resolve_dispute(
-            transfer_future, auction_id, admin_hash,
-            disputer_hash, dispute_valid, bond_amount
+            transfer_future, auction_id, admin_hash, upheld
         ));
     }
 
@@ -2369,9 +2369,7 @@ program verilpayu_auction_v5.aleo {
         f0: Future,
         auction_id: field,
         admin_hash: field,
-        disputer_hash: field,
-        dispute_valid: bool,
-        claimed_bond: u128
+        upheld: bool
     ) {
         f0.await();
 
@@ -2382,12 +2380,10 @@ program verilpayu_auction_v5.aleo {
         assert_eq(auction.status, STATUS_DISPUTED);
 
         let dispute: DisputeData = disputes.get(auction_id);
-        assert_eq(disputer_hash, dispute.disputer_hash);
-
         let actual_bond: u128 = dispute_bonds.get(auction_id);
-        assert_eq(claimed_bond, actual_bond);
+        assert_eq(dispute.bond_amount, actual_bond);
 
-        if (dispute_valid) {
+        if (upheld) {
             auctions.set(auction_id, AuctionData {
                 item_hash: auction.item_hash,
                 seller_hash: auction.seller_hash,

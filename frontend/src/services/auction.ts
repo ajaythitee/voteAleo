@@ -50,17 +50,6 @@ export const auctionService = {
     }
   },
 
-  async getAuctionOwner(auctionIdKey: string): Promise<string | null> {
-    try {
-      const res = await fetch(`/api/auctions/${encodeURIComponent(auctionIdKey)}`, { cache: 'no-store' });
-      if (!res.ok) return null;
-      const payload = (await res.json()) as { item?: { creatorAddress?: string } };
-      return payload.item?.creatorAddress ?? null;
-    } catch {
-      return null;
-    }
-  },
-
   async getBidCount(auctionIdKey: string): Promise<number> {
     try {
       const auction = await this.getPublicAuction(auctionIdKey);
@@ -110,6 +99,56 @@ export const auctionService = {
       const res = await fetch(rpcUrl(`settlements/${encodeURIComponent(auctionIdKey)}`));
       if (!res.ok) return null;
       return (await res.text()).trim() || null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getAuctionEscrow(auctionIdKey: string): Promise<number> {
+    try {
+      const res = await fetch(rpcUrl(`auction_escrow/${encodeURIComponent(auctionIdKey)}`));
+      if (!res.ok) return 0;
+      return parseNumberish(await res.text());
+    } catch {
+      return 0;
+    }
+  },
+
+  async getPlatformTreasury(tokenIndex: number): Promise<number> {
+    try {
+      const res = await fetch(rpcUrl(`platform_treasury/${tokenIndex}u8`));
+      if (!res.ok) return 0;
+      return parseNumberish(await res.text());
+    } catch {
+      return 0;
+    }
+  },
+
+  async getDisputeData(auctionIdKey: string): Promise<unknown> {
+    try {
+      const res = await fetch(rpcUrl(`disputes/${encodeURIComponent(auctionIdKey)}`));
+      if (!res.ok) return null;
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        return text.trim();
+      }
+    } catch {
+      return null;
+    }
+  },
+
+  async getDutchParams(auctionIdKey: string): Promise<unknown> {
+    try {
+      const res = await fetch(rpcUrl(`dutch_params/${encodeURIComponent(auctionIdKey)}`));
+      if (!res.ok) return null;
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        return text.trim();
+      }
     } catch {
       return null;
     }
